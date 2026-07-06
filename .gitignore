@@ -1,0 +1,17 @@
+# 런타임/민감 데이터 — 절대 커밋 금지 (Google 시트/Drive/Script Properties 에 보관)
+data.json
+access.log
+users.json
+pa-live*.json
+sheet-export/pa-live.json
+uploads/
+node_modules/
+
+# 폐기된 Render/Node 백엔드 (Apps Script 로 이전) — 시크릿 포함, 공개 금지
+server.js
+node/
+*.bat
+
+# 로컬/편집기
+.claude/
+*.log
