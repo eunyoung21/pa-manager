@@ -2079,15 +2079,44 @@ function PasteImportModal({kind,onConfirm,onCancel}){
   const parsed=useMemo(()=>{
     const grid=parseTable(text).filter(r=>r.some(c=>String(c||'').trim()));
     if(!grid.length) return {rows:[],hasHeader:false};
-    const head=grid[0].map(x=>String(x||''));
-    const map={};fields.forEach(f=>map[f.key]=pasteFindCol(head,f.hints));
-    const hasHeader=fields.some(f=>map[f.key]>=0);
+    // 머리글 행 탐색: 시트 맨 위 제목/빈 행을 건너뛰고, 앞쪽 6줄 중 필드 힌트가 하나라도 걸리는 첫 행을 헤더로.
+    let hIdx=-1;
+    for(let i=0;i<Math.min(grid.length,6);i++){
+      if(fields.some(f=>pasteFindCol(grid[i].map(x=>String(x||'')),f.hints)>=0)){hIdx=i;break;}
+    }
+    const hasHeader=hIdx>=0;
+    const head=hasHeader?grid[hIdx].map(x=>String(x||'')):[];
+    const map={};fields.forEach(f=>map[f.key]=hasHeader?pasteFindCol(head,f.hints):-1);
+    const dataRows=hasHeader?grid.slice(hIdx+1):grid;
     const req=fields.find(f=>f.required);
-    const dataRows=hasHeader?grid.slice(1):grid;
+    const colOf=f=>map[f.key]>=0?map[f.key]:(hasHeader?-1:fields.indexOf(f));
+    // 필수 열(채널명/수령자명 등)을 못 잡았거나 값이 비면 자동 감지 — URL·숫자·날짜가 아닌 텍스트 열을 고름.
+    if(req){
+      const ri=colOf(req);
+      const test=dataRows.slice(0,20);
+      const empty=ri<0||test.every(row=>!String(row[ri]||'').trim());
+      if(empty){
+        const claimed=new Set(fields.filter(f=>f!==req).map(f=>map[f.key]).filter(i=>i>=0));
+        const cols=grid.reduce((m,r)=>Math.max(m,r.length),0);
+        let best=-1,bestScore=-1;
+        for(let c=0;c<cols;c++){
+          if(claimed.has(c))continue;
+          let sc=0;
+          for(const row of test){const v=String(row[c]||'').trim();if(!v)continue;
+            if(/^https?:\/\//i.test(v)||/\b[\w-]+\.(com|net|co|kr|io|me|tv)\b/i.test(v))continue;
+            if(/^[\d,.\s]+$/.test(v))continue;
+            if(parseDateKey(v))continue;
+            sc++;}
+          if(sc>bestScore){bestScore=sc;best=c;}
+        }
+        if(best>=0) map[req.key]=best;
+      }
+    }
+    const finalCol=f=>map[f.key]>=0?map[f.key]:(hasHeader?-1:fields.indexOf(f));
     const rows=dataRows.map(cells=>{
       const o={};
-      fields.forEach((f,idx)=>{
-        const i=hasHeader?map[f.key]:idx;
+      fields.forEach(f=>{
+        const i=finalCol(f);
         let v=(i>=0&&i!=null)?String(cells[i]||'').trim():'';
         if(f.date) v=normDate(v); else if(f.pa) v=sanitizePA(v); else if(f.review) v=reviewStatus(v);
         o[f.key]=v;
@@ -2709,11 +2738,11 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
           <th style={{width:80}}>비고</th>
           <th style={{width:80}}>처리 상태</th>
           <th style={{width:85}}>출고일자</th>
-          <th style={{width:100,textAlign:'center'}}>라이브</th>
           <th style={{minWidth:110}}>송장번호</th>
+          <th style={{width:100,textAlign:'center'}}>라이브</th>
         </tr>
         {showColF&&<tr className="colf-row">
-          {[null,'requestDate','requester','channelName','recipient','phone','address','product','notes','status','shipDate','live','tracking'].map((f,i)=>(
+          {[null,'requestDate','requester','channelName','recipient','phone','address','product','notes','status','shipDate','tracking','live'].map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터" title="이 열에서 포함검색"/>}</th>
           ))}
         </tr>}
@@ -2734,6 +2763,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
             <td data-label="비고"><Cell value={r.notes} onChange={v=>up(r.id,'notes',v)}/></td>
             <td data-label="처리 상태"><Cell value={r.status} onChange={v=>up(r.id,'status',v)} type="select" options={['처리중','✅ 완료']}/></td>
             <td data-label="출고일자"><Cell value={r.shipDate||''} onChange={v=>up(r.id,'shipDate',v)} type="date" style={{width:80}} placeholder="출고일"/></td>
+            <td data-label="송장번호"><Cell value={r.tracking} onChange={v=>up(r.id,'tracking',v)} placeholder="송장번호 입력"/></td>
             <td data-label="라이브" style={{textAlign:'center'}}>
               {(()=>{const ch=r.channelName||chanOf(r.recipient);const lv=liveOf(ch,r.recipient);
                 if(lv)return <span style={{fontSize:10,color:'var(--green)',fontWeight:700,whiteSpace:'nowrap'}}>🔴 라이브{lv.liveDate?' '+lv.liveDate:''}</span>;
@@ -2741,7 +2771,6 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
                 return <span style={{fontSize:10,color:'var(--dim)',whiteSpace:'nowrap'}}>{exp?'⏳ 예상 '+exp:'⏳ 영상 대기'}</span>;
               })()}
             </td>
-            <td data-label="송장번호"><Cell value={r.tracking} onChange={v=>up(r.id,'tracking',v)} placeholder="송장번호 입력"/></td>
           </tr>)}
           <tr className="add-row"><td colSpan={13} style={{padding:'8px 0'}}>
             <button className="btn-add" onClick={onAdd}>+ 출고 추가</button>
@@ -2984,14 +3013,14 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
           <th style={{width:90}}>본명</th>
           <th style={{width:75}}>담당 PA</th>
           <th style={{minWidth:120,whiteSpace:'nowrap'}}>PA 코드</th>
-          <th style={{width:120}}>정산</th>
-          <th style={{width:80}}>개인정보</th>
           <th style={{minWidth:130}}>게시 링크</th>
           <th style={{width:96}}>라이브</th>
           <th style={{width:96}}>계약서</th>
+          <th style={{width:120}}>정산</th>
+          <th style={{width:80}}>개인정보</th>
         </tr>
         {showColF&&<tr className="colf-row">
-          {[null,'date','channelName','realName','pa','paCode',null,null,'postLink','live','contractDone'].map((f,i)=>(
+          {[null,'date','channelName','realName','pa','paCode','postLink','live','contractDone',null,null].map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
           ))}
         </tr>}
@@ -3008,6 +3037,36 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                 <td><Cell value={r.realName||''} onChange={v=>up(r.id,'realName',v)} placeholder={nameOf(r.channelName)||'본명'}/></td>
                 <td><Cell value={r.pa||''} onChange={v=>up(r.id,'pa',v)} type="select" options={PA_LIST}/></td>
                 <td><Cell value={r.paCode} onChange={v=>up(r.id,'paCode',v)} placeholder="코드" style={{whiteSpace:'nowrap'}}/></td>
+                <td data-label="게시 링크">
+                  {r.postLink
+                    ?<span style={{display:'flex',alignItems:'center',gap:6}}>
+                        <a href={r.postLink} target="_blank" rel="noopener" style={{color:'var(--blue)',fontSize:12}}>↗ 보기</a>
+                        <span style={{cursor:'pointer',color:'var(--dim)',fontSize:10}} onClick={()=>up(r.id,'postLink','')}>×</span>
+                      </span>
+                    :<Cell value={r.postLink} onChange={v=>up(r.id,'postLink',v)} placeholder="https://..."/>}
+                </td>
+                <td data-label="라이브">
+                  {/* 영상 라이브(업로드) 체크 — 켜면 그날 날짜 자동 기록 */}
+                  {(()=>{const isLive=r.live==='Y';return (
+                    <button onClick={()=>onUpdate(r.id,{live:isLive?'N':'Y',liveDate:(!isLive&&!r.liveDate)?today():r.liveDate})}
+                      title={isLive?(r.liveDate?'라이브 '+r.liveDate:'라이브됨')+' — 클릭하면 해제':'클릭하면 라이브로 표시'}
+                      style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:1,padding:'2px 9px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:700,border:'1px solid '+(isLive?'#22c55e':'var(--border)'),background:isLive?'#dcfce7':'var(--surface2)',color:isLive?'#15803d':'var(--dim)'}}>
+                      <span>{isLive?'🔴 LIVE':'○ 미게시'}</span>
+                      {isLive&&r.liveDate&&<span style={{fontSize:9,fontWeight:500,color:'var(--green)',opacity:.85}}>{r.liveDate}</span>}
+                    </button>
+                  );})()}
+                </td>
+                <td data-label="계약서">
+                  {/* 계약서 작성여부 — 라이브 버튼처럼 토글. 켜면 작성일 자동 기록 */}
+                  {(()=>{const done=r.contractDone==='Y';return (
+                    <button onClick={()=>onUpdate(r.id,{contractDone:done?'N':'Y',contractDate:(!done&&!r.contractDate)?today():r.contractDate})}
+                      title={done?(r.contractDate?'계약서 작성 '+r.contractDate:'작성됨')+' — 클릭하면 해제':'클릭하면 계약서 작성완료로 표시'}
+                      style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:1,padding:'2px 9px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:700,border:'1px solid '+(done?'var(--accent)':'var(--border)'),background:done?'var(--accent-soft)':'var(--surface2)',color:done?'var(--accent)':'var(--dim)'}}>
+                      <span>{done?'📄 작성완료':'○ 미작성'}</span>
+                      {done&&r.contractDate&&<span style={{fontSize:9,fontWeight:500,color:'var(--accent)',opacity:.85}}>{r.contractDate}</span>}
+                    </button>
+                  );})()}
+                </td>
                 <td data-label="정산" style={{textAlign:'center'}}>
                   {/* 정산 상태 + 관리자 정산완료 버튼(따로). 개인정보 폐기 후엔 폐기완료로 표시. */}
                   {ss==='purged'
@@ -3028,36 +3087,6 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                     : ss==='purged'
                       ? <span title="개인정보 폐기됨 — 볼 수 없음" style={{fontSize:10,color:'var(--dim)'}}>🗑️ 폐기됨</span>
                       : <button onClick={()=>setPvRow(r)} title="이 사람 개인정보 보기/입력 (관리자 전용)" style={{fontSize:10,padding:'3px 8px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface2)',color:'var(--text)',cursor:'pointer',whiteSpace:'nowrap'}}>🔒 개인정보</button>}
-                </td>
-                <td>
-                  {r.postLink
-                    ?<span style={{display:'flex',alignItems:'center',gap:6}}>
-                        <a href={r.postLink} target="_blank" rel="noopener" style={{color:'var(--blue)',fontSize:12}}>↗ 보기</a>
-                        <span style={{cursor:'pointer',color:'var(--dim)',fontSize:10}} onClick={()=>up(r.id,'postLink','')}>×</span>
-                      </span>
-                    :<Cell value={r.postLink} onChange={v=>up(r.id,'postLink',v)} placeholder="https://..."/>}
-                </td>
-                <td>
-                  {/* 영상 라이브(업로드) 체크 — 켜면 그날 날짜 자동 기록 */}
-                  {(()=>{const isLive=r.live==='Y';return (
-                    <button onClick={()=>onUpdate(r.id,{live:isLive?'N':'Y',liveDate:(!isLive&&!r.liveDate)?today():r.liveDate})}
-                      title={isLive?(r.liveDate?'라이브 '+r.liveDate:'라이브됨')+' — 클릭하면 해제':'클릭하면 라이브로 표시'}
-                      style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:1,padding:'2px 9px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:700,border:'1px solid '+(isLive?'#22c55e':'var(--border)'),background:isLive?'#dcfce7':'var(--surface2)',color:isLive?'#15803d':'var(--dim)'}}>
-                      <span>{isLive?'🔴 LIVE':'○ 미게시'}</span>
-                      {isLive&&r.liveDate&&<span style={{fontSize:9,fontWeight:500,color:'var(--green)',opacity:.85}}>{r.liveDate}</span>}
-                    </button>
-                  );})()}
-                </td>
-                <td>
-                  {/* 계약서 작성여부 — 라이브 버튼처럼 토글. 켜면 작성일 자동 기록 */}
-                  {(()=>{const done=r.contractDone==='Y';return (
-                    <button onClick={()=>onUpdate(r.id,{contractDone:done?'N':'Y',contractDate:(!done&&!r.contractDate)?today():r.contractDate})}
-                      title={done?(r.contractDate?'계약서 작성 '+r.contractDate:'작성됨')+' — 클릭하면 해제':'클릭하면 계약서 작성완료로 표시'}
-                      style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:1,padding:'2px 9px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:700,border:'1px solid '+(done?'var(--accent)':'var(--border)'),background:done?'var(--accent-soft)':'var(--surface2)',color:done?'var(--accent)':'var(--dim)'}}>
-                      <span>{done?'📄 작성완료':'○ 미작성'}</span>
-                      {done&&r.contractDate&&<span style={{fontSize:9,fontWeight:500,color:'var(--accent)',opacity:.85}}>{r.contractDate}</span>}
-                    </button>
-                  );})()}
                 </td>
               </tr>
             </React.Fragment>;
