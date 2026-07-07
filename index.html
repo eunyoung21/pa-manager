@@ -3386,7 +3386,8 @@ function SettleTable({byPA,bs,togglePaid,readOnly}){
 function SettleView({ brand, settlements, setSettlements, staffPA }) {
   // staffPA: null=관리자(전체) / 문자열=해당 담당자 본인 것만(읽기전용). ''=계정에 담당자 미설정
   const isStaffView = staffPA!=null;
-  const allRows2=brand?.step2Rows||[];
+  // ★ 컨택현황(step2)뿐 아니라 Claude 발굴 탭(claudeStep2)의 DM·성사도 정산 대상 — 둘 다 합산.
+  const allRows2=[...(brand?.step2Rows||[]),...(brand?.claudeStep2Rows||[])];
   // 스태프는 본인 담당분만 집계 대상 — 아래 모든 계산이 자동으로 본인 것만 반영됨
   const allS2 = isStaffView ? allRows2.filter(r=>sanitizePA(r.pa)===staffPA) : allRows2;
   const settle=getSettleInfo();
@@ -3405,7 +3406,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
     const m={};
     allS2.filter(r=>r.name).forEach(r=>{
       const ym=payYM(r);
-      if(!ym||!inMonth(ym)) return;            // 결과 미정(진행중 등)은 보류 → 정산 집계 제외
+      // 특정 월: 그 달 실적만. 전체 누적: 날짜가 없어도 체크된 DM·성사는 모두 포함.
+      if(month!=='all' && (!ym||ym!==month)) return;
       const dm  =(r.dmSent==='Y')  ?2000 :0;
       const deal=(r.dealDone==='Y')?20000:0;
       const subtotal=dm+deal;
@@ -3422,10 +3424,17 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   const heldPeople=allS2.filter(r=>r.name && (r.dmSent==='Y'||r.dealDone==='Y') && !payYM(r)).length;
 
   // 정산 완료 기록은 월별로 분리 저장: settlements[brandId][month][pa]
-  const bs=(month==='all')?{}:((settlements[brand?.id]||{})[month]||{});
+  const brandS=settlements[brand?.id]||{};
+  // 특정 월이면 그 달 지급기록. 전체 누적이면 모든 달의 지급액을 PA별로 합산.
+  const bs=(month==='all')
+    ? Object.values(brandS).reduce((acc,mo)=>{Object.entries(mo||{}).forEach(([pa,v])=>{acc[pa]={paid:(acc[pa]?.paid||0)+(v?.paid||0)};});return acc;},{})
+    : (brandS[month]||{});
   const grandTotal=Object.values(byPA).reduce((s,p)=>s+p.total,0);
-  // 이번 달 집계에 실제로 존재하는 PA의 정산액만 합산(과거 잔여 기록 제외)
-  const paidTotal=Object.entries(byPA).reduce((s,[pa,d])=>{const c=bs[pa];return s+(((c?.paid||0)>=d.total&&d.total>0)?d.total:0);},0);
+  // 월별: 전액 지급 시만 완료로 합산. 전체 누적: 실제 지급액 합(각 PA 총액 상한).
+  const paidTotal=Object.entries(byPA).reduce((s,[pa,d])=>{
+    const paid=bs[pa]?.paid||0;
+    return s + (month==='all' ? Math.min(paid,d.total) : ((paid>=d.total&&d.total>0)?d.total:0));
+  },0);
 
   function togglePaid(pa,data){
     if(isStaffView)return;   // 스태프는 조회 전용 — 정산 완료 처리 불가
@@ -3547,7 +3556,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
     <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}}>
       {[
         {label:'총 지급 예정',val:grandTotal,color:'var(--yellow)',icon:'💰',net:true},
-        {label:'정산 완료',val:paidTotal,color:'var(--green)',icon:'✅'},
+        {label:'정산 완료(기지급)',val:paidTotal,color:'var(--green)',icon:'✅',net:true},
         {label:'미정산',val:grandTotal-paidTotal,color:(grandTotal-paidTotal)>0?'var(--red)':'var(--muted)',icon:'⏳',net:true},
       ].map(({label,val,color,icon,net})=>(
         <div key={label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 16px'}}>
