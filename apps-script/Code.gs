@@ -130,6 +130,8 @@ function readData() {
   if (!str) return { brands: [], settlements: {}, paList: [] };
   try { return JSON.parse(str); } catch (e) { throw new Error('데이터 파싱 실패: ' + e.message); }
 }
+// 손상되어 못 읽으면 null 반환(예외 대신) — 저장 시 정상 데이터로 덮어써 복구할 수 있게.
+function readDataSafe() { try { return readData(); } catch (e) { return null; } }
 function countRows(d) {
   var n = 0, keys = ['step1Rows', 'step2Rows', 'claudeStep1Rows', 'claudeStep2Rows', 'shippingRows', 'reviewRows', 'privacyRows'];
   var brands = (d && d.brands) || [];
@@ -148,11 +150,28 @@ function metaSet(m) {
 function writeData(obj, bumpMeta) {
   var str = JSON.stringify(obj);
   var sh = sheet(SHEET_APPDATA);
-  sh.clearContents();
+  // 청크 분할 — 이모지(서로게이트 페어)가 경계에서 잘리지 않게 조정.
   var rows = [];
-  for (var i = 0; i < str.length; i += CHUNK) rows.push([str.substr(i, CHUNK)]);
+  for (var i = 0; i < str.length; ) {
+    var end = Math.min(i + CHUNK, str.length);
+    if (end < str.length) {
+      var c = str.charCodeAt(end - 1);
+      if (c >= 0xD800 && c <= 0xDBFF) end--; // 마지막이 상위 서로게이트면 한 칸 물러남
+    }
+    rows.push([str.substring(i, end)]);
+    i = end;
+  }
   if (!rows.length) rows.push(['']);
+  sh.clearContents();
   sh.getRange(1, 1, rows.length, 1).setValues(rows);
+  SpreadsheetApp.flush(); // 쓰기 즉시 확정(부분쓰기·절단 방지)
+  // 검증: 방금 쓴 걸 다시 읽어 JSON 파싱되는지 확인. 실패면 rev 안 올리고 오류(클라가 재시도).
+  var back = '', v2 = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
+  for (var j = 0; j < v2.length; j++) back += v2[j][0];
+  try { JSON.parse(back); } catch (e) {
+    snapshot('write-verify-fail', { at: new Date().toISOString(), len: str.length }, { reason: 'write-verify-fail' });
+    throw new Error('저장 검증 실패(자동 재시도됩니다): ' + e.message);
+  }
   var m = metaGet();
   m.rev = (m.rev || 0) + 1;
   m.count = countRows(obj);
@@ -190,7 +209,12 @@ function trimBackups(prefix, keep) {
 /* ── 저장 안전장치 (server.js preSaveGuard 포팅) ───────────── */
 function preSaveGuard(incoming, force) {
   var C = countRows(incoming);
-  var cur = readData();
+  var cur = readDataSafe();
+  // ★ 현재 저장본이 손상돼 읽을 수 없으면 급감 비교 불가 → 들어온 정상 데이터로 덮어써 복구.
+  if (cur === null) {
+    snapshot('corrupt-recover', { at: new Date().toISOString(), newCount: C }, { reason: 'corrupt-recover' });
+    return { block: false };
+  }
   var curCount = countRows(cur);
   // ① 급감(40%+) → 직전본 스냅샷 후 저장 차단
   if (!force && curCount >= 50 && C < curCount * 0.6) {
