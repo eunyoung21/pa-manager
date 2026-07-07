@@ -3399,7 +3399,10 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   // 정산 대상 월 선택 — 기본값은 '이번에 지급하는 달'(익월 첫째 주 목요일 지급 기준의 전월)
   const monthOpts=useMemo(()=>{
     const s=new Set([settle.coverYM]);
-    allS2.forEach(r=>{const y=payYM(r);if(y)s.add(y);});
+    allS2.forEach(r=>{
+      if(r.dmSent==='Y'){const y=parseYM(r.dmDate)||parseYM(r.date);if(y)s.add(y);}
+      if(r.dealDone==='Y'){const y=parseYM(r.dealDate)||parseYM(r.date);if(y)s.add(y);}
+    });
     return Array.from(s).sort().reverse();
   },[allS2,settle.coverYM]);
   const [month,setMonth]=useState(settle.coverYM);
@@ -3408,11 +3411,12 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   const byPA=useMemo(()=>{
     const m={};
     allS2.filter(r=>r.name).forEach(r=>{
-      const ym=payYM(r);
-      // 특정 월: 그 달 실적만. 전체 누적: 날짜가 없어도 체크된 DM·성사는 모두 포함.
-      if(month!=='all' && (!ym||ym!==month)) return;
-      const dm  =(r.dmSent==='Y')  ?2000 :0;
-      const deal=(r.dealDone==='Y')?20000:0;
+      // ★ DM은 '발송한 달'(dmDate), 성사는 '업로드(성사)한 달'(dealDate)에 각각 따로 귀속.
+      //    한 사람이 6월 DM·7월 성사면 → 6월 DM 2천, 7월 성사 2만으로 분리 집계.
+      const dmYM=parseYM(r.dmDate)||parseYM(r.date);
+      const dealYM=parseYM(r.dealDate)||parseYM(r.date);
+      const dm  =(r.dmSent==='Y'  &&(month==='all'||dmYM===month))  ?2000 :0;
+      const deal=(r.dealDone==='Y'&&(month==='all'||dealYM===month))?20000:0;
       const subtotal=dm+deal;
       if(subtotal===0) return;
       const pa=sanitizePA(r.pa)||'미지정';
@@ -3424,7 +3428,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   },[allS2,month]);
 
   // 결과 미정으로 정산 보류된 인원(진행중 등인데 DM은 보낸 사람) — 빠진 게 아님을 안내
-  const heldPeople=allS2.filter(r=>r.name && (r.dmSent==='Y'||r.dealDone==='Y') && !payYM(r)).length;
+  const heldPeople=allS2.filter(r=>r.name && ((r.dmSent==='Y'&&!(parseYM(r.dmDate)||parseYM(r.date)))||(r.dealDone==='Y'&&!(parseYM(r.dealDate)||parseYM(r.date))))).length;
 
   // 정산 완료 기록은 월별로 분리 저장: settlements[brandId][month][pa]
   const brandS=settlements[brand?.id]||{};
@@ -3462,9 +3466,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   const pendingMonths=useMemo(()=>{
     const owed={};
     allS2.filter(r=>r.name).forEach(r=>{
-      const k=payYM(r); if(!k) return;
-      if(r.dmSent==='Y') owed[k]=(owed[k]||0)+2000;
-      if(r.dealDone==='Y') owed[k]=(owed[k]||0)+20000;
+      if(r.dmSent==='Y'){const k=parseYM(r.dmDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+2000;}
+      if(r.dealDone==='Y'){const k=parseYM(r.dealDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+20000;}
     });
     const brandS=settlements[brand?.id]||{};
     return Object.keys(owed).map(ym=>{
