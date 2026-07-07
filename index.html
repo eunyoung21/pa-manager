@@ -3386,10 +3386,13 @@ function SettleTable({byPA,bs,togglePaid,readOnly}){
 function SettleView({ brand, settlements, setSettlements, staffPA }) {
   // staffPA: null=관리자(전체) / 문자열=해당 담당자 본인 것만(읽기전용). ''=계정에 담당자 미설정
   const isStaffView = staffPA!=null;
-  // ★ 컨택현황(step2)뿐 아니라 Claude 발굴 탭(claudeStep2)의 DM·성사도 정산 대상 — 둘 다 합산.
-  const allRows2=[...(brand?.step2Rows||[]),...(brand?.claudeStep2Rows||[])];
-  // 스태프는 본인 담당분만 집계 대상 — 아래 모든 계산이 자동으로 본인 것만 반영됨
-  const allS2 = isStaffView ? allRows2.filter(r=>sanitizePA(r.pa)===staffPA) : allRows2;
+  // 정산 대상 = 컨택현황(step2)만. Claude 발굴 탭(claudeStep2)은 정산에서 제외.
+  const allRows2=brand?.step2Rows||[];
+  // 정산에서 제외할 담당자(관리자 등 — 수당 정산 대상 아님)
+  const SETTLE_EXCLUDE_PA=['이은영'];
+  // 스태프는 본인 담당분만. 공통으로 제외 담당자(이은영)는 집계에서 뺌.
+  const allS2 = (isStaffView ? allRows2.filter(r=>sanitizePA(r.pa)===staffPA) : allRows2)
+    .filter(r=>!SETTLE_EXCLUDE_PA.includes(sanitizePA(r.pa)));
   const settle=getSettleInfo();
   const isUrgent=settle.days<=3;
 
