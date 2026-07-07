@@ -3291,14 +3291,14 @@ function SettleTable({byPA,bs,togglePaid,readOnly}){
           // 협업 성사(수락)분은 위로, DM만(거절·미성사)분은 아래로 정렬해 한눈에 구분
           const detailRows=data.rows.filter(r=>r.subtotal>0).sort((a,b)=>(b.deal>0)-(a.deal>0));
           const dealCnt=data.rows.filter(r=>r.deal>0).length;       // 협업 성사 건수(=수락)
-          const dmOnlyCnt=data.rows.filter(r=>r.dm>0&&r.deal===0).length; // DM만(=미성사/거절)
+          const dmCnt=data.rows.filter(r=>r.dm>0).length;           // DM 발송 총건수(성사 포함)
           return <React.Fragment key={pa}>
             <tr style={{borderBottom:isExp?'none':isLast?'none':'1px solid var(--border)',background:paid?'#f0fdf4':'transparent',borderLeft:`3px solid ${paid?'var(--green)':'transparent'}`,transition:'background .1s'}}>
               <td style={{padding:'11px 14px'}}>
                 <span className="pa-badge" style={{...paColor(pa),fontSize:12,padding:'3px 10px',opacity:paid?.6:1}}>{pa}</span>
                 <div style={{display:'flex',gap:5,marginTop:5,flexWrap:'wrap'}}>
+                  {dmCnt>0&&<span style={{fontSize:10,color:'#1d4ed8',background:'#dbeafe',borderRadius:4,padding:'1px 6px',fontWeight:600}}>💬 DM {dmCnt}</span>}
                   {dealCnt>0&&<span style={{fontSize:10,color:'#7c3aed',background:'#f3e8ff',borderRadius:4,padding:'1px 6px',fontWeight:600}}>🤝 협업 {dealCnt}</span>}
-                  {dmOnlyCnt>0&&<span style={{fontSize:10,color:'#1d4ed8',background:'#dbeafe',borderRadius:4,padding:'1px 6px',fontWeight:600}}>💬 DM만 {dmOnlyCnt}</span>}
                 </div>
               </td>
               <td style={{padding:'11px 14px',textAlign:'right',fontSize:12,color:'var(--blue)',fontWeight:600}}>
