@@ -3895,6 +3895,7 @@ function AppMain({ authInfo, onLogout }) {
   const saveSeqRef   = useRef(0);      // 편집 시퀀스 — 저장 도중 새 편집이 끼면 옛 저장 성공으로 dirty를 끄지 않도록
   const saveErrRef   = useRef('');     // 마지막 저장 실패 사유(사용자에게 표시 — 원인 진단용)
   const retryRef     = useRef(0);      // 저장 실패 재시도 횟수(지수 백오프로 백엔드 과부하 방지)
+  const blockedRef   = useRef(false);  // 안전장치 차단 상태 — 같은 데이터 재시도 무의미하므로 자동재시도 중단
   const undoRef      = useRef(null);   // Ctrl+Z 스냅샷
   const immediateRef = useRef(false);  // import 후 즉시 서버 저장 플래그
   const brandsRef    = useRef(brands); // doImport에서 최신 brands 참조용
@@ -4013,15 +4014,18 @@ function AppMain({ authInfo, onLogout }) {
   // 서버 저장 1회 — 상태 표시기(저장 중/저장됨/실패)를 함께 갱신. 실패 시 '재시도'에서도 재사용.
   const postData = React.useCallback((s,seq)=>{
     setSaveState('saving');
+    blockedRef.current=false;
     return callApi('save',{data:s})
       .then(j=>{
-        // 서버 안전장치(급감 차단): 이 화면이 오래된 데이터 → 최신본으로 새로고침해 정정
+        console.log('[save] 응답', j);
+        // 서버 안전장치(급감 차단): 이 화면 데이터가 서버보다 크게 적을 때. 자동 새로고침하면
+        // 오히려 편집분이 날아갈 수 있어 새로고침하지 않고, 원인(행수)을 명확히 보여준다.
         if(j && j.blocked){
+          saveErrRef.current='안전장치 차단: 서버 '+(j.prevCount)+'행 vs 이 화면 '+(j.newCount)+'행';
+          blockedRef.current=true;
           setSaveState('error');
-          setMsg('⚠️ 이 화면이 오래된 데이터예요. 최신 데이터를 다시 불러옵니다…');
-          dirtyRef.current=false; // 낡은 로컬본을 더 저장하지 않도록
-          setTimeout(()=>window.location.reload(),2500);
-          return;
+          setMsg('🛡️ 저장 차단(안전장치): 이 화면('+j.newCount+'행)이 서버('+j.prevCount+'행)보다 크게 적어 데이터를 지키려 저장을 막았어요. 데이터는 그대로 있어요 — 새로고침(F5) 후 다시 시도하세요.');
+          return; // 재시도·리로드 안 함(데이터 보존). 사용자가 판단해 새로고침
         }
         if(!j || !j.ok){ saveErrRef.current=(j&&j.error)||'알 수 없는 오류'; throw new Error(saveErrRef.current); }
         if(j.rev!=null) _lastRev=j.rev; // 내 저장으로 rev 동기화 → 폴링이 불필요한 재조회 안 함
@@ -4032,14 +4036,14 @@ function AppMain({ authInfo, onLogout }) {
         clearTimeout(savedClearRef.current);
         savedClearRef.current=setTimeout(()=>setSaveState('idle'),2000);
       })
-      .catch(e=>{ if(!saveErrRef.current) saveErrRef.current=String(e&&e.message||e); setSaveState('error'); }); // 실패를 사용자에게 알림(dirty 유지 → 데이터 보존)
+      .catch(e=>{ saveErrRef.current=String(e&&e.message||e); console.error('[save] 실패', e); setMsg('❌ 저장 실패: '+saveErrRef.current); setSaveState('error'); }); // 실패 사유를 화면에 표시(dirty 유지 → 데이터 보존)
   },[]);
 
   // 저장 실패 자동 재시도 — 지수 백오프(5→10→20→40→최대 60초). 성공할 때까지 반복하되
   // 실패가 계속돼도 백엔드를 과하게 때리지 않아(구글 앱스스크립트 일일 할당량 보호) 회복 여지를 줌.
   // 로컬(localStorage)엔 매 편집마다 저장돼 있어 재시도 중에도 데이터는 안전.
   useEffect(()=>{
-    if(saveState!=='error') return;
+    if(saveState!=='error'||blockedRef.current) return; // 안전장치 차단은 자동재시도 안 함(F5 후 재시도)
     const n=retryRef.current++;
     const delay=Math.min(60000, 5000*Math.pow(2,Math.min(n,4)));
     const t=setTimeout(()=>{
