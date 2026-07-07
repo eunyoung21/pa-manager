@@ -2037,64 +2037,96 @@ function AddStep1Modal({ onConfirm, onCancel }) {
   </div>;
 }
 
-/* ─── 붙여넣기로 리스트업 추가 (구글시트 복사 → 붙여넣기) ─── */
-const PASTE_HINTS={name:['채널명','채널','이름','계정','인스타','아이디','name','id'],link:['링크','url','주소','link'],followers:['팔로워','follower','팔로'],persona:['페르소나','카테고리','분류','특징','persona'],pa:['담당','작업자','pa'],review:['검수','상태','승인','status'],date:['날짜','등록일','일자','작성','date'],memo:['메모','비고','노트','피드','가설','특이','memo','note']};
+/* ─── 붙여넣기로 추가 (구글시트 복사 → 붙여넣기) — 리스트업·출고·영상검수 공용 ─── */
 function pasteFindCol(hdr,hints){for(const h of hints){const i=hdr.findIndex(x=>String(x||'').toLowerCase().replace(/\s/g,'').includes(h.toLowerCase()));if(i>=0)return i;}return -1;}
-function PasteImportModal({onConfirm,onCancel}){
+// 탭별 열 구성 — 순서=제목행 없을 때의 위치 매핑. date/pa/review 플래그로 값 정규화.
+const PASTE_FIELDS={
+  step1:{title:'리스트업',unit:'명',fields:[
+    {key:'date',label:'등록일',hints:['날짜','등록일','일자','작성','date'],date:true},
+    {key:'name',label:'채널명',hints:['채널명','채널','이름','계정','인스타','아이디','name','id'],required:true,nowrap:true},
+    {key:'link',label:'링크',hints:['링크','url','주소','link'],link:true},
+    {key:'followers',label:'팔로워',hints:['팔로워','follower','팔로']},
+    {key:'pa',label:'담당PA',hints:['담당','작업자','pa'],pa:true},
+    {key:'persona',label:'페르소나',hints:['페르소나','카테고리','분류','특징','persona']},
+    {key:'reviewStatus',label:'검수',hints:['검수','상태','승인','status'],review:true},
+    {key:'memo',label:'메모',hints:['메모','비고','노트','피드','가설','특이','memo','note']},
+  ]},
+  ship:{title:'출고',unit:'건',fields:[
+    {key:'requestDate',label:'출고요청일',hints:['출고요청','요청일','날짜','일자','date'],date:true},
+    {key:'requester',label:'요청자',hints:['요청자','담당','작업자','pa'],pa:true},
+    {key:'channelName',label:'채널명',hints:['채널명','채널','계정']},
+    {key:'recipient',label:'수령자명',hints:['수령자','받는','성명','이름','name'],required:true,nowrap:true},
+    {key:'phone',label:'연락처',hints:['연락처','전화','휴대','폰','phone','tel','번호']},
+    {key:'address',label:'배송지 주소',hints:['배송지','주소','address','addr']},
+    {key:'notes',label:'비고',hints:['비고','메모','노트','note']},
+    {key:'status',label:'처리상태',hints:['처리','상태','status']},
+    {key:'shipDate',label:'출고일자',hints:['출고일','발송일','shipdate'],date:true},
+    {key:'tracking',label:'송장번호',hints:['송장','운송장','tracking','invoice']},
+  ]},
+  review:{title:'영상검수',unit:'건',fields:[
+    {key:'date',label:'날짜',hints:['날짜','등록일','일자','date'],date:true},
+    {key:'channelName',label:'채널명',hints:['채널명','채널','계정','name'],required:true,nowrap:true},
+    {key:'realName',label:'본명',hints:['본명','실명','성명','이름']},
+    {key:'pa',label:'담당PA',hints:['담당','작업자','pa'],pa:true},
+    {key:'paCode',label:'PA코드',hints:['pa코드','코드','code']},
+    {key:'postLink',label:'게시링크',hints:['게시','링크','url','post'],link:true},
+  ]},
+};
+function PasteImportModal({kind,onConfirm,onCancel}){
+  const cfg=PASTE_FIELDS[kind]||PASTE_FIELDS.step1;
+  const fields=cfg.fields;
   const [text,setText]=useState('');
   const parsed=useMemo(()=>{
     const grid=parseTable(text).filter(r=>r.some(c=>String(c||'').trim()));
     if(!grid.length) return {rows:[],hasHeader:false};
     const head=grid[0].map(x=>String(x||''));
-    const map={};Object.keys(PASTE_HINTS).forEach(f=>map[f]=pasteFindCol(head,PASTE_HINTS[f]));
-    const hasHeader=['name','link','followers','persona','pa','review','date','memo'].some(f=>map[f]>=0);
-    // 제목행 없으면 순서대로: 등록일·채널명·링크·팔로워·담당PA·페르소나·검수·메모
-    const POS={date:0,name:1,link:2,followers:3,pa:4,persona:5,review:6,memo:7};
-    const fmap=hasHeader?map:POS;
+    const map={};fields.forEach(f=>map[f.key]=pasteFindCol(head,f.hints));
+    const hasHeader=fields.some(f=>map[f.key]>=0);
+    const req=fields.find(f=>f.required);
     const dataRows=hasHeader?grid.slice(1):grid;
     const rows=dataRows.map(cells=>{
-      const g=f=>{const i=fmap[f];return (i>=0&&i!=null)?String(cells[i]||'').trim():'';};
-      const name=g('name'); if(!name) return null;
-      const rs=reviewStatus(g('review'));
-      return {date:normDate(g('date')),name,link:g('link'),followers:g('followers'),persona:g('persona'),memo:g('memo'),pa:sanitizePA(g('pa')),reviewStatus:rs};
+      const o={};
+      fields.forEach((f,idx)=>{
+        const i=hasHeader?map[f.key]:idx;
+        let v=(i>=0&&i!=null)?String(cells[i]||'').trim():'';
+        if(f.date) v=normDate(v); else if(f.pa) v=sanitizePA(v); else if(f.review) v=reviewStatus(v);
+        o[f.key]=v;
+      });
+      if(req && !String(o[req.key]||'').trim()) return null;
+      return o;
     }).filter(Boolean);
     return {rows,hasHeader};
-  },[text]);
+  },[text,kind]);
   const rows=parsed.rows;
+  const colHint=fields.map(f=>f.label).join('·');
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()}>
-    <div className="modal" style={{width:640,maxWidth:'calc(100vw - 24px)'}}>
-      <div className="modal-title">📋 붙여넣기로 리스트업 추가</div>
+    <div className="modal" style={{width:720,maxWidth:'calc(100vw - 24px)'}}>
+      <div className="modal-title">📋 붙여넣기로 {cfg.title} 추가</div>
       <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.6,marginBottom:8}}>
-        구글 시트에서 행을 복사(Ctrl+C)해 아래에 붙여넣기(Ctrl+V) 하세요. <b>제목행을 포함</b>하면 자동으로 열을 인식합니다
-        <span style={{color:'var(--dim)'}}> (채널명·링크·팔로워·페르소나·담당PA·검수·날짜·메모)</span>.
-        제목행이 없으면 순서대로 <b>등록일·채널명·링크·팔로워·담당PA·페르소나·검수·메모</b>로 넣습니다.
+        구글 시트에서 행을 복사(Ctrl+C)해 아래에 붙여넣기(Ctrl+V) 하세요. <b>제목행을 포함</b>하면 열을 자동 인식합니다.
+        제목행이 없으면 순서대로 <b>{colHint}</b> 로 넣습니다.
       </div>
       <textarea className="modal-ta" value={text} onChange={e=>setText(e.target.value)} autoFocus
-        placeholder={"여기에 붙여넣기 (Ctrl+V)\n예)\n채널명\t링크\t팔로워\t페르소나\n@momvue\thttps://instagram.com/momvue\t12,400\t육아맘"}
-        style={{minHeight:150,fontFamily:'monospace',fontSize:12,whiteSpace:'pre'}}/>
+        placeholder={"여기에 붙여넣기 (Ctrl+V)"}
+        style={{minHeight:140,fontFamily:'monospace',fontSize:12,whiteSpace:'pre'}}/>
       <div style={{fontSize:12,margin:'8px 0 4px',color:rows.length?'var(--green)':'var(--muted)',fontWeight:600}}>
-        {rows.length?`✅ ${rows.length}명 인식됨${parsed.hasHeader?' (제목행 자동인식)':' (순서 방식)'}`:'붙여넣으면 여기에 인식된 인원이 표시됩니다'}
+        {rows.length?`✅ ${rows.length}${cfg.unit} 인식됨${parsed.hasHeader?' (제목행 자동인식)':' (순서 방식)'}`:'붙여넣으면 여기에 인식된 항목이 표시됩니다'}
       </div>
-      {rows.length>0&&<div className="table-wrap" style={{maxHeight:220,overflow:'auto',border:'1px solid var(--border)',borderRadius:8}}>
+      {rows.length>0&&<div className="table-wrap" style={{maxHeight:230,overflow:'auto',border:'1px solid var(--border)',borderRadius:8}}>
         <table><thead><tr>
-          <th style={{width:80}}>등록일</th><th>채널명</th><th style={{width:40}}>링크</th><th style={{width:70}}>팔로워</th><th style={{width:70}}>담당PA</th><th>페르소나</th><th style={{width:70}}>검수</th><th>메모</th>
+          {fields.map(f=><th key={f.key} style={f.nowrap?{whiteSpace:'nowrap'}:undefined}>{f.label}</th>)}
         </tr></thead><tbody>
           {rows.slice(0,50).map((r,i)=><tr key={i}>
-            <td style={{fontSize:11,color:'var(--muted)'}}>{r.date||'—'}</td>
-            <td style={{fontWeight:500,whiteSpace:'nowrap'}}>{r.name}</td>
-            <td style={{textAlign:'center'}}>{r.link?<span title={r.link} style={{color:'var(--blue)'}}>↗</span>:'—'}</td>
-            <td style={{fontSize:11}}>{r.followers||'—'}</td>
-            <td style={{fontSize:11}}>{r.pa||'—'}</td>
-            <td style={{fontSize:11,color:'var(--muted)'}}>{r.persona||'—'}</td>
-            <td style={{fontSize:11}}>{reviewLabel(r.reviewStatus)}</td>
-            <td style={{fontSize:11,color:'var(--muted)',maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.memo||'—'}</td>
+            {fields.map(f=><td key={f.key} style={{fontSize:11,whiteSpace:'nowrap',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',color:f.required?'var(--text)':'var(--muted)',fontWeight:f.required?500:400}}>
+              {f.link?(r[f.key]?<span title={r[f.key]} style={{color:'var(--blue)'}}>↗ 링크</span>:'—'):(f.review?reviewLabel(r[f.key]):(r[f.key]||'—'))}
+            </td>)}
           </tr>)}
         </tbody></table>
-        {rows.length>50&&<div style={{fontSize:11,color:'var(--dim)',padding:'6px 10px'}}>… 외 {rows.length-50}명 (모두 추가됩니다)</div>}
+        {rows.length>50&&<div style={{fontSize:11,color:'var(--dim)',padding:'6px 10px'}}>… 외 {rows.length-50}{cfg.unit} (모두 추가됩니다)</div>}
       </div>}
       <div className="modal-foot">
         <button className="btn btn-ghost" onClick={onCancel}>취소</button>
-        <button className="btn btn-primary" disabled={!rows.length} onClick={()=>onConfirm(rows)}>{rows.length?`${rows.length}명 추가`:'추가'}</button>
+        <button className="btn btn-primary" disabled={!rows.length} onClick={()=>onConfirm(rows)}>{rows.length?`${rows.length}${cfg.unit} 추가`:'추가'}</button>
       </div>
     </div>
   </div>;
@@ -2594,7 +2626,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
 }
 
 /* ─── SHIPPING VIEW ─── */
-function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdate, onDelete, onAdd, filter, setFilter, search, setSearch }) {
+function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdate, onDelete, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [reqF,setReqF]=useState(''); // 요청자 필터('' = 전체)
@@ -2655,6 +2687,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
       </select>
       <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="엑셀처럼 열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})} title="모든 열 필터 지우기">✕ 필터 초기화</button>}
+      <button className="fchip" onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
       <div className="sep"/>
       <div className="search-wrap">
         <input className="srch" placeholder="요청자, 수령자, 상품명…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
@@ -2878,7 +2911,7 @@ function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, o
 }
 
 /* ─── REVIEW VIEW ─── */
-function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onAdd, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, isManager }) {
+function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onAdd, onPasteImport, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, isManager }) {
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [openId,setOpenId]=useState(null);
@@ -2938,6 +2971,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
       <span className="cnt">{shown.length}건</span>
       <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
+      <button className="fchip" onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
       <button className="btn btn-ghost" style={{fontSize:11}} onClick={copyAllCodes} disabled={!paCodes.length} title="현재 목록의 PA 코드를 줄바꿈으로 모두 복사">{copiedAll?'✅ 복사됨':`📋 PA코드 전체복사 (${paCodes.length})`}</button>
       {driveLink&&<a href={driveLink} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
     </div>
@@ -4332,6 +4366,21 @@ function AppMain({ authInfo, onLogout }) {
     if(!id)return;
     updateBrand(bId,b=>({...b,shippingRows:(b.shippingRows||[]).map(r=>r.id===id?{...r,...patch}:r)}));
   }
+  // 붙여넣기로 출고 여러 건 추가 — 수령자+연락처+주소가 같으면 건너뜀(중복 방지).
+  function addShipRowsBulk(newRows){
+    const b=brandsRef.current.find(x=>x.id===bId)||{};
+    const existing=b.shippingRows||[];
+    const key=r=>[normName(r.recipient),String(r.phone||'').replace(/\D/g,''),String(r.address||'').trim().toLowerCase()].join('|');
+    const seen=new Set(existing.map(key));
+    const toAdd=[];
+    for(const r of newRows){
+      if(!String(r.recipient||'').trim()) continue;
+      const k=key(r); if(seen.has(k)) continue; seen.add(k);
+      toAdd.push({id:makeId(),requestDate:r.requestDate||'',requester:r.requester||'',channelName:r.channelName||'',recipient:r.recipient,phone:r.phone||'',address:r.address||'',notes:r.notes||'',status:r.status||'처리중',shipDate:r.shipDate||'',tracking:r.tracking||''});
+    }
+    if(toAdd.length) updateBrand(bId,bb=>({...bb,shippingRows:[...(bb.shippingRows||[]),...toAdd]}));
+    return {added:toAdd.length,skipped:newRows.length-toAdd.length};
+  }
   function deleteShipRow(id){
     if(!id)return;
     updateBrand(bId,b=>({...b,shippingRows:(b.shippingRows||[]).filter(r=>r.id!==id)}));
@@ -4354,6 +4403,20 @@ function AppMain({ authInfo, onLogout }) {
   function updateReviewRow(id,patch){
     if(!id)return;
     updateBrand(bId,b=>({...b,reviewRows:(b.reviewRows||[]).map(r=>r.id===id?{...r,...patch}:r)}));
+  }
+  // 붙여넣기로 영상검수 여러 건 추가 — 채널명이 이미 있으면 건너뜀(중복 방지).
+  function addReviewRowsBulk(newRows){
+    const b=brandsRef.current.find(x=>x.id===bId)||{};
+    const existing=b.reviewRows||[];
+    const seen=new Set(existing.map(r=>normName(r.channelName)));
+    const toAdd=[];
+    for(const r of newRows){
+      const nn=normName(r.channelName); if(!nn) continue;
+      if(seen.has(nn)) continue; seen.add(nn);
+      toAdd.push({id:makeId(),date:r.date||'',channelName:r.channelName,realName:r.realName||'',pa:r.pa||'',paCode:r.paCode||'',postLink:r.postLink||'',live:'N',contractDone:'N',checks:{}});
+    }
+    if(toAdd.length) updateBrand(bId,bb=>({...bb,reviewRows:[...(bb.reviewRows||[]),...toAdd]}));
+    return {added:toAdd.length,skipped:newRows.length-toAdd.length};
   }
   function deleteReviewRow(id){
     if(!id)return;
@@ -4849,6 +4912,7 @@ function AppMain({ authInfo, onLogout }) {
         onUpdate={updateShipRow}
         onDelete={deleteShipRow}
         onAdd={()=>setModal('addShip')}
+        onPasteImport={()=>setModal('pasteShip')}
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}
       />}
@@ -4861,6 +4925,7 @@ function AppMain({ authInfo, onLogout }) {
         onUpdate={updateReviewRow}
         onDelete={deleteReviewRow}
         onAdd={()=>setModal('addReview')}
+        onPasteImport={()=>setModal('pasteReview')}
         onUpdatePrivacy={updatePrivacyRow}
         onAddPrivacy={addPrivacyRow}
         onSettle={setInfSettledByName}
@@ -4891,7 +4956,9 @@ function AppMain({ authInfo, onLogout }) {
 
     {modal==='paManage'&&<PaManageModal paList={paList} setPaList={setPaList} onClose={()=>setModal(null)}/>}
     {modal==='addStep1'&&<AddStep1Modal onConfirm={r=>{addStep1Row(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
-    {modal==='pasteStep1'&&<PasteImportModal onConfirm={rows=>{const {added,skipped}=addStep1RowsBulk(rows);setModal(null);setMsg(`📋 ${added}명 추가${skipped>0?` · 중복 ${skipped}명 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
+    {modal==='pasteStep1'&&<PasteImportModal kind="step1" onConfirm={rows=>{const {added,skipped}=addStep1RowsBulk(rows);setModal(null);setMsg(`📋 ${added}명 추가${skipped>0?` · 중복 ${skipped}명 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
+    {modal==='pasteShip'&&<PasteImportModal kind="ship" onConfirm={rows=>{const {added,skipped}=addShipRowsBulk(rows);setModal(null);setMsg(`📋 출고 ${added}건 추가${skipped>0?` · 중복 ${skipped}건 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
+    {modal==='pasteReview'&&<PasteImportModal kind="review" onConfirm={rows=>{const {added,skipped}=addReviewRowsBulk(rows);setModal(null);setMsg(`📋 영상검수 ${added}건 추가${skipped>0?` · 중복 ${skipped}건 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
     {modal==='addClaudeS1'&&<AddStep1Modal onConfirm={r=>{addClaudeS1Row(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
     {modal==='addShip'&&<AddShipModal onConfirm={r=>{addShipRow(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
     {modal==='addReview'&&<AddReviewModal onConfirm={r=>{addReviewRow(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
