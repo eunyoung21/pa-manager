@@ -1528,6 +1528,19 @@ function parseCSV(text) {
   }).filter(r=>Object.entries(r).some(([k,v])=>k!=='__idx'&&v&&v.trim()));
   return{headers,rows};
 }
+// 붙여넣기용 표 파서 — 구글시트 복사(=탭 구분)와 CSV(쉼표) 모두 지원. 배열의 배열(원본 격자) 반환.
+function parseTable(text){
+  text=String(text||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const delim=text.indexOf('\t')>=0?'\t':',';
+  const all=[];let row=[],f='',inQ=false;
+  for(let i=0;i<=text.length;i++){
+    if(i===text.length){row.push(f);if(row.some(v=>String(v).trim()))all.push(row);break;}
+    const c=text[i];
+    if(inQ){if(c==='"'){if(text[i+1]==='"'){f+='"';i++;}else inQ=false;}else f+=c;}
+    else{if(c==='"')inQ=true;else if(c===delim){row.push(f);f='';}else if(c==='\n'){row.push(f);f='';if(row.some(v=>String(v).trim()))all.push(row);row=[];}else f+=c;}
+  }
+  return all;
+}
 function hFind(headers,hint){return headers.find(h=>h.includes(hint))||null;}
 // 날짜 컬럼 자동 감지 (헤더명 → parseDateKey 값 판별 순)
 function findDateCol(headers,rows){
@@ -2024,6 +2037,69 @@ function AddStep1Modal({ onConfirm, onCancel }) {
   </div>;
 }
 
+/* ─── 붙여넣기로 리스트업 추가 (구글시트 복사 → 붙여넣기) ─── */
+const PASTE_HINTS={name:['채널명','채널','이름','계정','인스타','아이디','name','id'],link:['링크','url','주소','link'],followers:['팔로워','follower','팔로'],persona:['페르소나','카테고리','분류','특징','persona'],pa:['담당','작업자','pa'],review:['검수','상태','승인','status'],date:['날짜','등록일','일자','작성','date'],memo:['메모','비고','노트','피드','가설','특이','memo','note']};
+function pasteFindCol(hdr,hints){for(const h of hints){const i=hdr.findIndex(x=>String(x||'').toLowerCase().replace(/\s/g,'').includes(h.toLowerCase()));if(i>=0)return i;}return -1;}
+function PasteImportModal({onConfirm,onCancel}){
+  const [text,setText]=useState('');
+  const parsed=useMemo(()=>{
+    const grid=parseTable(text).filter(r=>r.some(c=>String(c||'').trim()));
+    if(!grid.length) return {rows:[],hasHeader:false};
+    const head=grid[0].map(x=>String(x||''));
+    const map={};Object.keys(PASTE_HINTS).forEach(f=>map[f]=pasteFindCol(head,PASTE_HINTS[f]));
+    const hasHeader=['name','link','followers','persona','pa','review','date','memo'].some(f=>map[f]>=0);
+    // 제목행 없으면 순서대로: 등록일·채널명·링크·팔로워·담당PA·페르소나·검수·메모
+    const POS={date:0,name:1,link:2,followers:3,pa:4,persona:5,review:6,memo:7};
+    const fmap=hasHeader?map:POS;
+    const dataRows=hasHeader?grid.slice(1):grid;
+    const rows=dataRows.map(cells=>{
+      const g=f=>{const i=fmap[f];return (i>=0&&i!=null)?String(cells[i]||'').trim():'';};
+      const name=g('name'); if(!name) return null;
+      const rs=reviewStatus(g('review'));
+      return {date:normDate(g('date')),name,link:g('link'),followers:g('followers'),persona:g('persona'),memo:g('memo'),pa:sanitizePA(g('pa')),reviewStatus:rs};
+    }).filter(Boolean);
+    return {rows,hasHeader};
+  },[text]);
+  const rows=parsed.rows;
+  return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()}>
+    <div className="modal" style={{width:640,maxWidth:'calc(100vw - 24px)'}}>
+      <div className="modal-title">📋 붙여넣기로 리스트업 추가</div>
+      <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.6,marginBottom:8}}>
+        구글 시트에서 행을 복사(Ctrl+C)해 아래에 붙여넣기(Ctrl+V) 하세요. <b>제목행을 포함</b>하면 자동으로 열을 인식합니다
+        <span style={{color:'var(--dim)'}}> (채널명·링크·팔로워·페르소나·담당PA·검수·날짜·메모)</span>.
+        제목행이 없으면 순서대로 <b>등록일·채널명·링크·팔로워·담당PA·페르소나·검수·메모</b>로 넣습니다.
+      </div>
+      <textarea className="modal-ta" value={text} onChange={e=>setText(e.target.value)} autoFocus
+        placeholder={"여기에 붙여넣기 (Ctrl+V)\n예)\n채널명\t링크\t팔로워\t페르소나\n@momvue\thttps://instagram.com/momvue\t12,400\t육아맘"}
+        style={{minHeight:150,fontFamily:'monospace',fontSize:12,whiteSpace:'pre'}}/>
+      <div style={{fontSize:12,margin:'8px 0 4px',color:rows.length?'var(--green)':'var(--muted)',fontWeight:600}}>
+        {rows.length?`✅ ${rows.length}명 인식됨${parsed.hasHeader?' (제목행 자동인식)':' (순서 방식)'}`:'붙여넣으면 여기에 인식된 인원이 표시됩니다'}
+      </div>
+      {rows.length>0&&<div className="table-wrap" style={{maxHeight:220,overflow:'auto',border:'1px solid var(--border)',borderRadius:8}}>
+        <table><thead><tr>
+          <th style={{width:80}}>등록일</th><th>채널명</th><th style={{width:40}}>링크</th><th style={{width:70}}>팔로워</th><th style={{width:70}}>담당PA</th><th>페르소나</th><th style={{width:70}}>검수</th><th>메모</th>
+        </tr></thead><tbody>
+          {rows.slice(0,50).map((r,i)=><tr key={i}>
+            <td style={{fontSize:11,color:'var(--muted)'}}>{r.date||'—'}</td>
+            <td style={{fontWeight:500,whiteSpace:'nowrap'}}>{r.name}</td>
+            <td style={{textAlign:'center'}}>{r.link?<span title={r.link} style={{color:'var(--blue)'}}>↗</span>:'—'}</td>
+            <td style={{fontSize:11}}>{r.followers||'—'}</td>
+            <td style={{fontSize:11}}>{r.pa||'—'}</td>
+            <td style={{fontSize:11,color:'var(--muted)'}}>{r.persona||'—'}</td>
+            <td style={{fontSize:11}}>{reviewLabel(r.reviewStatus)}</td>
+            <td style={{fontSize:11,color:'var(--muted)',maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.memo||'—'}</td>
+          </tr>)}
+        </tbody></table>
+        {rows.length>50&&<div style={{fontSize:11,color:'var(--dim)',padding:'6px 10px'}}>… 외 {rows.length-50}명 (모두 추가됩니다)</div>}
+      </div>}
+      <div className="modal-foot">
+        <button className="btn btn-ghost" onClick={onCancel}>취소</button>
+        <button className="btn btn-primary" disabled={!rows.length} onClick={()=>onConfirm(rows)}>{rows.length?`${rows.length}명 추가`:'추가'}</button>
+      </div>
+    </div>
+  </div>;
+}
+
 /* ─── ADD SHIPPING MODAL ─── */
 function AddShipModal({ onConfirm, onCancel }) {
   const [f,setF]=useState({id:'',requestDate:today(),shipDate:'',requester:'',recipient:'',channelName:'',phone:'',address:'',product:'',qty:'1',notes:'',status:'처리중',tracking:''});
@@ -2259,7 +2335,7 @@ const NICHE_RULES=[
 ];
 function nicheOf(text){const t=String(text||'').toLowerCase();for(const[w,ks]of NICHE_RULES){if(ks.some(k=>t.includes(k.toLowerCase())))return w;}return '';}
 
-function Step1View({ rows, onUpdate, onDelete, onAdd, filter, setFilter, search, setSearch }) {
+function Step1View({ rows, onUpdate, onDelete, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [cat,setCat]=useState(null); // 페르소나 카테고리 필터(키 또는 '__uncat')
@@ -2312,7 +2388,10 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, filter, setFilter, search,
       {uncatN>0&&<button className={`fchip ${cat==='__uncat'?'active':''}`} onClick={()=>setCat(cat==='__uncat'?null:'__uncat')}
         onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('text/plain');if(id)onUpdate(id,{category:''});}}>❔ 미분류 ({uncatN})</button>}
     </div>}
-    <div style={{padding:'6px 12px 2px'}}><button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={onAdd}>＋ 인플루언서 추가</button></div>
+    <div style={{padding:'6px 12px 2px',display:'flex',gap:6}}>
+      <button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={onAdd}>＋ 인플루언서 추가</button>
+      <button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
+    </div>
     <div className="table-wrap">
       <table>
         <thead><tr>
@@ -4101,6 +4180,23 @@ function AppMain({ authInfo, onLogout }) {
   function addStep1Row(row){
     updateBrand(bId,b=>({...b,step1Rows:[...(b.step1Rows||[]),row]}));
   }
+  // 붙여넣기로 여러 행 한 번에 추가 — 이름·링크가 이미 있으면 건너뜀(중복 방지). 추가/스킵 수 반환.
+  function addStep1RowsBulk(newRows){
+    const b=brandsRef.current.find(x=>x.id===bId)||{};
+    const existing=b.step1Rows||[];
+    const seenN=new Set(existing.map(r=>normName(r.name)));
+    const seenL=new Set(existing.map(r=>normLink(r.link)).filter(Boolean));
+    const toAdd=[];
+    for(const r of newRows){
+      const nn=normName(r.name); if(!nn) continue;
+      const nl=normLink(r.link);
+      if(seenN.has(nn)||(nl&&seenL.has(nl))) continue;
+      seenN.add(nn); if(nl) seenL.add(nl);
+      toAdd.push({id:makeId(),promotedToStep2:r.reviewStatus==='승인',...r});
+    }
+    if(toAdd.length) updateBrand(bId,bb=>({...bb,step1Rows:[...(bb.step1Rows||[]),...toAdd]}));
+    return {added:toAdd.length, skipped:newRows.length-toAdd.length};
+  }
   function updateStep1Row(id,patch){
     if(!id)return;
     updateBrand(bId,b=>{
@@ -4710,6 +4806,7 @@ function AppMain({ authInfo, onLogout }) {
         onUpdate={updateStep1Row}
         onDelete={deleteStep1Row}
         onAdd={()=>setModal('addStep1')}
+        onPasteImport={()=>setModal('pasteStep1')}
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}
       />}
@@ -4794,6 +4891,7 @@ function AppMain({ authInfo, onLogout }) {
 
     {modal==='paManage'&&<PaManageModal paList={paList} setPaList={setPaList} onClose={()=>setModal(null)}/>}
     {modal==='addStep1'&&<AddStep1Modal onConfirm={r=>{addStep1Row(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
+    {modal==='pasteStep1'&&<PasteImportModal onConfirm={rows=>{const {added,skipped}=addStep1RowsBulk(rows);setModal(null);setMsg(`📋 ${added}명 추가${skipped>0?` · 중복 ${skipped}명 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
     {modal==='addClaudeS1'&&<AddStep1Modal onConfirm={r=>{addClaudeS1Row(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
     {modal==='addShip'&&<AddShipModal onConfirm={r=>{addShipRow(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
     {modal==='addReview'&&<AddReviewModal onConfirm={r=>{addReviewRow(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
