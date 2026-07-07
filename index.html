@@ -2954,6 +2954,27 @@ function FileCell({file,onUpdate,onDelete}){
   </span>;
 }
 
+// 노션 '정산 내역'에 입금요청 자동기입 — 로컬 브리지(Playwright+CDP) 호출.
+// 브리지는 로컬 PC에서 node bridge.mjs 로 실행(노션 로그인된 크롬 필요). https→localhost는 브라우저가 허용.
+const NOTION_BRIDGE = localStorage.getItem('notion_bridge') || 'http://localhost:8790';
+function NotionBtn({ realName, amount }) {
+  const [st, setSt] = useState('idle');
+  const clean = amount == null ? '' : String(amount).replace(/[^\d]/g, '');
+  const disabled = !realName || !clean;
+  async function go() {
+    if (disabled) { setSt('need'); setTimeout(() => setSt('idle'), 2500); return; }
+    setSt('sending');
+    try {
+      const r = await fetch(NOTION_BRIDGE + '/settle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ realName, amount: clean }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) setSt('done');
+      else setSt('err:' + (j.error || ('HTTP ' + r.status)));
+    } catch (e) { setSt('offline'); }
+  }
+  const isErr = typeof st === 'string' && st.startsWith('err');
+  const label = st === 'sending' ? '기입 중…(30초)' : st === 'done' ? '✅ 노션 기입됨' : st === 'offline' ? '⚠️ 브리지 꺼짐' : st === 'need' ? '실명·금액 필요' : isErr ? '❌ 실패(다시)' : '📝 노션 기입';
+  return <button className="btn btn-ghost" title={isErr ? st.slice(4) : (st === 'offline' ? '로컬에서 bridge.mjs 실행 + 노션 로그인 크롬 필요' : `노션 정산내역에 기입: ${realName||'?'} / ${clean||'?'}원`)} style={{ fontSize: 9, padding: '2px 8px', whiteSpace: 'nowrap' }} disabled={st === 'sending'} onClick={go}>{label}</button>;
+}
 function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle, onAdd }) {
   const [pFilter,setPFilter]=useState('all');
   const [bulkMsg,setBulkMsg]=useState(''); const [bulkBusy,setBulkBusy]=useState(false);
@@ -3043,6 +3064,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
                         <span style={{fontSize:9,color:'var(--dim)'}}>정산 전</span>
                         <button className="btn btn-green" style={{fontSize:10,padding:'3px 10px',whiteSpace:'nowrap'}} onClick={()=>onSettle(r.channelName,true)}>💰 정산 처리</button>
                       </div>}
+                {status!=='purged' && <div style={{marginTop:5}}><NotionBtn realName={r.realName} amount={st.rate}/></div>}
               </td>
             </tr>);
           })}
