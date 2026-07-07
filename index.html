@@ -6,11 +6,11 @@
 <title>PA Manager (ey)</title>
 <style>
 :root {
-  --bg:#eef1f6;--surface:#ffffff;--surface2:#f5f7fa;--surface3:#e9edf3;
-  --border:#e0e4ec;--text:#1e2430;--muted:#697386;--dim:#a2a9b6;
-  --accent:#5b5ef0;--ah:#4a4de0;--accent-soft:#eef0fe;
-  --red:#dc2626;--orange:#ea580c;--green:#16a34a;--blue:#2563eb;--yellow:#ca8a04;--purple:#9333ea;
-  --thead-bg:#eef0fe;--thead-fg:#4a4de0;--zebra:#f8f9fc;
+  --bg:#eef0f4;--surface:#ffffff;--surface2:#f4f6f9;--surface3:#e9ecf2;
+  --border:#e3e6ec;--text:#232935;--muted:#6b7482;--dim:#a6adb8;
+  --accent:#5d61e6;--ah:#4c50d6;--accent-soft:#eef0f9;
+  --red:#d84848;--orange:#dd6a2a;--green:#22a05a;--blue:#3672d6;--yellow:#c08a1e;--purple:#8b45c8;
+  --thead-bg:#f0f2f8;--thead-fg:#595d8c;--zebra:#fafbfd;--row-hover:#f3f5fa;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;overflow:hidden;}
@@ -95,7 +95,7 @@ thead tr{background:var(--thead-bg);position:sticky;top:0;z-index:5;}
 th{padding:7px 8px;text-align:left;font-size:11px;font-weight:700;color:var(--thead-fg);border-bottom:1px solid var(--border);white-space:nowrap;user-select:none;}
 tbody tr{border-bottom:1px solid var(--border);transition:background .08s;}
 tbody tr:nth-child(even){background:var(--zebra);}
-tbody tr:hover{background:var(--accent-soft);}
+tbody tr:hover{background:var(--row-hover);}
 td{padding:5px 8px;font-size:12px;vertical-align:middle;}
 .del-col{width:28px;text-align:center;}
 .row-del-btn{opacity:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:1px 4px;border-radius:3px;transition:opacity .12s;}
@@ -1297,10 +1297,12 @@ function calcPay(row) {
 function fmtMoney(n) { return n > 0 ? n.toLocaleString()+'원' : '0원'; }
 // 프리랜서 원천징수 3.3%(소득세 3% + 지방소득세 0.3%) 공제 후 실지급액
 function afterTax(n){ return Math.round((n||0)*0.967); }
-// 정산 시점(월): 협업 성사면 성사일, 거절이면 거절일 기준. 진행중 등 결과 미정은 null(정산 보류).
+// 정산 시점(월): 컨택현황에서 체크되는 DM발송·협업성사는 무조건 정산에 포함.
+// 협업 성사면 성사일, DM 발송이면 발송일, 거절이면 거절일 기준(없으면 등록일).
 function payYM(r){
   if(r.dealDone==='Y') return parseYM(r.dealDate)||parseYM(r.date);
-  if(normStatus(r.contactStatus)==='거절') return parseYM(r.rejectDate)||parseYM(r.dmDate)||parseYM(r.date);
+  if(r.dmSent==='Y')   return parseYM(r.dmDate)||parseYM(r.date);
+  if(normStatus(r.contactStatus)==='거절') return parseYM(r.rejectDate)||parseYM(r.date);
   return null;
 }
 // PA 이름 정제 — 특수문자 포함 이름을 PA_LIST로 매핑
@@ -1583,6 +1585,13 @@ function Cell({ value, onChange, type='text', options, placeholder, style, disab
         onChange={e=>setDraft(e.target.value)}
         onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey)commit();if(e.key==='Escape')setEditing(false);}}
         onBlur={commit} style={{...style,minHeight:60,resize:'vertical'}} />;
+    }
+    if(type==='date'){
+      // 저장은 YY.MM.DD, 입력은 네이티브 캘린더(YYYY-MM-DD) — 고를 때 바로 반영
+      return <input ref={ref} type="date" className="cell-input" value={parseDateKey(draft)||''}
+        onChange={e=>{const v=e.target.value?normDate(e.target.value):'';setDraft(v);onChange(v);setEditing(false);}}
+        onKeyDown={e=>{if(e.key==='Escape')setEditing(false);}}
+        onBlur={()=>setEditing(false)} style={style} />;
     }
     return <input ref={ref} type={type} className="cell-input" value={draft}
       onChange={e=>setDraft(e.target.value)}
@@ -2254,11 +2263,15 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, filter, setFilter, search,
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [cat,setCat]=useState(null); // 페르소나 카테고리 필터(키 또는 '__uncat')
+  const [colF,setColF]=useState({}); const [showColF,setShowColF]=useState(false);
   const q=search.trim().toLowerCase();
   const s=v=>String(v||'');
+  const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
+  function setCol(f,v){setColF(p=>({...p,[f]:v}));}
   const byDay=(dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows);
   const shown=byDay
     .filter(r=>s(r.name).trim())
+    .filter(r=>!colFActive.length||colFActive.every(([f,v])=>s(r[f]).toLowerCase().includes(v.trim().toLowerCase())))
     .filter(r=>{
       // 페르소나 카테고리 필터 — 다른 조건과 AND. '__uncat'=어디에도 안 잡힌 사람.
       if(cat){const cs=rowCatsOf(r); if(cat==='__uncat'){if(cs.length)return false;} else if(!cs.includes(cat))return false;}
@@ -2281,6 +2294,8 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, filter, setFilter, search,
     <div className="toolbar">
       {[{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'ap',l:`✅ 승인 (${cnt.ap})`,c:'f-ap'},{k:'wt',l:`검수대기 (${cnt.wt})`,c:'f-wt'},{k:'rj',l:`📦 반려 (${cnt.rj})`,c:'f-rj'}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
+      <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
+      {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
       <div className="sep"/>
       <div className="search-wrap">
         <input className="srch" placeholder="채널명, PA, 페르소나…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
@@ -2303,22 +2318,28 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, filter, setFilter, search,
         <thead><tr>
           <th className="del-col"></th>
           <th style={{width:85}}>등록일</th>
-          <th style={{minWidth:120}}>채널명</th>
+          <th style={{width:'1%',whiteSpace:'nowrap'}}>채널명</th>
           <th style={{width:50}}>링크</th>
           <th style={{width:80}}>팔로워</th>
           <th style={{width:75}}>담당 PA</th>
           <th style={{minWidth:100}}>페르소나</th>
           <th style={{width:90}}>검수 상태</th>
           <th style={{minWidth:160}}>메모</th>
-        </tr></thead>
+        </tr>
+        {showColF&&<tr className="colf-row">
+          {[null,'date','name','link','followers','pa','persona','reviewStatus','memo'].map((f,i)=>(
+            <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
+          ))}
+        </tr>}
+        </thead>
         <tbody>
           {shown.map(r=><tr key={r.id}>
             <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:2}}>
               <span draggable onDragStart={e=>{e.dataTransfer.setData('text/plain',r.id);e.dataTransfer.effectAllowed='move';}} title="끌어다 위 카테고리 칩에 놓으면 분류돼요" style={{cursor:'grab',color:'var(--dim)',fontSize:13,userSelect:'none'}}>⠿</span>
               <button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button>
             </span></td>
-            <td><Cell value={r.date} onChange={v=>up(r.id,'date',v)} style={{width:80}}/></td>
-            <td style={{fontWeight:500}}><Cell value={r.name} onChange={v=>up(r.id,'name',v)} placeholder="채널명"/></td>
+            <td><Cell value={r.date} onChange={v=>up(r.id,'date',v)} type="date" style={{width:80}}/></td>
+            <td style={{fontWeight:500,whiteSpace:'nowrap'}}><Cell value={r.name} onChange={v=>up(r.id,'name',v)} placeholder="채널명" style={{whiteSpace:'nowrap',minWidth:'auto'}}/></td>
             <td style={{textAlign:'center'}}>
               {r.link
                 ?<a href={r.link} target="_blank" rel="noopener" style={{color:'var(--blue)',fontSize:13}} onClick={e=>e.stopPropagation()}>↗</a>
@@ -2348,14 +2369,19 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [sortDir,setSortDir]=useState('asc');   // 날짜 정렬: 'asc'=오래된순(기본), 'desc'=최신순
+  const [colF,setColF]=useState({}); const [showColF,setShowColF]=useState(false);
   const q=search.trim().toLowerCase();
   const s2=v=>String(v||'');
+  const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
+  function setCol(f,v){setColF(p=>({...p,[f]:v}));}
+  const cfVal=(r,f)=>f==='contactStatus'?normStatus(r.contactStatus):s2(r[f]);
   // '전체'=진행 중만(보관 제외). 보관 = 거절 OR 개인정보 폐기 완료 → 데이터·정산은 그대로 두고 '📦 보관' 칩에서만 모아 봄.
   const isRej=r=>normStatus(r.contactStatus)==='거절';
   const isArchived=r=>isRej(r)||r.privacyPurged;
   const named=rows.filter(r=>s2(r.name).trim());
   const mode=filter==='rej'?'reject':filter==='arc'?'archive':'active';
-  const byDay=dayFilter?named.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?named.filter(r=>parseYM(r.date)===monthFilter):named;
+  const byDayAll=dayFilter?named.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?named.filter(r=>parseYM(r.date)===monthFilter):named;
+  const byDay=colFActive.length?byDayAll.filter(r=>colFActive.every(([f,v])=>cfVal(r,f).toLowerCase().includes(v.trim().toLowerCase()))):byDayAll;
   const shown=byDay.filter(r=>{
     // 검색은 보관 포함 전체에서 — 누적돼도 누구든 찾을 수 있게.
     if(q) return [r.name,r.pa,r.memo,r.contactStatus].some(v=>s2(v).toLowerCase().includes(q));
@@ -2386,6 +2412,8 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     <div className="toolbar">
       {[{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'dm',l:`DM 발송 (${cnt.dm})`,c:'f-dm'},{k:'deal',l:`협업 성사 (${cnt.deal})`,c:'f-deal'},{k:'nd',l:`미발송 (${cnt.nd})`,c:'f-wt'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:'f-rj'},{k:'arc',l:`📦 보관 (${cnt.arc})`,c:'f-arc'}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
+      <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
+      {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
       <div className="sep"/>
       <button className="fchip" style={{whiteSpace:'nowrap'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="날짜 정렬 전환 (최신순 ↔ 오래된순)">
         {sortDir==='desc'?'📅 최신순 ↓':'📅 오래된순 ↑'}
@@ -2410,7 +2438,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
         <thead><tr>
           <th className="del-col"></th>
           <th style={{width:80,cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
-          <th style={{minWidth:120}}>채널명</th>
+          <th style={{width:'1%',whiteSpace:'nowrap'}}>채널명</th>
           <th style={{width:50}}>링크</th>
           <th style={{width:80}}>팔로워</th>
           {isClaude&&<th style={{width:80}}>카테고리</th>}
@@ -2425,7 +2453,13 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
           {!IS_STAFF&&!isClaude&&<th style={{width:80}}>소계</th>}
           <th style={{minWidth:100}}>메모</th>
           <th style={{width:70,textAlign:'center'}}>개인정보</th>
-        </tr></thead>
+        </tr>
+        {showColF&&<tr className="colf-row">
+          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent','dealDone','dealDate','rate',...((!IS_STAFF&&!isClaude)?[null,null,null]:[]),'memo',null].map((f,i)=>(
+            <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
+          ))}
+        </tr>}
+        </thead>
         <tbody>
           {shown.map(r=>{
             const pay=calcPay(r);
@@ -2438,8 +2472,8 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
                   onClick={()=>setStatus(r,isRej(r)?'컨택 전':'거절')}>{isRej(r)?'↩':'🚫'}</button>}
                 <button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button>
               </span></td>
-              <td data-label="날짜"><Cell value={r.date} onChange={v=>up(r.id,'date',v)} style={{width:75}}/></td>
-              <td data-label="채널명" style={{fontWeight:500}}><Cell value={r.name} onChange={v=>up(r.id,'name',v)}/></td>
+              <td data-label="날짜"><Cell value={r.date} onChange={v=>up(r.id,'date',v)} type="date" style={{width:75}}/></td>
+              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}><Cell value={r.name} onChange={v=>up(r.id,'name',v)} style={{whiteSpace:'nowrap',minWidth:'auto'}}/></td>
               <td data-label="링크" style={{textAlign:'center'}}>
                 {r.link?<a href={r.link} target="_blank" rel="noopener" style={{color:'var(--blue)',fontSize:13}}>↗</a>
                 :<Cell value={r.link} onChange={v=>up(r.id,'link',v)} placeholder="URL" style={{width:50}}/>}
@@ -2504,9 +2538,9 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
         || (reviewRows||[]).find(x=>x.live==='Y'&&(keys.has(norm(x.channelName))||keys.has(norm(x.realName))))
         || null;
   };
-  // 라이브(영상 업로드) 여부 — 매칭되는 컨택현황/영상검수 행이 라이브면 이 출고건은 완료로 간주.
+  // 라이브(영상 업로드) 여부 — 매칭되는 컨택현황/영상검수 행이 라이브로 표시된 경우만.
+  // '완료' 탭 = 라이브가 실제로 시작된 건들만. 처리상태 '완료'와는 별개.
   const isLiveRow=r=>!!liveOf(r.channelName||chanOf(r.recipient),r.recipient);
-  const isDoneRow=r=>!!(r.status?.includes('완료'))||isLiveRow(r);
   // 엑셀식 컬럼 필터용 — 각 컬럼의 표시 문자열
   const liveText=r=>{const lv=liveOf(r.channelName||chanOf(r.recipient),r.recipient);return lv?('라이브 '+(lv.liveDate||'')):'대기';};
   const fieldVal=(r,f)=>{
@@ -2519,16 +2553,16 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
   const byDay=dayFilter?rows.filter(r=>parseDateKey(r.requestDate)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.requestDate)===monthFilter):rows;
   const shown=byDay
     .filter(r=>{
-      // 라이브면 전체 목록에서 빼고 완료 탭으로 이동
+      // 라이브 시작된 건은 전체 목록에서 빼고 '완료' 탭으로만 모음
       if(filter==='all'&&isLiveRow(r)) return false;
-      if(filter==='done'&&!isDoneRow(r)) return false;
-      if(filter==='pend'&&isDoneRow(r)) return false;
+      if(filter==='done'&&!isLiveRow(r)) return false;
+      if(filter==='pend'&&(isLiveRow(r)||r.status?.includes('완료'))) return false;
       if(reqF&&(r.requester||'')!==reqF) return false;
       if(colFActive.length && !colFActive.every(([f,v])=>fieldVal(r,f).toLowerCase().includes(String(v).trim().toLowerCase()))) return false;
       if(q) return [r.requester,r.recipient,r.address,product,r.tracking].some(v=>v&&String(v).toLowerCase().includes(q));
       return true;
     });
-  const cnt={all:rows.filter(r=>!isLiveRow(r)).length,done:rows.filter(isDoneRow).length,pend:rows.filter(r=>!isDoneRow(r)).length};
+  const cnt={all:rows.filter(r=>!isLiveRow(r)).length,done:rows.filter(isLiveRow).length,pend:rows.filter(r=>!isLiveRow(r)&&!r.status?.includes('완료')).length};
   function up(id,k,v){onUpdate(id,{[k]:v});}
   function setCol(f,v){setColF(p=>({...p,[f]:v}));}
   return <div className="view-wrap">
@@ -2575,7 +2609,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
         <tbody>
           {shown.map(r=><tr key={r.id}>
             <td className="del-col"><button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button></td>
-            <td data-label="출고요청일"><Cell value={r.requestDate} onChange={v=>up(r.id,'requestDate',v)} style={{width:80}}/></td>
+            <td data-label="출고요청일"><Cell value={r.requestDate} onChange={v=>up(r.id,'requestDate',v)} type="date" style={{width:80}}/></td>
             <td data-label="요청자"><Cell value={r.requester||''} onChange={v=>up(r.id,'requester',v)} type="select" options={PA_LIST}/></td>
             <td data-label="채널명"><Cell value={r.channelName||''} onChange={v=>up(r.id,'channelName',v)} placeholder={chanOf(r.recipient)||'채널명'} style={{color:'var(--blue)',fontSize:11,width:84}}/></td>
             <td data-label="수령자명"><span style={{display:'flex',alignItems:'center',gap:2}}>
@@ -2587,7 +2621,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
             <td data-label="상품명" style={{whiteSpace:'nowrap',fontWeight:600}}>{product}</td>
             <td data-label="비고"><Cell value={r.notes} onChange={v=>up(r.id,'notes',v)}/></td>
             <td data-label="처리 상태"><Cell value={r.status} onChange={v=>up(r.id,'status',v)} type="select" options={['처리중','✅ 완료']}/></td>
-            <td data-label="출고일자"><Cell value={r.shipDate||''} onChange={v=>up(r.id,'shipDate',v)} style={{width:80}} placeholder="출고일"/></td>
+            <td data-label="출고일자"><Cell value={r.shipDate||''} onChange={v=>up(r.id,'shipDate',v)} type="date" style={{width:80}} placeholder="출고일"/></td>
             <td data-label="라이브" style={{textAlign:'center'}}>
               {(()=>{const ch=r.channelName||chanOf(r.recipient);const lv=liveOf(ch,r.recipient);
                 if(lv)return <span style={{fontSize:10,color:'var(--green)',fontWeight:700,whiteSpace:'nowrap'}}>🔴 라이브{lv.liveDate?' '+lv.liveDate:''}</span>;
@@ -2771,8 +2805,11 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
   const [openId,setOpenId]=useState(null);
   const [pvRow,setPvRow]=useState(null); // 개인정보 모달 대상 행(관리자 전용)
   const [copiedAll,setCopiedAll]=useState(false);
+  const [colF,setColF]=useState({}); const [showColF,setShowColF]=useState(false);
   const q=search.trim().toLowerCase();
   const s=v=>String(v||'');
+  const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
+  function setCol(f,v){setColF(p=>({...p,[f]:v}));}
   // 채널명으로 개인정보 행을 찾아 본명 표시 — 채널명만으로 헷갈리지 않게.
   const nameOf=ch=>((privacyRows||[]).find(p=>p.channelName===ch)||{}).realName||'';
   // ── 정산 상태 매칭 — 컨택현황(step2)의 채널명으로 연결. 개인정보에서 정산 처리하면 step2에 기록됨.
@@ -2784,6 +2821,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
   const byDay=dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows;
   const shown=byDay
     .filter(r=>{
+      if(colFActive.length && !colFActive.every(([f,v])=>s(r[f]).toLowerCase().includes(v.trim().toLowerCase()))) return false;
       const ss=settleState(r);
       if(filter==='paid'&&!(ss==='paid'||ss==='purged')) return false;
       if(filter==='unpaid'&&ss!=='unpaid') return false;
@@ -2819,6 +2857,8 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
         {search&&<button className="srch-x" onClick={()=>setSearch('')}>×</button>}
       </div>
       <span className="cnt">{shown.length}건</span>
+      <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
+      {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
       <button className="btn btn-ghost" style={{fontSize:11}} onClick={copyAllCodes} disabled={!paCodes.length} title="현재 목록의 PA 코드를 줄바꿈으로 모두 복사">{copiedAll?'✅ 복사됨':`📋 PA코드 전체복사 (${paCodes.length})`}</button>
       {driveLink&&<a href={driveLink} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
     </div>
@@ -2836,7 +2876,13 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
           <th style={{minWidth:130}}>게시 링크</th>
           <th style={{width:96}}>라이브</th>
           <th style={{width:96}}>계약서</th>
-        </tr></thead>
+        </tr>
+        {showColF&&<tr className="colf-row">
+          {[null,'date','channelName','realName','pa','paCode',null,null,'postLink','live','contractDone'].map((f,i)=>(
+            <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
+          ))}
+        </tr>}
+        </thead>
         <tbody>
           {shown.map(r=>{
             const isOpen=openId===r.id;
@@ -2844,7 +2890,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
             return <React.Fragment key={r.id}>
               <tr style={{background:isOpen?'var(--surface2)':''}}>
                 <td className="del-col"><button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button></td>
-                <td><Cell value={r.date} onChange={v=>up(r.id,'date',v)} style={{width:80}}/></td>
+                <td><Cell value={r.date} onChange={v=>up(r.id,'date',v)} type="date" style={{width:80}}/></td>
                 <td style={{fontWeight:500}}><Cell value={r.channelName} onChange={v=>up(r.id,'channelName',v)} placeholder="채널명"/></td>
                 <td><Cell value={r.realName||''} onChange={v=>up(r.id,'realName',v)} placeholder={nameOf(r.channelName)||'본명'}/></td>
                 <td><Cell value={r.pa||''} onChange={v=>up(r.id,'pa',v)} type="select" options={PA_LIST}/></td>
@@ -3340,7 +3386,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
 
     {/* 정산 규칙 — 한 줄 요약 */}
     <div style={{marginBottom:14,fontSize:11.5,color:'var(--muted)'}}>
-      협업 성사(영상 업로드 + 광고코드 게시 기준) = DM+성사 지급 · 거절 = DM만 지급 · 진행중 = 보류{heldPeople>0&&<span style={{color:'var(--orange)'}}> · ⏸ 보류 {heldPeople}명</span>}
+      DM 발송 = 2,000원 · 협업 성사(영상 업로드+광고코드) = +20,000원 · 체크된 DM·성사는 모두 정산 반영{heldPeople>0&&<span style={{color:'var(--orange)'}}> · ⏸ 날짜없어 보류 {heldPeople}명</span>}
     </div>
 
     {/* 미지급 월 빠른 이동 — 있을 때만 표시 */}
@@ -3847,6 +3893,8 @@ function AppMain({ authInfo, onLogout }) {
   const savedClearRef= useRef(null);   // '저장됨' 표시를 잠시 후 지우는 타이머
   const dirtyRef     = useRef(false);  // 서버에 아직 저장 안 된 로컬 변경 존재 여부 — 폴링이 덮어쓰지 못하게 가드
   const saveSeqRef   = useRef(0);      // 편집 시퀀스 — 저장 도중 새 편집이 끼면 옛 저장 성공으로 dirty를 끄지 않도록
+  const saveErrRef   = useRef('');     // 마지막 저장 실패 사유(사용자에게 표시 — 원인 진단용)
+  const retryRef     = useRef(0);      // 저장 실패 재시도 횟수(지수 백오프로 백엔드 과부하 방지)
   const undoRef      = useRef(null);   // Ctrl+Z 스냅샷
   const immediateRef = useRef(false);  // import 후 즉시 서버 저장 플래그
   const brandsRef    = useRef(brands); // doImport에서 최신 brands 참조용
@@ -3975,24 +4023,28 @@ function AppMain({ authInfo, onLogout }) {
           setTimeout(()=>window.location.reload(),2500);
           return;
         }
-        if(!j || !j.ok) throw new Error('save failed');
+        if(!j || !j.ok){ saveErrRef.current=(j&&j.error)||'알 수 없는 오류'; throw new Error(saveErrRef.current); }
         if(j.rev!=null) _lastRev=j.rev; // 내 저장으로 rev 동기화 → 폴링이 불필요한 재조회 안 함
         // 저장한 뒤로 새 편집이 없었으면 dirty 해제 → 그때부터 폴링이 다시 최신 서버값을 반영 가능
         if(seq===saveSeqRef.current) dirtyRef.current=false;
+        saveErrRef.current=''; retryRef.current=0;
         setSaveState('saved');
         clearTimeout(savedClearRef.current);
         savedClearRef.current=setTimeout(()=>setSaveState('idle'),2000);
       })
-      .catch(()=>setSaveState('error')); // 더 이상 조용히 삼키지 않음 — 사용자에게 실패를 알림(dirty 유지)
+      .catch(e=>{ if(!saveErrRef.current) saveErrRef.current=String(e&&e.message||e); setSaveState('error'); }); // 실패를 사용자에게 알림(dirty 유지 → 데이터 보존)
   },[]);
 
-  // 저장 실패 자동 재시도 — 실패 상태면 5초 뒤 최신 데이터로 다시 저장. 성공할 때까지 반복
-  // (postData가 시작 시 'saving'→실패 시 'error'로 바뀌므로 매 사이클 이 effect가 재실행돼 재시도됨).
+  // 저장 실패 자동 재시도 — 지수 백오프(5→10→20→40→최대 60초). 성공할 때까지 반복하되
+  // 실패가 계속돼도 백엔드를 과하게 때리지 않아(구글 앱스스크립트 일일 할당량 보호) 회복 여지를 줌.
+  // 로컬(localStorage)엔 매 편집마다 저장돼 있어 재시도 중에도 데이터는 안전.
   useEffect(()=>{
     if(saveState!=='error') return;
+    const n=retryRef.current++;
+    const delay=Math.min(60000, 5000*Math.pow(2,Math.min(n,4)));
     const t=setTimeout(()=>{
       postData({brands:brandsRef.current,settlements:settlementsRef.current,paList:paListRef.current},++saveSeqRef.current);
-    },5000);
+    },delay);
     return ()=>clearTimeout(t);
   },[saveState,postData]);
 
@@ -4604,7 +4656,7 @@ function AppMain({ authInfo, onLogout }) {
         </div>}
         {/* 자동저장 상태 표시기 — 항상 노출(평소 '저장됨'), 편집 시 '저장 중…', 실패 시 재시도 */}
         {saveState==='error'
-          ? <button onClick={()=>postData({brands,settlements,paList})} title="저장에 실패했어요. 눌러서 다시 시도하세요."
+          ? <button onClick={()=>{retryRef.current=0;postData({brands,settlements,paList},++saveSeqRef.current);}} title={'저장 실패 사유: '+(saveErrRef.current||'네트워크')+'\n눌러서 다시 시도 (현재 편집분은 이 기기에 안전하게 보관돼 있어요)'}
               style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:600,color:'#b91c1c',background:'#fee2e2',border:'1px solid var(--red)',borderRadius:5,padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap'}}>⚠ 저장 실패 · 재시도</button>
           : <span title="변경하면 자동으로 저장돼요" style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,whiteSpace:'nowrap',color:saveState==='saved'?'#15803d':'var(--muted)'}}>
               {saveState==='saving'?<><span style={{width:6,height:6,borderRadius:'50%',background:'var(--muted)'}}/>저장 중…</>:<>✓ 저장됨</>}
