@@ -6,10 +6,11 @@
 <title>PA Manager (ey)</title>
 <style>
 :root {
-  --bg:#111111;--surface:#1a1a1a;--surface2:#222222;--surface3:#2a2a2a;
-  --border:#2d2d2d;--text:#e4e4e7;--muted:#71717a;--dim:#3f3f46;
-  --accent:#6366f1;--ah:#818cf8;
-  --red:#ef4444;--orange:#f97316;--green:#22c55e;--blue:#3b82f6;--yellow:#eab308;--purple:#a855f7;
+  --bg:#eef1f6;--surface:#ffffff;--surface2:#f5f7fa;--surface3:#e9edf3;
+  --border:#e0e4ec;--text:#1e2430;--muted:#697386;--dim:#a2a9b6;
+  --accent:#5b5ef0;--ah:#4a4de0;--accent-soft:#eef0fe;
+  --red:#dc2626;--orange:#ea580c;--green:#16a34a;--blue:#2563eb;--yellow:#ca8a04;--purple:#9333ea;
+  --thead-bg:#eef0fe;--thead-fg:#4a4de0;--zebra:#f8f9fc;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;overflow:hidden;}
@@ -21,8 +22,8 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD G
 
 /* MODE */
 .mode-banner{padding:4px 16px;font-size:11px;font-weight:600;flex-shrink:0;}
-.mode-banner.staff{background:#1e3a5f;color:#93c5fd;}
-.mode-banner.manager{background:#2d1b4e;color:#c4b5fd;}
+.mode-banner.staff{background:#dbeafe;color:#1d4ed8;}
+.mode-banner.manager{background:#ede9fe;color:#6d28d9;}
 
 /* HEADER */
 .header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 16px;display:flex;align-items:center;gap:12px;height:46px;flex-shrink:0;}
@@ -47,8 +48,8 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD G
 .step-tab.active{color:var(--text);border-bottom-color:var(--accent);}
 .step-tab.settle-tab{color:var(--yellow);}
 .step-tab.settle-tab.active{border-bottom-color:var(--yellow);}
-.step-tab.guide-tab{color:#a78bfa;}
-.step-tab.guide-tab.active{border-bottom-color:#a78bfa;}
+.step-tab.guide-tab{color:#7c3aed;}
+.step-tab.guide-tab.active{border-bottom-color:#7c3aed;}
 
 /* TOOLBAR */
 .toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
@@ -57,13 +58,13 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD G
 .fchip{padding:3px 10px;border-radius:20px;cursor:pointer;font-size:11px;border:1px solid transparent;background:transparent;color:var(--muted);transition:all .12s;}
 .fchip:hover{color:var(--text);background:var(--surface2);}
 .fchip.active{background:var(--surface3);color:var(--text);border-color:var(--border);}
-.fchip.f-ap.active{background:#14532d44;color:#86efac;border-color:#22c55e55;}
-.fchip.f-wt.active{background:#1c1c2e44;color:#a1a1aa;border-color:#52525b55;}
-.fchip.f-rj.active{background:#450a0a44;color:#fca5a5;border-color:#ef444455;}
-.fchip.f-dm.active{background:#1e3a5f44;color:#93c5fd;border-color:#3b82f655;}
-.fchip.f-deal.active{background:#14532d44;color:#86efac;border-color:#22c55e55;}
-.fchip.f-done.active{background:#14532d44;color:#86efac;border-color:#22c55e55;}
-.fchip.f-arc.active{background:#2a210a44;color:#fcd34d;border-color:#a16d0755;}
+.fchip.f-ap.active{background:#dcfce7;color:#15803d;border-color:#86efac;}
+.fchip.f-wt.active{background:#eef1f6;color:#4b5563;border-color:#cbd5e1;}
+.fchip.f-rj.active{background:#fee2e2;color:#b91c1c;border-color:#fca5a5;}
+.fchip.f-dm.active{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd;}
+.fchip.f-deal.active{background:#dcfce7;color:#15803d;border-color:#86efac;}
+.fchip.f-done.active{background:#dcfce7;color:#15803d;border-color:#86efac;}
+.fchip.f-arc.active{background:#fef3c7;color:#b45309;border-color:#fcd34d;}
 .sep{flex:1;}
 .cnt{font-size:11px;color:var(--dim);}
 .search-wrap{position:relative;display:flex;align-items:center;}
@@ -80,7 +81,7 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD G
 .btn-primary:hover:not(:disabled){background:var(--ah);}
 .btn-ghost{background:var(--surface3);color:var(--muted);}
 .btn-ghost:hover{color:var(--text);}
-.btn-green{background:#14532d;color:#86efac;border:1px solid #22c55e;}
+.btn-green{background:#dcfce7;color:#15803d;border:1px solid #86efac;}
 .btn-add{background:transparent;border:1px dashed var(--border);color:var(--dim);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px;transition:all .12s;width:100%;}
 .btn-add:hover{border-color:var(--accent);color:var(--accent);}
 
@@ -90,18 +91,24 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD G
 
 /* TABLE */
 table{width:100%;border-collapse:collapse;table-layout:auto;}
-thead tr{background:var(--surface);position:sticky;top:0;z-index:5;}
-th{padding:7px 8px;text-align:left;font-size:11px;font-weight:600;color:#a1a1aa;border-bottom:1px solid var(--border);white-space:nowrap;user-select:none;}
+thead tr{background:var(--thead-bg);position:sticky;top:0;z-index:5;}
+th{padding:7px 8px;text-align:left;font-size:11px;font-weight:700;color:var(--thead-fg);border-bottom:1px solid var(--border);white-space:nowrap;user-select:none;}
 tbody tr{border-bottom:1px solid var(--border);transition:background .08s;}
-tbody tr:hover{background:var(--surface2);}
+tbody tr:nth-child(even){background:var(--zebra);}
+tbody tr:hover{background:var(--accent-soft);}
 td{padding:5px 8px;font-size:12px;vertical-align:middle;}
 .del-col{width:28px;text-align:center;}
 .row-del-btn{opacity:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:1px 4px;border-radius:3px;transition:opacity .12s;}
 tbody tr:hover .row-del-btn{opacity:.5;}
-.row-del-btn:hover{opacity:1!important;background:#450a0a;}
+.row-del-btn:hover{opacity:1!important;background:#fee2e2;}
 .row-copy-btn{opacity:.3;background:none;border:none;cursor:pointer;font-size:12px;padding:0 2px;border-radius:3px;transition:opacity .12s;flex:0 0 auto;}
 tbody tr:hover .row-copy-btn{opacity:.7;}
 .row-copy-btn:hover{opacity:1!important;background:var(--surface3);}
+/* 엑셀식 컬럼 필터 행 */
+.colf-row th{background:var(--surface2);border-bottom:1px solid var(--border);position:sticky;top:29px;z-index:4;}
+.colf-inp{width:100%;min-width:40px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:11px;color:var(--text);outline:none;font-family:inherit;}
+.colf-inp:focus{border-color:var(--accent);}
+.colf-inp::placeholder{color:var(--dim);}
 
 /* INLINE EDIT CELL */
 .cell-val{cursor:text;display:block;min-width:32px;min-height:20px;border-radius:3px;padding:1px 3px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}
@@ -112,17 +119,17 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 
 /* YN TOGGLE */
 .yn-btn{padding:2px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;transition:all .12s;border:1px solid;}
-.yn-y{background:#14532d;color:#86efac;border-color:#22c55e;}
+.yn-y{background:#dcfce7;color:#15803d;border-color:#86efac;}
 .yn-n{background:var(--surface2);color:var(--dim);border-color:var(--border);}
 .yn-n:hover{border-color:var(--muted);color:var(--muted);}
 
 /* BADGES */
 .badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;}
-.b-ap{background:#14532d;color:#86efac;}
-.b-wt{background:#27272a;color:#a1a1aa;}
-.b-rj{background:#450a0a;color:#fca5a5;}
-.b-done{background:#14532d;color:#86efac;}
-.b-prog{background:#1e3a5f;color:#93c5fd;}
+.b-ap{background:#dcfce7;color:#15803d;}
+.b-wt{background:#eef1f6;color:#4b5563;}
+.b-rj{background:#fee2e2;color:#b91c1c;}
+.b-done{background:#dcfce7;color:#15803d;}
+.b-prog{background:#dbeafe;color:#1d4ed8;}
 .pa-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;}
 
 /* EMPTY */
@@ -132,7 +139,7 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 
 /* SETTLE PAGE */
 .settle-page{flex:1 1 0;overflow-y:auto;padding:20px;}
-.settle-alert{background:#71390033;border:1px solid #d97706;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;}
+.settle-alert{background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;}
 .settle-date-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:20px;display:flex;align-items:center;gap:20px;}
 .settle-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;}
 .settle-stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;}
@@ -160,11 +167,11 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 .guide-step-num{background:var(--accent);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;}
 .guide-step-text{font-size:12px;line-height:1.7;color:var(--text);}
 .guide-step-text strong{color:var(--accent);}
-.guide-tip{background:#1e3a5f22;border:1px solid #3b82f633;border-radius:6px;padding:10px 12px;font-size:11px;color:#93c5fd;line-height:1.7;margin-top:8px;}
-.guide-warn{background:#45090a22;border:1px solid #ef444433;border-radius:6px;padding:10px 12px;font-size:11px;color:#fca5a5;line-height:1.7;margin-top:8px;}
+.guide-tip{background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 12px;font-size:11px;color:#1d4ed8;line-height:1.7;margin-top:8px;}
+.guide-warn{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:10px 12px;font-size:11px;color:#b91c1c;line-height:1.7;margin-top:8px;}
 
 /* MODAL */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:50;}
+.overlay{position:fixed;inset:0;background:rgba(30,36,48,.45);display:flex;align-items:center;justify-content:center;z-index:50;}
 .modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;width:520px;max-height:85vh;overflow-y:auto;padding:22px;}
 .modal-title{font-size:14px;font-weight:600;margin-bottom:14px;}
 .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
@@ -238,7 +245,7 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 
 /* PRIVACY */
 .privacy-page{flex:1 1 0;overflow:auto;display:flex;flex-direction:column;}
-.privacy-warn{background:#45090a33;border:1px solid var(--red);border-radius:6px;padding:10px 14px;margin:12px 16px;font-size:11px;color:#fca5a5;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.privacy-warn{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:10px 14px;margin:12px 16px;font-size:11px;color:#b91c1c;display:flex;align-items:center;gap:8px;flex-shrink:0;}
 
 /* LOGIN */
 .login-wrap{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;}
@@ -249,7 +256,7 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 .login-lbl{font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:500;}
 .login-inp{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;outline:none;font-family:inherit;margin-bottom:12px;}
 .login-inp:focus{border-color:var(--accent);}
-.login-err{font-size:11px;color:#fca5a5;margin-bottom:10px;min-height:16px;}
+.login-err{font-size:11px;color:var(--red);margin-bottom:10px;min-height:16px;}
 .login-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;transition:background .12s;}
 .login-btn:hover{background:var(--ah);}
 .login-btn:disabled{opacity:.5;cursor:not-allowed;}
@@ -257,11 +264,11 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 /* ACCESS LOG */
 .log-page{flex:1 1 0;overflow-y:auto;padding:16px;}
 .log-table{width:100%;border-collapse:collapse;}
-.log-table th{padding:7px 10px;text-align:left;font-size:11px;font-weight:600;color:#a1a1aa;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;}
+.log-table th{padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--thead-fg);border-bottom:1px solid var(--border);background:var(--thead-bg);position:sticky;top:0;}
 .log-table td{padding:6px 10px;font-size:11px;border-bottom:1px solid var(--border);font-family:monospace;}
-.log-ok{color:#86efac;}
-.log-fail{color:#fca5a5;}
-.log-out{color:#fde68a;}
+.log-ok{color:#15803d;}
+.log-fail{color:#b91c1c;}
+.log-out{color:#b45309;}
 
 /* ─────────────────────────────────────────────
    모바일/태블릿 반응형 (≤768px) — PC 레이아웃은 그대로, 좁은 화면에서만 적용
@@ -634,7 +641,7 @@ function ContractGenModal({ brandId, brandName, onClose }){
       <input style={I} value={fee} onChange={e=>setFee(e.target.value)} placeholder="800000" inputMode="numeric" onKeyDown={e=>e.key==='Enter'&&go()}/>
       <label style={L}>계약일자</label>
       <input style={I} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
-      {err&&<div style={{color:'#fca5a5',fontSize:12,marginTop:10}}>{err}</div>}
+      {err&&<div style={{color:'var(--red)',fontSize:12,marginTop:10}}>{err}</div>}
       <div style={{marginTop:18}}>
         <button onClick={go} disabled={busy} style={{width:'100%',padding:'11px',border:0,borderRadius:8,background:busy?'#6b7280':'var(--blue)',color:'#fff',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer'}} title="워드 문서 — 이름·전화번호·주소 자동 반영">{busy?'생성 중…':'📝 워드 생성'}</button>
       </div>
@@ -669,7 +676,7 @@ function normStatus(s){
 }
 // 진행 상태별 색 — 한눈에 구별 (전:주황 / 진행중:파랑 / 완료:초록 / 거절:빨강)
 function csColor(s){
-  const m={'컨택 전':['#3a2c08','#fcd34d'],'진행중':['#0c2a4a','#7dd3fc'],'컨택 완료':['#14532d','#86efac'],'계약서 작성':['#2a1840','#c4b5fd'],'거절':['#450a0a','#fca5a5']};
+  const m={'컨택 전':['#fef3c7','#b45309'],'진행중':['#dbeafe','#1d4ed8'],'컨택 완료':['#dcfce7','#15803d'],'계약서 작성':['#ede9fe','#6d28d9'],'거절':['#fee2e2','#b91c1c']};
   const c=m[normStatus(s)]||['var(--surface3)','var(--muted)'];
   return {background:c[0],color:c[1]};
 }
@@ -1315,7 +1322,7 @@ function sanitizePA(raw){
 }
 function paColor(pa) {
   if (!pa) return { background:'var(--surface3)', color:'var(--muted)' };
-  const cs=[['#1e3a5f','#93c5fd'],['#3b0764','#d8b4fe'],['#14532d','#86efac'],['#431407','#fb923c'],['#713f12','#fde68a']];
+  const cs=[['#dbeafe','#1d4ed8'],['#ede9fe','#7c3aed'],['#dcfce7','#15803d'],['#ffedd5','#c2410c'],['#fef9c3','#a16207']];
   // 등록된 PA(PA_LIST)는 순서대로 고정 색 — 4명이 항상 서로 다른 색으로 구분됨
   const fixed=PA_LIST.indexOf(pa);
   if(fixed>=0) return { background:cs[fixed%cs.length][0], color:cs[fixed%cs.length][1] };
@@ -1347,15 +1354,18 @@ function getMonths(rows,key='date'){const s=new Set();rows.forEach(r=>{const y=p
 function filterByMonth(rows,month,key='date'){if(!month||month==='all')return rows;return rows.filter(r=>parseYM(r[key])===month);}
 function ymLabel(ym){const[y,m]=(ym||'').split('-');return y?`${y}년 ${parseInt(m)}월`:ym;}
 
+// 그 달의 첫째 주 목요일(요일=4) 날짜
+function firstThursday(y,m){ const d=new Date(y,m,1); const off=(4-d.getDay()+7)%7; return new Date(y,m,1+off); }
 function getSettleInfo() {
-  const now=new Date(); const y=now.getFullYear(); const m=now.getMonth();
-  let next=new Date(y,m,5);
-  if (now.getDate()>5) next=new Date(y,m+1,5);
-  const days=Math.ceil((next-now)/(86400000));
-  // 익월 5일 지급 → 이번에 지급하는 정산 대상 기간 = 그 5일이 속한 달의 '전월'
+  const now=new Date(); const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  // 정산일 = 매월 첫째 주 목요일. 이미 지났으면 다음 달 첫째 주 목요일.
+  let next=firstThursday(now.getFullYear(),now.getMonth());
+  if (t0>next) next=firstThursday(now.getFullYear(),now.getMonth()+1);
+  const days=Math.round((next-t0)/(86400000));
+  // 첫째 주 목요일 지급 → 이번에 지급하는 정산 대상 기간 = 그 목요일이 속한 달의 '전월'(1일~말일)
   const cov=new Date(next.getFullYear(),next.getMonth()-1,1);
   const coverYM=`${cov.getFullYear()}-${String(cov.getMonth()+1).padStart(2,'0')}`;
-  return { next, days, label:`${next.getFullYear()}년 ${next.getMonth()+1}월 5일`,
+  return { next, days, label:`${next.getFullYear()}년 ${next.getMonth()+1}월 ${next.getDate()}일(첫째 주 목요일)`,
     coverYM, coverLabel:`${cov.getFullYear()}년 ${cov.getMonth()+1}월` };
 }
 
@@ -1612,12 +1622,17 @@ function ShipCopyBtn({ row, product }){
 }
 
 /* ─── CALENDAR SIDEBAR ─── */
-function CalSidebar({rows,dateKey='date',dayFilter,setDayFilter}){
+function CalSidebar({rows,dateKey='date',dayFilter,setDayFilter,monthFilter,setMonthFilter}){
   const now=new Date();
   const [ym,setYM]=useState(()=>{
+    if(monthFilter) return monthFilter;
     const ms=getMonths(rows,dateKey);
     return ms.length>0?ms[0]:`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   });
+  // 월 필터가 걸린 채 달을 넘기면 필터도 같이 따라오도록 동기화
+  useEffect(()=>{ if(monthFilter&&monthFilter!==ym) setYM(monthFilter); },[monthFilter]);
+  const monthActive=setMonthFilter&&monthFilter===ym;
+  function toggleMonth(){ if(!setMonthFilter)return; setDayFilter(null); setMonthFilter(monthActive?null:ym); }
   const [y,m]=ym.split('-').map(Number);
 
   const dayCounts=useMemo(()=>{
@@ -1646,7 +1661,8 @@ function CalSidebar({rows,dateKey='date',dayFilter,setDayFilter}){
     <div className="cal-header">
       <div className="cal-nav">
         <button className="cal-nav-btn" onClick={prev}>‹</button>
-        <span style={{fontSize:12,fontWeight:600}}>{y}년 {m}월</span>
+        <button onClick={toggleMonth} title={setMonthFilter?'클릭하면 이 달 전체 데이터만 모아 봅니다':undefined}
+          style={{background:monthActive?'var(--accent)':'transparent',color:monthActive?'#fff':'var(--text)',border:'none',borderRadius:6,padding:'2px 8px',fontSize:12,fontWeight:600,cursor:setMonthFilter?'pointer':'default'}}>{y}년 {m}월</button>
         <button className="cal-nav-btn" onClick={next}>›</button>
       </div>
       <div className="cal-grid">
@@ -1667,7 +1683,10 @@ function CalSidebar({rows,dateKey='date',dayFilter,setDayFilter}){
       <button onClick={()=>setDayFilter(null)} style={{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:12,lineHeight:1}}>×</button>
     </div>}
     <div className="cal-list">
-      <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,fontWeight:600}}>{m}월 · {monthTotal}건</div>
+      <div onClick={toggleMonth} title={setMonthFilter?'클릭하면 이 달 전체 데이터를 봅니다':undefined}
+        style={{fontSize:10,color:monthActive?'var(--accent)':'var(--muted)',marginBottom:6,fontWeight:700,cursor:setMonthFilter?'pointer':'default',display:'flex',alignItems:'center',gap:4}}>
+        {monthActive&&'📅 '}{m}월 전체 · {monthTotal}건{monthActive&&<span style={{marginLeft:'auto',color:'var(--dim)'}}>✕</span>}
+      </div>
       {Object.entries(dayCounts).sort(([a],[b])=>+a-+b).map(([d,cnt])=>{
         const k=dayKey(+d);
         return <div key={d} className={`cal-list-item ${dayFilter===k?'active':''}`} onClick={()=>toggleDay(+d)}>
@@ -1964,7 +1983,7 @@ function PaManageModal({ paList, setPaList, onClose }) {
 
 /* ─── ADD ROW MODAL (Step1) ─── */
 function AddStep1Modal({ onConfirm, onCancel }) {
-  const [f,setF]=useState({date:today(),name:'',link:'',followers:'',persona:'',feedMemo:'',hypothesis:'',pa:'',reviewStatus:'검수대기',rejectReason:''});
+  const [f,setF]=useState({date:today(),name:'',link:'',followers:'',persona:'',memo:'',pa:'',reviewStatus:'검수대기'});
   const u=k=>e=>setF(p=>({...p,[k]:typeof e==='string'?e:e.target.value}));
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()}>
     <div className="modal">
@@ -1981,14 +2000,12 @@ function AddStep1Modal({ onConfirm, onCancel }) {
           </select>
         </div>
         <div className="modal-full"><div className="modal-lbl">페르소나 / 카테고리</div><input className="modal-inp" value={f.persona} onChange={u('persona')} placeholder="예: 낚시/아웃도어, 40대 남성" /></div>
-        <div className="modal-full"><div className="modal-lbl">피드 분석 메모</div><textarea className="modal-ta" value={f.feedMemo} onChange={u('feedMemo')} placeholder="피드 분석 내용..." /></div>
-        <div className="modal-full"><div className="modal-lbl">가설 / 특이사항</div><textarea className="modal-ta" value={f.hypothesis} onChange={u('hypothesis')} placeholder="선택 이유, 가설..." /></div>
+        <div className="modal-full"><div className="modal-lbl">메모</div><textarea className="modal-ta" value={f.memo} onChange={u('memo')} placeholder="메모..." /></div>
         {!IS_STAFF&&<div><div className="modal-lbl">검수 상태</div>
           <select className="modal-sel" value={f.reviewStatus} onChange={u('reviewStatus')}>
             {REVIEW_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>}
-        {!IS_STAFF&&f.reviewStatus==='반려'&&<div className="modal-full"><div className="modal-lbl">반려 사유</div><input className="modal-inp" value={f.rejectReason} onChange={u('rejectReason')} /></div>}
       </div>
       <div className="modal-foot">
         <button className="btn btn-ghost" onClick={onCancel}>취소</button>
@@ -2000,7 +2017,7 @@ function AddStep1Modal({ onConfirm, onCancel }) {
 
 /* ─── ADD SHIPPING MODAL ─── */
 function AddShipModal({ onConfirm, onCancel }) {
-  const [f,setF]=useState({id:'',requestDate:today(),shipDate:'',requester:'',reason:'협찬',recipient:'',channelName:'',phone:'',address:'',product:'',qty:'1',notes:'',status:'처리중',tracking:''});
+  const [f,setF]=useState({id:'',requestDate:today(),shipDate:'',requester:'',recipient:'',channelName:'',phone:'',address:'',product:'',qty:'1',notes:'',status:'처리중',tracking:''});
   const u=k=>e=>setF(p=>({...p,[k]:typeof e==='string'?e:e.target.value}));
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()}>
     <div className="modal">
@@ -2013,7 +2030,6 @@ function AddShipModal({ onConfirm, onCancel }) {
             <option value="">선택</option>{PA_LIST.map(p=><option key={p}>{p}</option>)}
           </select>
         </div>
-        <div><div className="modal-lbl">출고 사유</div><input className="modal-inp" value={f.reason} onChange={u('reason')} /></div>
         <div><div className="modal-lbl">수령자명</div><input className="modal-inp" value={f.recipient} onChange={u('recipient')} autoFocus /></div>
         <div><div className="modal-lbl">채널명</div><input className="modal-inp" value={f.channelName} onChange={u('channelName')} placeholder="인스타 채널명" /></div>
         <div><div className="modal-lbl">수령자 연락처</div><input className="modal-inp" value={f.phone} onChange={u('phone')} /></div>
@@ -2032,12 +2048,12 @@ function AddShipModal({ onConfirm, onCancel }) {
 function WorkManual(){
   const [open,setOpen]=useState(true);
   const SECT=[
-    { icon:'🔷', title:'1. 인플루언서 협업 관리', tint:'#6aa0ff', steps:[
+    { icon:'🔷', title:'1. 인플루언서 협업 관리', tint:'#3b82f6', steps:[
       { t:'리스트업', d:'승인 대상 인플루언서 목록 정리' },
       { t:'DM 발송', d:'승인 인원에게 DM 발송 → PA 프로그램에 발송 여부 즉시 체크' },
       { t:'협업 성사 시', d:'PA 프로그램에 성사 여부 체크 → 협의된 인플루언서 단가 기재' },
     ]},
-    { icon:'🔷', title:'2. 영상 콘텐츠 관리', tint:'#ffb86a', steps:[
+    { icon:'🔷', title:'2. 영상 콘텐츠 관리', tint:'#ea580c', steps:[
       { t:'출고 시트 작성', d:'출고요청일 · 요청자 · 사유 · 채널명 · 수령자명 · 연락처 · 배송지주소 빠짐없이 기재' },
       { t:'영상 일정 모니터링', warn:true, d:'담당자 작성 출고일자 확인 → 업로드까지 7일 초과 예상 시 즉시 담당자 보고 (보고: 채널명 · 본명 · 지연 사유)' },
       { t:'1차 영상 검수', d:'아래 3가지 확인 후 담당자 전달 — ① 나레이션 오류 ② 자막 누락 ③ 면책문구 포함 여부' },
@@ -2064,12 +2080,12 @@ function WorkManual(){
               </div>
               <div style={{display:'flex',flexDirection:'column',gap:9}}>
                 {sec.steps.map((st,i)=>(
-                  <div key={i} style={{display:'flex',gap:10,...(st.warn?{background:'#2a2218',border:'1px solid #5c4a1f',borderRadius:8,padding:'8px 10px'}:{padding:'0 1px'})}}>
-                    <span style={{flexShrink:0,width:21,height:21,borderRadius:'50%',background:st.warn?'#d99a2b':sec.tint,color:'#0c0c0c',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{i+1}</span>
+                  <div key={i} style={{display:'flex',gap:10,...(st.warn?{background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:8,padding:'8px 10px'}:{padding:'0 1px'})}}>
+                    <span style={{flexShrink:0,width:21,height:21,borderRadius:'50%',background:st.warn?'#d99a2b':sec.tint,color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{i+1}</span>
                     <div style={{minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,marginBottom:3,lineHeight:1.3}}>{st.t}{st.warn&&<span style={{color:'#e0a93b',fontSize:10,marginLeft:6,fontWeight:700}}>⚠️ 중요</span>}</div>
+                      <div style={{fontSize:13,fontWeight:600,marginBottom:3,lineHeight:1.3}}>{st.t}{st.warn&&<span style={{color:'#b45309',fontSize:10,marginLeft:6,fontWeight:700}}>⚠️ 중요</span>}</div>
                       <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.5}}>{st.d}</div>
-                      {st.ban&&<div style={{display:'inline-block',marginTop:6,fontSize:11,fontWeight:700,color:'#ff8a8a',background:'#2a1515',border:'1px solid #5c2424',borderRadius:6,padding:'2px 9px'}}>⛔ {st.ban}</div>}
+                      {st.ban&&<div style={{display:'inline-block',marginTop:6,fontSize:11,fontWeight:700,color:'#b91c1c',background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:6,padding:'2px 9px'}}>⛔ {st.ban}</div>}
                       {st.after&&<div style={{fontSize:11,color:'var(--muted)',marginTop:5,paddingTop:5,borderTop:'1px dashed var(--border)'}}>↳ {st.after}</div>}
                     </div>
                   </div>
@@ -2078,11 +2094,11 @@ function WorkManual(){
             </div>
           ))}
         </div>
-        <div style={{marginTop:14,background:'linear-gradient(135deg,#241a10,#1c1410)',border:'1px solid #5c4a1f',borderRadius:10,padding:'12px 16px'}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#e0a93b',marginBottom:7}}>💡 핵심 원칙</div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:'7px 20px',fontSize:12,color:'#e9d9bd'}}>
-            <span>• 체크 및 보고는 <b style={{color:'#fff'}}>즉시</b> 처리</span>
-            <span>• 7일 일정 초과 · 라이브 표기 · 개인정보 보고 누락 <b style={{color:'#ff9a9a'}}>절대 주의</b></span>
+        <div style={{marginTop:14,background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:10,padding:'12px 16px'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#b45309',marginBottom:7}}>💡 핵심 원칙</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:'7px 20px',fontSize:12,color:'#78716c'}}>
+            <span>• 체크 및 보고는 <b style={{color:'var(--text)'}}>즉시</b> 처리</span>
+            <span>• 7일 일정 초과 · 라이브 표기 · 개인정보 보고 누락 <b style={{color:'#b91c1c'}}>절대 주의</b></span>
           </div>
         </div>
       </div>}
@@ -2139,7 +2155,7 @@ function DashboardView({ brand, isManager, isStaff, authInfo, setTab, setFilter,
         <div style={{display:'flex',alignItems:'stretch',gap:6,overflowX:'auto',paddingBottom:4}}>
           {stages.map((st,i)=>(
             <React.Fragment key={st.no}>
-              <div onClick={st.go} style={{flex:'1 1 0',minWidth:118,cursor:'pointer',background:st.hot?'#2a1a1a':'var(--surface2)',border:'1px solid '+(st.hot?'var(--red)':'var(--border)'),borderRadius:10,padding:'11px 13px'}}>
+              <div onClick={st.go} style={{flex:'1 1 0',minWidth:118,cursor:'pointer',background:st.hot?'#fef2f2':'var(--surface2)',border:'1px solid '+(st.hot?'var(--red)':'var(--border)'),borderRadius:10,padding:'11px 13px'}}>
                 <div style={{fontSize:10,color:'var(--muted)',marginBottom:3}}>STEP {st.no}</div>
                 <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>{st.emoji} {st.title}</div>
                 <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.4,minHeight:30}}>{st.desc}</div>
@@ -2158,7 +2174,7 @@ function DashboardView({ brand, isManager, isStaff, authInfo, setTab, setFilter,
 
       {wait>0 && (
         <div onClick={()=>{setTab('step1');setFilter('wt');}}
-          style={{...card,background:'#2a1a1a',borderColor:'var(--red)',cursor:'pointer',marginBottom:14,display:'flex',alignItems:'center',gap:10}}>
+          style={{...card,background:'#fef2f2',borderColor:'var(--red)',cursor:'pointer',marginBottom:14,display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontSize:20}}>🔎</span>
           <span style={{fontWeight:600,color:'var(--red)'}}>검수 대기 {wait}건</span>
           <span style={{fontSize:12,color:'var(--muted)'}}>— 클릭하면 검수대기 목록으로</span>
@@ -2236,17 +2252,18 @@ function nicheOf(text){const t=String(text||'').toLowerCase();for(const[w,ks]of 
 
 function Step1View({ rows, onUpdate, onDelete, onAdd, filter, setFilter, search, setSearch }) {
   const [dayFilter,setDayFilter]=useState(null);
+  const [monthFilter,setMonthFilter]=useState(null);
   const [cat,setCat]=useState(null); // 페르소나 카테고리 필터(키 또는 '__uncat')
   const q=search.trim().toLowerCase();
   const s=v=>String(v||'');
-  const byDay=dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):rows;
+  const byDay=(dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows);
   const shown=byDay
     .filter(r=>s(r.name).trim())
     .filter(r=>{
       // 페르소나 카테고리 필터 — 다른 조건과 AND. '__uncat'=어디에도 안 잡힌 사람.
       if(cat){const cs=rowCatsOf(r); if(cat==='__uncat'){if(cs.length)return false;} else if(!cs.includes(cat))return false;}
       // 검색은 반려 포함 전체에서 — 누적돼도 누구든 찾을 수 있게.
-      if(q) return [r.name,r.pa,r.persona,r.feedMemo,r.hypothesis].some(v=>s(v).toLowerCase().includes(q));
+      if(q) return [r.name,r.pa,r.persona,r.memo].some(v=>s(v).toLowerCase().includes(q));
       if(filter==='ap') return r.reviewStatus==='승인';
       if(filter==='wt') return r.reviewStatus==='검수대기';
       if(filter==='rj') return r.reviewStatus==='반려';
@@ -2291,10 +2308,8 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, filter, setFilter, search,
           <th style={{width:80}}>팔로워</th>
           <th style={{width:75}}>담당 PA</th>
           <th style={{minWidth:100}}>페르소나</th>
-          <th style={{minWidth:120}}>피드 분석 메모</th>
-          <th style={{minWidth:120}}>가설 / 특이사항</th>
           <th style={{width:90}}>검수 상태</th>
-          <th style={{minWidth:100}}>반려 사유</th>
+          <th style={{minWidth:160}}>메모</th>
         </tr></thead>
         <tbody>
           {shown.map(r=><tr key={r.id}>
@@ -2313,26 +2328,25 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, filter, setFilter, search,
             <td><Cell value={r.pa} onChange={v=>up(r.id,'pa',v)} type="select" options={PA_LIST}
               style={r.pa?{...paColor(sanitizePA(r.pa)),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
             <td><Cell value={r.persona} onChange={v=>up(r.id,'persona',v)} placeholder="페르소나"/></td>
-            <td><Cell value={r.feedMemo} onChange={v=>up(r.id,'feedMemo',v)} type="textarea" placeholder="피드 분석…"/></td>
-            <td><Cell value={r.hypothesis} onChange={v=>up(r.id,'hypothesis',v)} type="textarea" placeholder="가설…"/></td>
             <td>
               {IS_STAFF
                 ?<span className={`badge ${reviewBadge(r.reviewStatus)}`}>{reviewLabel(r.reviewStatus)}</span>
                 :<Cell value={r.reviewStatus||'검수대기'} onChange={v=>up(r.id,'reviewStatus',v)} type="select" options={REVIEW_OPTIONS} fmt={reviewLabel}/>}
             </td>
-            <td><Cell value={r.rejectReason} onChange={v=>up(r.id,'rejectReason',v)} placeholder="사유" disabled={r.reviewStatus!=='반려'}/></td>
+            <td><Cell value={r.memo} onChange={v=>up(r.id,'memo',v)} type="textarea" placeholder="메모…"/></td>
           </tr>)}
         </tbody>
       </table>
     </div>
     </div>
-    <CalSidebar rows={rows} dayFilter={dayFilter} setDayFilter={setDayFilter}/>
+    <CalSidebar rows={rows} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
   </div>;
 }
 
 /* ─── STEP2 VIEW ─── */
 function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy, filter, setFilter, search, setSearch, isClaude }) {
   const [dayFilter,setDayFilter]=useState(null);
+  const [monthFilter,setMonthFilter]=useState(null);
   const [sortDir,setSortDir]=useState('asc');   // 날짜 정렬: 'asc'=오래된순(기본), 'desc'=최신순
   const q=search.trim().toLowerCase();
   const s2=v=>String(v||'');
@@ -2341,7 +2355,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
   const isArchived=r=>isRej(r)||r.privacyPurged;
   const named=rows.filter(r=>s2(r.name).trim());
   const mode=filter==='rej'?'reject':filter==='arc'?'archive':'active';
-  const byDay=dayFilter?named.filter(r=>parseDateKey(r.date)===dayFilter):named;
+  const byDay=dayFilter?named.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?named.filter(r=>parseYM(r.date)===monthFilter):named;
   const shown=byDay.filter(r=>{
     // 검색은 보관 포함 전체에서 — 누적돼도 누구든 찾을 수 있게.
     if(q) return [r.name,r.pa,r.memo,r.contactStatus].some(v=>s2(v).toLowerCase().includes(q));
@@ -2382,26 +2396,15 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
       </div>
       <span className="cnt">{shown.length}명</span>
     </div>
-    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',padding:'7px 12px',margin:'0 0 2px',background:'#16181d',borderTop:'1px solid var(--border)',borderBottom:'1px solid var(--border)',fontSize:12,color:'var(--muted)'}}>
+    {(mode==='archive'||mode==='reject')&&<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',padding:'7px 12px',margin:'0 0 2px',background:'var(--surface2)',borderTop:'1px solid var(--border)',borderBottom:'1px solid var(--border)',fontSize:12,color:'var(--muted)'}}>
       {mode==='archive'
-        ? <><span>📦 <b style={{color:'#fcd34d'}}>보관</b> — 거절했거나 개인정보가 폐기된 인플루언서 모음</span>
+        ? <><span>📦 <b style={{color:'var(--orange)'}}>보관</b> — 거절했거나 개인정보가 폐기된 인플루언서 모음</span>
             <span style={{color:'var(--dim)'}}>·</span>
-            <span>데이터·수당 정산은 <b>그대로 보존</b>됩니다 (지워지지 않음)</span>
+            <span>데이터·수당 정산은 <b>그대로 보존</b>됩니다 (지워지지 않음)</span></>
+        : <><span>🚫 <b style={{color:'var(--red)'}}>거절</b> 인플루언서 모음</span>
             <span style={{color:'var(--dim)'}}>·</span>
-            <span>진행 중 목록에서 빠져 가독성을 유지합니다</span></>
-        : mode==='reject'
-        ? <><span>🚫 <b style={{color:'#fca5a5'}}>거절</b> 인플루언서 모음</span>
-            <span style={{color:'var(--dim)'}}>·</span>
-            <span>DM 발송분은 <b style={{color:'var(--blue)'}}>2,000원</b> 정산에 그대로 반영됩니다</span>
-            <span style={{color:'var(--dim)'}}>·</span>
-            <span>진행상태를 다른 값으로 바꾸면 <b>컨택현황</b>으로 돌아갑니다</span></>
-        : <><span>💰 정산 기준:</span>
-            <span><b style={{color:'var(--blue)'}}>DM 발송</b> 체크 = <b>2,000원</b></span>
-            <span style={{color:'var(--dim)'}}>·</span>
-            <span><b style={{color:'var(--purple)'}}>협업 성사</b> 체크 = <b>20,000원</b> <span style={{color:'var(--dim)'}}>(성사일 자동 기록)</span></span>
-            <span style={{color:'var(--dim)'}}>·</span>
-            <span>체크하면 자동 집계 → 매월 <b style={{color:'var(--yellow)'}}>5일 지급</b></span></>}
-    </div>
+            <span>진행상태를 다른 값으로 바꾸면 <b>컨택현황</b>으로 돌아갑니다</span></>}
+    </div>}
     <div className="table-wrap">
       <table className="card-table">
         <thead><tr>
@@ -2417,9 +2420,6 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
           <th style={{width:65}}>협업성사</th>
           <th style={{width:85}}>성사일</th>
           <th style={{width:90}}>단가</th>
-          <th style={{width:85}}>예상게시일</th>
-          <th style={{width:65}}>출고완료</th>
-          <th style={{width:65}}>계약서</th>
           {!IS_STAFF&&!isClaude&&<th style={{width:80}}>DM수당</th>}
           {!IS_STAFF&&!isClaude&&<th style={{width:80}}>성사수당</th>}
           {!IS_STAFF&&!isClaude&&<th style={{width:80}}>소계</th>}
@@ -2434,7 +2434,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
             return <tr key={r.id}>
               <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
                 {isClaude&&<button className="row-del-btn" title={isRej(r)?'거절 취소 (컨택 전으로 되돌림)':'맘에 안 들면 거절 — 보관함으로 이동(데이터는 학습용으로 보존)'}
-                  style={{color:isRej(r)?'#fca5a5':'var(--dim)',borderColor:isRej(r)?'#ef444455':undefined}}
+                  style={{color:isRej(r)?'var(--red)':'var(--dim)',borderColor:isRej(r)?'#fca5a5':undefined}}
                   onClick={()=>setStatus(r,isRej(r)?'컨택 전':'거절')}>{isRej(r)?'↩':'🚫'}</button>}
                 <button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button>
               </span></td>
@@ -2454,9 +2454,6 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
               <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>setDeal(r,v)}/></td>
               <td data-label="성사일"><Cell value={r.dealDate} onChange={v=>up(r.id,'dealDate',v)} type="date" style={{width:85}} placeholder={r.dealDone==='Y'?'날짜 입력':'—'}/></td>
               <td data-label="단가"><Cell value={r.rate} onChange={v=>up(r.id,'rate',v)} style={{width:80,color:'var(--yellow)'}}/></td>
-              <td data-label="예상게시일"><Cell value={r.expectedPost} onChange={v=>up(r.id,'expectedPost',v)} type="date" style={{width:85}}/></td>
-              <td data-label="출고완료" style={{textAlign:'center'}}><Cell value={r.shippingDone} onChange={v=>up(r.id,'shippingDone',v)} type="select" options={['미완료','✅ 완료']} style={{whiteSpace:'nowrap',display:'inline-block'}}/></td>
-              <td data-label="계약서" style={{textAlign:'center'}}><Cell value={r.contractDone} onChange={v=>up(r.id,'contractDone',v)} type="select" options={['미완료','✅ 완료']} style={{whiteSpace:'nowrap',display:'inline-block'}}/></td>
               {!IS_STAFF&&!isClaude&&<td data-label="DM수당" style={{color:pay.dm>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.dm)}</td>}
               {!IS_STAFF&&!isClaude&&<td data-label="성사수당" style={{color:pay.deal>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.deal)}</td>}
               {!IS_STAFF&&!isClaude&&<td data-label="소계" style={{color:'var(--yellow)',fontWeight:700,fontSize:11}}>{fmtMoney(pay.subtotal)}</td>}
@@ -2472,21 +2469,24 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
               </td>
             </tr>;
           })}
-          {shown.length===0&&<tr><td colSpan={(IS_STAFF?16:19)+(isClaude?1:0)} className="empty" style={{height:80}}>
+          {shown.length===0&&<tr><td colSpan={(IS_STAFF?13:16)+(isClaude?1:0)} className="empty" style={{height:80}}>
             <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'보관된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'STEP1에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
           </td></tr>}
         </tbody>
       </table>
     </div>
     </div>
-    <CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter}/>
+    <CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
   </div>;
 }
 
 /* ─── SHIPPING VIEW ─── */
 function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdate, onDelete, onAdd, filter, setFilter, search, setSearch }) {
   const [dayFilter,setDayFilter]=useState(null);
+  const [monthFilter,setMonthFilter]=useState(null);
   const [reqF,setReqF]=useState(''); // 요청자 필터('' = 전체)
+  const [colF,setColF]=useState({}); // 엑셀식 컬럼별 포함검색 필터 {필드:문자열}
+  const [showColF,setShowColF]=useState(false);
   const q=search.trim().toLowerCase();
   const product=shipProductOf(brand?.id); // 브랜드별 고정 상품명
   // 요청자 필터 옵션 — 실제 출고행에 있는 요청자(공백 제외) 모음
@@ -2504,17 +2504,33 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
         || (reviewRows||[]).find(x=>x.live==='Y'&&(keys.has(norm(x.channelName))||keys.has(norm(x.realName))))
         || null;
   };
-  const byDay=dayFilter?rows.filter(r=>parseDateKey(r.requestDate)===dayFilter):rows;
+  // 라이브(영상 업로드) 여부 — 매칭되는 컨택현황/영상검수 행이 라이브면 이 출고건은 완료로 간주.
+  const isLiveRow=r=>!!liveOf(r.channelName||chanOf(r.recipient),r.recipient);
+  const isDoneRow=r=>!!(r.status?.includes('완료'))||isLiveRow(r);
+  // 엑셀식 컬럼 필터용 — 각 컬럼의 표시 문자열
+  const liveText=r=>{const lv=liveOf(r.channelName||chanOf(r.recipient),r.recipient);return lv?('라이브 '+(lv.liveDate||'')):'대기';};
+  const fieldVal=(r,f)=>{
+    if(f==='product') return product||'';
+    if(f==='live') return liveText(r);
+    if(f==='channelName') return r.channelName||chanOf(r.recipient)||'';
+    return String(r[f]||'');
+  };
+  const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
+  const byDay=dayFilter?rows.filter(r=>parseDateKey(r.requestDate)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.requestDate)===monthFilter):rows;
   const shown=byDay
     .filter(r=>{
-      if(filter==='done'&&!r.status?.includes('완료')) return false;
-      if(filter==='pend'&&r.status?.includes('완료')) return false;
+      // 라이브면 전체 목록에서 빼고 완료 탭으로 이동
+      if(filter==='all'&&isLiveRow(r)) return false;
+      if(filter==='done'&&!isDoneRow(r)) return false;
+      if(filter==='pend'&&isDoneRow(r)) return false;
       if(reqF&&(r.requester||'')!==reqF) return false;
+      if(colFActive.length && !colFActive.every(([f,v])=>fieldVal(r,f).toLowerCase().includes(String(v).trim().toLowerCase()))) return false;
       if(q) return [r.requester,r.recipient,r.address,product,r.tracking].some(v=>v&&String(v).toLowerCase().includes(q));
       return true;
     });
-  const cnt={all:rows.length,done:rows.filter(r=>r.status?.includes('완료')).length,pend:rows.filter(r=>!r.status?.includes('완료')).length};
+  const cnt={all:rows.filter(r=>!isLiveRow(r)).length,done:rows.filter(isDoneRow).length,pend:rows.filter(r=>!isDoneRow(r)).length};
   function up(id,k,v){onUpdate(id,{[k]:v});}
+  function setCol(f,v){setColF(p=>({...p,[f]:v}));}
   return <div className="view-wrap">
     <div className="view-main">
     <div className="toolbar">
@@ -2524,6 +2540,8 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
         <option value="">요청자 전체</option>
         {reqOpts.map(p=><option key={p} value={p}>{p}</option>)}
       </select>
+      <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="엑셀처럼 열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
+      {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})} title="모든 열 필터 지우기">✕ 필터 초기화</button>}
       <div className="sep"/>
       <div className="search-wrap">
         <input className="srch" placeholder="요청자, 수령자, 상품명…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
@@ -2537,7 +2555,6 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
           <th className="del-col"></th>
           <th style={{width:85}}>출고요청일</th>
           <th style={{width:75}}>요청자</th>
-          <th style={{width:70}}>사유</th>
           <th style={{width:90}}>채널명</th>
           <th style={{width:90}}>수령자명</th>
           <th style={{width:110}}>연락처</th>
@@ -2546,15 +2563,20 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
           <th style={{width:80}}>비고</th>
           <th style={{width:80}}>처리 상태</th>
           <th style={{width:85}}>출고일자</th>
-          <th style={{width:100,textAlign:'center'}}>영상</th>
+          <th style={{width:100,textAlign:'center'}}>라이브</th>
           <th style={{minWidth:110}}>송장번호</th>
-        </tr></thead>
+        </tr>
+        {showColF&&<tr className="colf-row">
+          {[null,'requestDate','requester','channelName','recipient','phone','address','product','notes','status','shipDate','live','tracking'].map((f,i)=>(
+            <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터" title="이 열에서 포함검색"/>}</th>
+          ))}
+        </tr>}
+        </thead>
         <tbody>
           {shown.map(r=><tr key={r.id}>
             <td className="del-col"><button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button></td>
             <td data-label="출고요청일"><Cell value={r.requestDate} onChange={v=>up(r.id,'requestDate',v)} style={{width:80}}/></td>
             <td data-label="요청자"><Cell value={r.requester||''} onChange={v=>up(r.id,'requester',v)} type="select" options={PA_LIST}/></td>
-            <td data-label="사유"><Cell value={r.reason} onChange={v=>up(r.id,'reason',v)}/></td>
             <td data-label="채널명"><Cell value={r.channelName||''} onChange={v=>up(r.id,'channelName',v)} placeholder={chanOf(r.recipient)||'채널명'} style={{color:'var(--blue)',fontSize:11,width:84}}/></td>
             <td data-label="수령자명"><span style={{display:'flex',alignItems:'center',gap:2}}>
               <ShipCopyBtn row={r} product={product}/>
@@ -2566,23 +2588,23 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
             <td data-label="비고"><Cell value={r.notes} onChange={v=>up(r.id,'notes',v)}/></td>
             <td data-label="처리 상태"><Cell value={r.status} onChange={v=>up(r.id,'status',v)} type="select" options={['처리중','✅ 완료']}/></td>
             <td data-label="출고일자"><Cell value={r.shipDate||''} onChange={v=>up(r.id,'shipDate',v)} style={{width:80}} placeholder="출고일"/></td>
-            <td data-label="영상" style={{textAlign:'center'}}>
+            <td data-label="라이브" style={{textAlign:'center'}}>
               {(()=>{const ch=r.channelName||chanOf(r.recipient);const lv=liveOf(ch,r.recipient);
-                if(lv)return <span style={{fontSize:10,color:'#4ade80',fontWeight:700,whiteSpace:'nowrap'}}>🔴 라이브{lv.liveDate?' '+lv.liveDate:''}</span>;
+                if(lv)return <span style={{fontSize:10,color:'var(--green)',fontWeight:700,whiteSpace:'nowrap'}}>🔴 라이브{lv.liveDate?' '+lv.liveDate:''}</span>;
                 const exp=addDaysToDate(r.shipDate||r.requestDate,7);
                 return <span style={{fontSize:10,color:'var(--dim)',whiteSpace:'nowrap'}}>{exp?'⏳ 예상 '+exp:'⏳ 영상 대기'}</span>;
               })()}
             </td>
             <td data-label="송장번호"><Cell value={r.tracking} onChange={v=>up(r.id,'tracking',v)} placeholder="송장번호 입력"/></td>
           </tr>)}
-          <tr className="add-row"><td colSpan={14} style={{padding:'8px 0'}}>
+          <tr className="add-row"><td colSpan={13} style={{padding:'8px 0'}}>
             <button className="btn-add" onClick={onAdd}>+ 출고 추가</button>
           </td></tr>
         </tbody>
       </table>
     </div>
     </div>
-    <CalSidebar rows={rows} dateKey="requestDate" dayFilter={dayFilter} setDayFilter={setDayFilter}/>
+    <CalSidebar rows={rows} dateKey="requestDate" dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
   </div>;
 }
 
@@ -2633,7 +2655,7 @@ function DMView({brand}){
             <span style={{color:'var(--dim)',fontSize:12}}>{isOpen?'▲':'▼'}</span>
           </div>
           {isOpen&&<div style={{borderTop:'1px solid var(--border)',padding:'10px 14px'}}>
-            {t.insight&&<div style={{background:'#1e3a5f22',border:'1px solid #3b82f633',borderRadius:6,padding:'7px 10px',fontSize:11,color:'#93c5fd',marginBottom:10}}>💡 {t.insight}</div>}
+            {t.insight&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:6,padding:'7px 10px',fontSize:11,color:'#1d4ed8',marginBottom:10}}>💡 {t.insight}</div>}
             <pre style={{background:'var(--surface2)',borderRadius:6,padding:'12px',fontSize:12,color:'var(--text)',whiteSpace:'pre-wrap',wordBreak:'break-word',lineHeight:1.7,margin:0}}>{t.content}</pre>
             <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
               <button className="btn btn-primary" style={{fontSize:11}} onClick={()=>copy(t)}>
@@ -2745,8 +2767,10 @@ function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, o
 /* ─── REVIEW VIEW ─── */
 function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onAdd, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, isManager }) {
   const [dayFilter,setDayFilter]=useState(null);
+  const [monthFilter,setMonthFilter]=useState(null);
   const [openId,setOpenId]=useState(null);
   const [pvRow,setPvRow]=useState(null); // 개인정보 모달 대상 행(관리자 전용)
+  const [copiedAll,setCopiedAll]=useState(false);
   const q=search.trim().toLowerCase();
   const s=v=>String(v||'');
   // 채널명으로 개인정보 행을 찾아 본명 표시 — 채널명만으로 헷갈리지 않게.
@@ -2757,8 +2781,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
   const s2=step2Rows||[];
   const settleOf=r=>{const n=norm(r.channelName);if(!n)return{};return s2.find(x=>norm(x.name)===n)||{};};
   const settleState=r=>{const st=settleOf(r);return st.privacyPurged?'purged':st.infSettled==='Y'?'paid':'unpaid';};
-  const checklist=BRAND_REVIEW_CHECKLIST[brand?.id]||BRAND_REVIEW_CHECKLIST.basetune;
-  const byDay=dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):rows;
+  const byDay=dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows;
   const shown=byDay
     .filter(r=>{
       const ss=settleState(r);
@@ -2775,52 +2798,18 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
     purged:rows.filter(r=>settleState(r)==='purged').length,
     live:rows.filter(r=>r.live==='Y').length};
   function up(id,k,v){onUpdate(id,{[k]:v});}
-  function toggleCheck(id,key){
-    const row=rows.find(r=>r.id===id); if(!row) return;
-    const checks={...(row.checks||{}),[key]:!(row.checks||{})[key]};
-    onUpdate(id,{checks});
-  }
   const driveLink=brand?BRAND_DRIVE[brand.id]:null;
-  const dirLink=brand?BRAND_DIR_LINK[brand.id]:null;
-
-  const [guideOpen,setGuideOpen]=useState(true);
-  const [refChecks,setRefChecks]=useState({});
-  function toggleRef(key){setRefChecks(p=>({...p,[key]:!p[key]}));}
-  const cats={'필수':{color:'#ef4444',bg:'#450a0a44',num:'#fca5a5',icon:'⚠️'},'방향성':{color:'var(--accent)',bg:'#1e1b4b44',num:'#c7d2fe',icon:'🎬'},'기타':{color:'var(--muted)',bg:'var(--surface3)',num:'#a1a1aa',icon:'📌'}};
-  const grouped=Object.entries(cats).map(([cat,style])=>({cat,style,items:checklist.filter(c=>c.cat===cat)})).filter(g=>g.items.length>0);
+  // PA 코드 한번에 복사 — 현재 화면(shown)에 있는 코드들을 줄바꿈으로 모아 복사.
+  const paCodes=shown.map(r=>String(r.paCode||'').trim()).filter(Boolean);
+  function copyAllCodes(){
+    if(!paCodes.length)return;
+    const t=paCodes.join('\n');
+    const ok=()=>{setCopiedAll(true);setTimeout(()=>setCopiedAll(false),1500);};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok).catch(()=>{});else ok();
+  }
 
   return <div className="view-wrap">
     <div className="view-main">
-    {/* ── 상단 검수 가이드 패널 ── */}
-    <div className="review-guide">
-      <div className="review-guide-header">
-        <span style={{fontSize:13,fontWeight:700}}>📋 {brand?.name||''} 영상 검수 기준</span>
-        <span style={{fontSize:11,color:'var(--dim)'}}>총 {checklist.length}항목</span>
-        <button className="review-guide-toggle" onClick={()=>setGuideOpen(v=>!v)}>
-          {guideOpen?'접기 ▲':'펼치기 ▼'}
-        </button>
-        <div style={{flex:1}}/>
-      </div>
-      {guideOpen&&<div className="review-guide-grid">
-        {grouped.map(({cat,style,items})=>(
-          <React.Fragment key={cat}>
-            <div className="rg-cat" style={{background:style.bg,color:style.color}}>
-              {style.icon} {cat}
-            </div>
-            <div className="rg-items">
-              {items.map((c,i)=>(
-                <label key={c.key} className={`rg-item${refChecks[c.key]?' rg-checked':''}`}>
-                  <input type="checkbox" className="rg-check" checked={!!refChecks[c.key]} onChange={()=>toggleRef(c.key)}/>
-                  <div className="rg-num" style={{background:style.bg,color:style.num}}>{i+1}</div>
-                  <span className="rg-label">{c.label}</span>
-                  <span className="rg-desc">— {c.desc}</span>
-                </label>
-              ))}
-            </div>
-          </React.Fragment>
-        ))}
-      </div>}
-    </div>
     <div className="toolbar">
       {[{k:'all',l:`전체 (${cnt.all})`,c:''},{k:'paid',l:`✅ 정산완료 (${cnt.paid})`,c:'f-ap'},{k:'unpaid',l:`⏳ 미정산 (${cnt.unpaid})`,c:'f-wt'},{k:'purged',l:`🗑️ 폐기완료 (${cnt.purged})`,c:'f-rj'},{k:'live',l:`🔴 라이브 (${cnt.live})`,c:'f-deal'}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
@@ -2830,6 +2819,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
         {search&&<button className="srch-x" onClick={()=>setSearch('')}>×</button>}
       </div>
       <span className="cnt">{shown.length}건</span>
+      <button className="btn btn-ghost" style={{fontSize:11}} onClick={copyAllCodes} disabled={!paCodes.length} title="현재 목록의 PA 코드를 줄바꿈으로 모두 복사">{copiedAll?'✅ 복사됨':`📋 PA코드 전체복사 (${paCodes.length})`}</button>
       {driveLink&&<a href={driveLink} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
     </div>
     <div className="table-wrap">
@@ -2845,12 +2835,10 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
           <th style={{width:80}}>개인정보</th>
           <th style={{minWidth:130}}>게시 링크</th>
           <th style={{width:96}}>라이브</th>
+          <th style={{width:96}}>계약서</th>
         </tr></thead>
         <tbody>
           {shown.map(r=>{
-            const checks=r.checks||{};
-            const checked=checklist.filter(c=>checks[c.key]).length;
-            const total=checklist.length;
             const isOpen=openId===r.id;
             const ss=settleState(r);const st=settleOf(r);
             return <React.Fragment key={r.id}>
@@ -2895,23 +2883,34 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                   {(()=>{const isLive=r.live==='Y';return (
                     <button onClick={()=>onUpdate(r.id,{live:isLive?'N':'Y',liveDate:(!isLive&&!r.liveDate)?today():r.liveDate})}
                       title={isLive?(r.liveDate?'라이브 '+r.liveDate:'라이브됨')+' — 클릭하면 해제':'클릭하면 라이브로 표시'}
-                      style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:1,padding:'2px 9px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:700,border:'1px solid '+(isLive?'#22c55e':'var(--border)'),background:isLive?'#14532d':'var(--surface2)',color:isLive?'#86efac':'var(--dim)'}}>
+                      style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:1,padding:'2px 9px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:700,border:'1px solid '+(isLive?'#22c55e':'var(--border)'),background:isLive?'#dcfce7':'var(--surface2)',color:isLive?'#15803d':'var(--dim)'}}>
                       <span>{isLive?'🔴 LIVE':'○ 미게시'}</span>
-                      {isLive&&r.liveDate&&<span style={{fontSize:9,fontWeight:500,color:'#4ade80',opacity:.85}}>{r.liveDate}</span>}
+                      {isLive&&r.liveDate&&<span style={{fontSize:9,fontWeight:500,color:'var(--green)',opacity:.85}}>{r.liveDate}</span>}
+                    </button>
+                  );})()}
+                </td>
+                <td>
+                  {/* 계약서 작성여부 — 라이브 버튼처럼 토글. 켜면 작성일 자동 기록 */}
+                  {(()=>{const done=r.contractDone==='Y';return (
+                    <button onClick={()=>onUpdate(r.id,{contractDone:done?'N':'Y',contractDate:(!done&&!r.contractDate)?today():r.contractDate})}
+                      title={done?(r.contractDate?'계약서 작성 '+r.contractDate:'작성됨')+' — 클릭하면 해제':'클릭하면 계약서 작성완료로 표시'}
+                      style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:1,padding:'2px 9px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:700,border:'1px solid '+(done?'var(--accent)':'var(--border)'),background:done?'var(--accent-soft)':'var(--surface2)',color:done?'var(--accent)':'var(--dim)'}}>
+                      <span>{done?'📄 작성완료':'○ 미작성'}</span>
+                      {done&&r.contractDate&&<span style={{fontSize:9,fontWeight:500,color:'var(--accent)',opacity:.85}}>{r.contractDate}</span>}
                     </button>
                   );})()}
                 </td>
               </tr>
             </React.Fragment>;
           })}
-          <tr><td colSpan={10} style={{padding:'8px 0'}}>
+          <tr><td colSpan={11} style={{padding:'8px 0'}}>
             <button className="btn-add" onClick={onAdd}>+ 영상 검수 추가</button>
           </td></tr>
         </tbody>
       </table>
     </div>
     </div>
-    <CalSidebar rows={rows} dayFilter={dayFilter} setDayFilter={setDayFilter}/>
+    <CalSidebar rows={rows} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
     {pvRow&&<ReviewPrivacyModal row={pvRow} privacyRows={privacyRows} onUpdatePrivacy={onUpdatePrivacy} onAddPrivacy={onAddPrivacy} onClose={()=>setPvRow(null)}/>}
   </div>;
 }
@@ -3057,7 +3056,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
                         <span style={{fontSize:10,color:'var(--green)',fontWeight:700,whiteSpace:'nowrap'}}>✅ 정산완료{st.infSettledDate?` ${st.infSettledDate}`:''}</span>
                         {left!=null&&(left>0
                           ? <span style={{fontSize:9,color:'#f59e0b',whiteSpace:'nowrap'}}>🔒 개인정보 폐기 D-{left}</span>
-                          : <span style={{fontSize:9,color:'#f87171',whiteSpace:'nowrap'}}>🔒 폐기 예정(새로고침 시)</span>)}
+                          : <span style={{fontSize:9,color:'var(--red)',whiteSpace:'nowrap'}}>🔒 폐기 예정(새로고침 시)</span>)}
                         <button className="btn btn-ghost" style={{fontSize:9,padding:'1px 7px'}} onClick={()=>onSettle(r.channelName,false)}>정산 취소</button>
                       </div>
                     : <div style={{display:'inline-flex',flexDirection:'column',gap:2,alignItems:'center'}}>
@@ -3106,12 +3105,12 @@ function SettleTable({byPA,bs,togglePaid,readOnly}){
           const dealCnt=data.rows.filter(r=>r.deal>0).length;       // 협업 성사 건수(=수락)
           const dmOnlyCnt=data.rows.filter(r=>r.dm>0&&r.deal===0).length; // DM만(=미성사/거절)
           return <React.Fragment key={pa}>
-            <tr style={{borderBottom:isExp?'none':isLast?'none':'1px solid var(--border)',background:paid?'#0f2417':'transparent',borderLeft:`3px solid ${paid?'var(--green)':'transparent'}`,transition:'background .1s'}}>
+            <tr style={{borderBottom:isExp?'none':isLast?'none':'1px solid var(--border)',background:paid?'#f0fdf4':'transparent',borderLeft:`3px solid ${paid?'var(--green)':'transparent'}`,transition:'background .1s'}}>
               <td style={{padding:'11px 14px'}}>
                 <span className="pa-badge" style={{...paColor(pa),fontSize:12,padding:'3px 10px',opacity:paid?.6:1}}>{pa}</span>
                 <div style={{display:'flex',gap:5,marginTop:5,flexWrap:'wrap'}}>
-                  {dealCnt>0&&<span style={{fontSize:10,color:'#d8b4fe',background:'#3b076433',borderRadius:4,padding:'1px 6px',fontWeight:600}}>🤝 협업 {dealCnt}</span>}
-                  {dmOnlyCnt>0&&<span style={{fontSize:10,color:'#93c5fd',background:'#1e3a5f33',borderRadius:4,padding:'1px 6px',fontWeight:600}}>💬 DM만 {dmOnlyCnt}</span>}
+                  {dealCnt>0&&<span style={{fontSize:10,color:'#7c3aed',background:'#f3e8ff',borderRadius:4,padding:'1px 6px',fontWeight:600}}>🤝 협업 {dealCnt}</span>}
+                  {dmOnlyCnt>0&&<span style={{fontSize:10,color:'#1d4ed8',background:'#dbeafe',borderRadius:4,padding:'1px 6px',fontWeight:600}}>💬 DM만 {dmOnlyCnt}</span>}
                 </div>
               </td>
               <td style={{padding:'11px 14px',textAlign:'right',fontSize:12,color:'var(--blue)',fontWeight:600}}>
@@ -3124,12 +3123,12 @@ function SettleTable({byPA,bs,togglePaid,readOnly}){
               </td>
               <td style={{padding:'11px 14px',textAlign:'right'}}>
                 <div style={{fontSize:13,color:'var(--yellow)',fontWeight:700}}>{fmtMoney(data.total)}</div>
-                <div style={{fontSize:11,color:'#86efac',fontWeight:600,marginTop:2}}>실지급 {fmtMoney(afterTax(data.total))}</div>
+                <div style={{fontSize:11,color:'#15803d',fontWeight:600,marginTop:2}}>실지급 {fmtMoney(afterTax(data.total))}</div>
               </td>
               <td style={{padding:'11px 14px',textAlign:'center'}}>
                 {paid
                   ?<span style={{fontSize:11,color:'var(--green)',fontWeight:600}}>✅ 완료{cur.paidDate&&<span style={{fontSize:10,color:'var(--dim)',marginLeft:4}}>{cur.paidDate}</span>}</span>
-                  :<span style={{fontSize:11,color:'#f87171',fontWeight:600}}>미정산 {fmtMoney(outstanding)}</span>}
+                  :<span style={{fontSize:11,color:'var(--red)',fontWeight:600}}>미정산 {fmtMoney(outstanding)}</span>}
               </td>
               <td style={{padding:'11px 14px',textAlign:'center'}}>
                 {readOnly
@@ -3158,11 +3157,11 @@ function SettleTable({byPA,bs,togglePaid,readOnly}){
                     </tr>
                   </thead>
                   <tbody>
-                    {detailRows.map(r=><tr key={r.id} style={{background:r.deal>0?'#3b076418':'transparent'}}>
+                    {detailRows.map(r=><tr key={r.id} style={{background:r.deal>0?'#faf5ff':'transparent'}}>
                       <td style={{padding:'4px 8px',borderBottom:'1px solid var(--border)'}}>
                         {r.deal>0
-                          ?<span style={{fontSize:9,color:'#d8b4fe',background:'#3b076455',borderRadius:4,padding:'1px 6px',fontWeight:700,whiteSpace:'nowrap'}}>🤝 협업</span>
-                          :<span style={{fontSize:9,color:'#93c5fd',background:'#1e3a5f55',borderRadius:4,padding:'1px 6px',fontWeight:700,whiteSpace:'nowrap'}}>💬 DM만</span>}
+                          ?<span style={{fontSize:9,color:'#7c3aed',background:'#f3e8ff',borderRadius:4,padding:'1px 6px',fontWeight:700,whiteSpace:'nowrap'}}>🤝 협업</span>
+                          :<span style={{fontSize:9,color:'#1d4ed8',background:'#dbeafe',borderRadius:4,padding:'1px 6px',fontWeight:700,whiteSpace:'nowrap'}}>💬 DM만</span>}
                       </td>
                       <td style={{fontSize:11,padding:'4px 8px',color:'var(--text)',borderBottom:'1px solid var(--border)'}}>{r.name}</td>
                       <td style={{fontSize:11,padding:'4px 8px',textAlign:'right',color:r.dm>0?'var(--blue)':'var(--dim)',borderBottom:'1px solid var(--border)'}}>{r.dm>0?fmtMoney(r.dm):'—'}</td>
@@ -3186,7 +3185,7 @@ function SettleTable({byPA,bs,togglePaid,readOnly}){
           </td>
           <td style={{padding:'10px 14px',textAlign:'right'}}>
             <div style={{fontSize:14,color:'var(--yellow)',fontWeight:800}}>{fmtMoney(Object.values(byPA).reduce((s,d)=>s+d.total,0))}</div>
-            <div style={{fontSize:11,color:'#86efac',fontWeight:700,marginTop:2}}>실지급 {fmtMoney(afterTax(Object.values(byPA).reduce((s,d)=>s+d.total,0)))}</div>
+            <div style={{fontSize:11,color:'#15803d',fontWeight:700,marginTop:2}}>실지급 {fmtMoney(afterTax(Object.values(byPA).reduce((s,d)=>s+d.total,0)))}</div>
           </td>
           <td colSpan={3}/>
         </tr>
@@ -3205,7 +3204,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   const settle=getSettleInfo();
   const isUrgent=settle.days<=3;
 
-  // 정산 대상 월 선택 — 기본값은 '이번에 지급하는 달'(익월 5일 지급 기준의 전월)
+  // 정산 대상 월 선택 — 기본값은 '이번에 지급하는 달'(익월 첫째 주 목요일 지급 기준의 전월)
   const monthOpts=useMemo(()=>{
     const s=new Set([settle.coverYM]);
     allS2.forEach(r=>{const y=payYM(r);if(y)s.add(y);});
@@ -3291,10 +3290,10 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   return <div style={{display:'flex',flex:'1 1 0',overflow:'hidden'}}>
     <div className="settle-page">
 
-    {isStaffView && <div style={{background:'#1a1a2e',border:'1px solid #4f46e5',borderRadius:10,padding:'10px 16px',marginBottom:14,display:'flex',alignItems:'center',gap:10}}>
+    {isStaffView && <div style={{background:'var(--accent-soft)',border:'1px solid var(--accent)',borderRadius:10,padding:'10px 16px',marginBottom:14,display:'flex',alignItems:'center',gap:10}}>
       <span style={{fontSize:18}}>💰</span>
       <div>
-        <div style={{fontWeight:700,fontSize:13,color:'#c7d2fe'}}>내 정산 내역 — {staffPA}</div>
+        <div style={{fontWeight:700,fontSize:13,color:'var(--ah)'}}>내 정산 내역 — {staffPA}</div>
         <div style={{fontSize:11,color:'var(--muted)'}}>본인 담당분만 조회됩니다 (읽기 전용). 지급 처리는 관리자가 합니다.</div>
       </div>
     </div>}
@@ -3302,16 +3301,16 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
     {/* 상단: 정산일 + 진행 요약 */}
     <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:12,marginBottom:16,alignItems:'stretch'}}>
       {/* 정산일 카드 */}
-      <div style={{background:isUrgent?'#45090a44':'#1a1a2e',border:`1px solid ${isUrgent?'#ef4444':'#4f46e5'}`,borderRadius:12,padding:'14px 18px',display:'flex',alignItems:'center',gap:14}}>
+      <div style={{background:isUrgent?'#fef2f2':'var(--accent-soft)',border:`1px solid ${isUrgent?'#ef4444':'var(--accent)'}`,borderRadius:12,padding:'14px 18px',display:'flex',alignItems:'center',gap:14}}>
         <span style={{fontSize:28}}>{isUrgent?'🚨':settle.days===0?'🔔':'📅'}</span>
         <div>
-          <div style={{fontWeight:800,fontSize:15,color:isUrgent?'#fca5a5':'#c7d2fe',marginBottom:2}}>
+          <div style={{fontWeight:800,fontSize:15,color:isUrgent?'#b91c1c':'var(--ah)',marginBottom:2}}>
             {settle.days===0?'오늘이 정산일입니다!'
              :settle.days<0?'정산일이 지났습니다!'
              :isUrgent?`정산일 D-${settle.days}`
              :`다음 정산까지 ${settle.days}일`}
           </div>
-          <div style={{fontSize:12,color:'var(--muted)'}}>{settle.label} 지급 · <b style={{color:'#c7d2fe'}}>{settle.coverLabel}</b> 실적분</div>
+          <div style={{fontSize:12,color:'var(--muted)'}}>{settle.label} 지급 · <b style={{color:'var(--ah)'}}>{settle.coverLabel}</b> 실적분</div>
         </div>
       </div>
       {/* 진행률 */}
@@ -3335,19 +3334,19 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
         <option value="all">전체 누적</option>
       </select>
       <span style={{fontSize:11,color:'var(--dim)'}}>
-        {month==='all'?'전체 기간 누적 — 정산 처리는 특정 월을 선택하세요':`${ymLabel(month)} 1일~말일 실적 · 익월 5일 지급`}
+        {month==='all'?'전체 기간 누적 — 정산 처리는 특정 월을 선택하세요':`${ymLabel(month)} 1일~말일 실적 · 익월 첫째 주 목요일 지급`}
       </span>
     </div>
 
     {/* 정산 규칙 — 한 줄 요약 */}
     <div style={{marginBottom:14,fontSize:11.5,color:'var(--muted)'}}>
-      협업 성사 = DM+성사 지급 · 거절 = DM만 지급 · 진행중 = 보류{heldPeople>0&&<span style={{color:'#fbbf24'}}> · ⏸ 보류 {heldPeople}명</span>}
+      협업 성사(영상 업로드 + 광고코드 게시 기준) = DM+성사 지급 · 거절 = DM만 지급 · 진행중 = 보류{heldPeople>0&&<span style={{color:'var(--orange)'}}> · ⏸ 보류 {heldPeople}명</span>}
     </div>
 
     {/* 미지급 월 빠른 이동 — 있을 때만 표시 */}
     {pendingMonths.length>0&&
       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:16}}>
-        <span style={{fontSize:11,color:'#fbbf24',fontWeight:600}}>🔔 미지급 월</span>
+        <span style={{fontSize:11,color:'#b45309',fontWeight:600}}>🔔 미지급 월</span>
         {pendingMonths.map(p=>(
           <button key={p.ym} onClick={()=>setMonth(p.ym)}
             style={{background:p.ym===month?'#a16207':'var(--surface2)',color:p.ym===month?'#fff':'var(--text)',border:'1px solid '+(p.ym===month?'#a16207':'var(--border)'),borderRadius:8,padding:'4px 10px',fontSize:11,cursor:'pointer'}}>
@@ -3361,7 +3360,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
       {[
         {label:'총 지급 예정',val:grandTotal,color:'var(--yellow)',icon:'💰',net:true},
         {label:'정산 완료',val:paidTotal,color:'var(--green)',icon:'✅'},
-        {label:'미정산',val:grandTotal-paidTotal,color:(grandTotal-paidTotal)>0?'#f87171':'var(--muted)',icon:'⏳',net:true},
+        {label:'미정산',val:grandTotal-paidTotal,color:(grandTotal-paidTotal)>0?'var(--red)':'var(--muted)',icon:'⏳',net:true},
       ].map(({label,val,color,icon,net})=>(
         <div key={label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 16px'}}>
           <div style={{fontSize:11,color:'var(--muted)',marginBottom:6,display:'flex',alignItems:'center',gap:4}}>
@@ -3370,7 +3369,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
           <div style={{fontSize:20,fontWeight:800,color,letterSpacing:'-0.03em'}}>
             {val.toLocaleString()}<span style={{fontSize:12,fontWeight:400}}>원</span>
           </div>
-          {net&&val>0&&<div style={{fontSize:11,color:'#86efac',fontWeight:600,marginTop:4}}>3.3% 공제 후 실지급 {afterTax(val).toLocaleString()}원</div>}
+          {net&&val>0&&<div style={{fontSize:11,color:'#15803d',fontWeight:600,marginTop:4}}>3.3% 공제 후 실지급 {afterTax(val).toLocaleString()}원</div>}
         </div>
       ))}
     </div>
@@ -3597,7 +3596,7 @@ function UserMgmtView() {
   }
 
   const roleLabel = r => r==='manager'?'관리자':'스태프';
-  const roleColor = r => r==='manager'?{background:'#3b0764',color:'#d8b4fe'}:{background:'#1e3a5f',color:'#93c5fd'};
+  const roleColor = r => r==='manager'?{background:'#f3e8ff',color:'#7c3aed'}:{background:'#dbeafe',color:'#1d4ed8'};
 
   return <div style={{flex:'1 1 0',overflowY:'auto',padding:20}}>
     <div style={{maxWidth:560}}>
@@ -3608,7 +3607,7 @@ function UserMgmtView() {
         </button>
       </div>
 
-      {msg && <div style={{marginBottom:12,fontSize:12,color:msg.startsWith('❌')?'#fca5a5':'#86efac'}}>{msg}</div>}
+      {msg && <div style={{marginBottom:12,fontSize:12,color:msg.startsWith('❌')?'var(--red)':'#15803d'}}>{msg}</div>}
 
       {showAdd && <form onSubmit={addUser} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:16,marginBottom:16}}>
         <div style={{fontWeight:600,fontSize:12,marginBottom:12}}>새 계정 추가</div>
@@ -4190,6 +4189,16 @@ function AppMain({ authInfo, onLogout }) {
   function addReviewRow(row){
     updateBrand(bId,b=>({...b,reviewRows:[...(b.reviewRows||[]),row]}));
   }
+  // 컨택현황에서 개인정보를 제출하면 영상검수에도 해당 인원이 자동으로 뜨도록 — 이미 있으면 건너뜀.
+  function ensureReviewRow({channelName,realName,pa}){
+    const nz=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
+    const key=nz(channelName); if(!key)return;
+    updateBrand(bId,b=>{
+      const rows=b.reviewRows||[];
+      if(rows.some(r=>nz(r.channelName)===key||(realName&&nz(r.realName)&&nz(r.realName)===nz(realName)))) return b;
+      return {...b,reviewRows:[...rows,{id:makeId(),date:today(),channelName:channelName||'',realName:realName||'',pa:pa||'',paCode:'',postLink:'',live:'N',contractDone:'N',checks:{}}]};
+    });
+  }
   function updateReviewRow(id,patch){
     if(!id)return;
     updateBrand(bId,b=>({...b,reviewRows:(b.reviewRows||[]).map(r=>r.id===id?{...r,...patch}:r)}));
@@ -4596,8 +4605,8 @@ function AppMain({ authInfo, onLogout }) {
         {/* 자동저장 상태 표시기 — 항상 노출(평소 '저장됨'), 편집 시 '저장 중…', 실패 시 재시도 */}
         {saveState==='error'
           ? <button onClick={()=>postData({brands,settlements,paList})} title="저장에 실패했어요. 눌러서 다시 시도하세요."
-              style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:600,color:'#fca5a5',background:'#45090a',border:'1px solid var(--red)',borderRadius:5,padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap'}}>⚠ 저장 실패 · 재시도</button>
-          : <span title="변경하면 자동으로 저장돼요" style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,whiteSpace:'nowrap',color:saveState==='saved'?'#86efac':'var(--muted)'}}>
+              style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:600,color:'#b91c1c',background:'#fee2e2',border:'1px solid var(--red)',borderRadius:5,padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap'}}>⚠ 저장 실패 · 재시도</button>
+          : <span title="변경하면 자동으로 저장돼요" style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,whiteSpace:'nowrap',color:saveState==='saved'?'#15803d':'var(--muted)'}}>
               {saveState==='saving'?<><span style={{width:6,height:6,borderRadius:'50%',background:'var(--muted)'}}/>저장 중…</>:<>✓ 저장됨</>}
             </span>}
         {msg&&<span style={{fontSize:11,color:'var(--muted)',maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{msg}</span>}
@@ -4654,7 +4663,7 @@ function AppMain({ authInfo, onLogout }) {
         privacyRows={brand.privacyRows||[]}
         onUpdate={updateStep2Row}
         onDelete={deleteStep2Row}
-        onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:'',phone:r.phone})}
+        onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:'',phone:r.phone,pa:sanitizePA(r.pa)})}
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}
       />}
@@ -4673,7 +4682,7 @@ function AppMain({ authInfo, onLogout }) {
           privacyRows={brand.privacyRows||[]}
           onUpdate={updateClaudeS2Row}
           onDelete={deleteClaudeS2Row}
-          onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:'',phone:r.phone})}
+          onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:'',phone:r.phone,pa:sanitizePA(r.pa)})}
           filter={filter} setFilter={setFilter}
           search={search} setSearch={setSearch}
         />
@@ -4734,7 +4743,10 @@ function AppMain({ authInfo, onLogout }) {
     {modal==='addReview'&&<AddReviewModal onConfirm={r=>{addReviewRow(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
     {modal==='addPrivacy'&&<AddPrivacyModal prefill={privacyPrefill} onConfirm={r=>{addPrivacyRow(r);setModal(null);setPrivacyPrefill(null);}} onCancel={()=>{setModal(null);setPrivacyPrefill(null);}}/>}
     {/* 컨택현황에서 '개인정보 제출' → 영상검수와 동일한 개인정보 입력(통장·신분증 OCR) 모달 */}
-    {privacyModalRow&&isManager&&<ReviewPrivacyModal row={privacyModalRow} privacyRows={brand.privacyRows||[]} onUpdatePrivacy={updatePrivacyRow} onAddPrivacy={addPrivacyRow} onClose={()=>setPrivacyModalRow(null)}/>}
+    {privacyModalRow&&isManager&&<ReviewPrivacyModal row={privacyModalRow} privacyRows={brand.privacyRows||[]}
+      onUpdatePrivacy={(id,patch)=>{updatePrivacyRow(id,patch);ensureReviewRow({channelName:patch.channelName,realName:patch.realName,pa:privacyModalRow.pa});}}
+      onAddPrivacy={(r)=>{addPrivacyRow(r);ensureReviewRow({channelName:r.channelName,realName:r.realName,pa:privacyModalRow.pa});}}
+      onClose={()=>setPrivacyModalRow(null)}/>}
   </>;
 }
 
@@ -4743,7 +4755,7 @@ class EB extends React.Component {
   static getDerivedStateFromError(e){return{err:e};}
   render(){
     if(this.state.err) return (
-      <div style={{padding:24,color:'#fca5a5',fontFamily:'monospace',background:'#111',height:'100vh'}}>
+      <div style={{padding:24,color:'#b91c1c',fontFamily:'monospace',background:'#fff',height:'100vh'}}>
         <div style={{fontSize:16,fontWeight:700,marginBottom:12}}>⚠️ 렌더링 오류</div>
         <div style={{fontSize:13,marginBottom:8}}>{this.state.err.message}</div>
         <pre style={{fontSize:11,color:'#71717a',whiteSpace:'pre-wrap'}}>{this.state.err.stack}</pre>
