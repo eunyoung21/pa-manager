@@ -1936,6 +1936,7 @@ function AddPrivacyModal({onConfirm,onCancel,prefill}){
     address:prefill?.address||'',
     bankFile:prefill?.bankFile||null,
     idFile:prefill?.idFile||null,
+    contractFile:prefill?.contractFile||null,
     notes:prefill?.notes||'',
   });
   const u=k=>e=>setF(p=>({...p,[k]:typeof e==='string'?e:e.target.value}));
@@ -1954,6 +1955,10 @@ function AddPrivacyModal({onConfirm,onCancel,prefill}){
         <div className="modal-full">
           <div className="modal-lbl">신분증사본 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
           <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))}/>
+        </div>
+        <div className="modal-full">
+          <div className="modal-lbl">계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
+          <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))}/>
         </div>
         <div className="modal-full"><div className="modal-lbl">비고</div><input className="modal-inp" value={f.notes} onChange={u('notes')}/></div>
       </div>
@@ -2865,7 +2870,7 @@ function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, o
     channelName: row.channelName||row.name||existing?.channelName||'',
     realName: row.realName||existing?.realName||'',
     phone: existing?.phone||row.phone||'', address: existing?.address||'',
-    bankFile: existing?.bankFile||null, idFile: existing?.idFile||null,
+    bankFile: existing?.bankFile||null, idFile: existing?.idFile||null, contractFile: existing?.contractFile||null,
     bankName: existing?.bankName||'', bankHolder: existing?.bankHolder||'', bankAccount: existing?.bankAccount||'',
     rrn: existing?.rrn||'',
   }));
@@ -2905,7 +2910,7 @@ function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, o
     // 학습: 통장을 OCR로 올렸는데(원문 있음) 사용자가 은행명을 자동인식과 다르게 고쳤으면 별칭으로 기억 → 다음 인식부터 반영
     const bn=String(f.bankName||'').trim();
     if(bn && bankRaw.current && bn!==bankAuto.current) learnBankAlias(bankRaw.current, bn);
-    const patch={channelName:f.channelName,realName:f.realName,phone:f.phone,address:f.address,bankFile:f.bankFile,idFile:f.idFile,bankName:f.bankName,bankHolder:f.bankHolder,bankAccount:f.bankAccount,rrn:f.rrn};
+    const patch={channelName:f.channelName,realName:f.realName,phone:f.phone,address:f.address,bankFile:f.bankFile,idFile:f.idFile,contractFile:f.contractFile,bankName:f.bankName,bankHolder:f.bankHolder,bankAccount:f.bankAccount,rrn:f.rrn};
     if(f.id) onUpdatePrivacy(f.id,patch); else onAddPrivacy({id:makeId(),notes:'',...patch});
     onClose();
   }
@@ -2929,6 +2934,9 @@ function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, o
         </div>
         <div className="modal-full"><div className="modal-lbl">주민등록번호</div>
           <div style={{display:'flex',gap:6}}><input className="modal-inp" style={{flex:1}} value={f.rrn} onChange={u('rrn')} placeholder="000000-0000000"/><CopyBtn value={f.rrn}/></div></div>
+        <div className="modal-full"><div className="modal-lbl">📄 계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
+          <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))}/>
+        </div>
       </div>
       {ocrMsg&&<div style={{fontSize:12,color:'var(--accent)',marginTop:8}}>{ocrMsg}</div>}
       <div className="modal-foot">
@@ -3209,6 +3217,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
           <th style={{width:220}}>주소</th>
           <th style={{width:100,textAlign:'center'}}>통장사본</th>
           <th style={{width:100,textAlign:'center'}}>신분증사본</th>
+          <th style={{width:100,textAlign:'center'}}>계약서</th>
           <th style={{minWidth:120}}>비고</th>
           <th style={{width:140,textAlign:'center'}}>정산 / 지급 처리</th>
         </tr></thead>
@@ -3236,6 +3245,11 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
                   ?<FileCell file={r.idFile} onDelete={()=>onUpdate(r.id,{idFile:null})}/>
                   :<FileUpload label="첨부" value={null} onChange={v=>onUpdate(r.id,{idFile:v})}/>}
               </td>
+              <td style={{textAlign:'center'}}>
+                {r.contractFile
+                  ?<FileCell file={r.contractFile} onDelete={()=>onUpdate(r.id,{contractFile:null})}/>
+                  :<FileUpload label="첨부" value={null} onChange={v=>onUpdate(r.id,{contractFile:v})}/>}
+              </td>
               <td><Cell value={r.notes} onChange={v=>onUpdate(r.id,{notes:v})} placeholder="비고"/></td>
               <td style={{textAlign:'center'}}>
                 {status==='purged'
@@ -3256,7 +3270,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
               </td>
             </tr>);
           })}
-          <tr><td colSpan={9} style={{padding:'8px 0'}}>
+          <tr><td colSpan={10} style={{padding:'8px 0'}}>
             <button className="btn-add" onClick={onAdd}>+ 개인정보 추가</button>
           </td></tr>
         </tbody>
@@ -3655,7 +3669,7 @@ function GuideView({ brand }) {
           <div className="guide-step"><div className="guide-step-num">3</div><div className="guide-step-text"><strong>개인정보</strong> 페이지에서 통장사본을 확인해 단가를 지급한 뒤, 그 줄의 <strong>💰 정산 처리</strong> 버튼을 누릅니다. (잘못 눌렀으면 <strong>정산 취소</strong>로 되돌림)</div></div>
           <div className="guide-step"><div className="guide-step-num">4</div><div className="guide-step-text">개인정보 페이지 상단 칩(<strong>정산 전 / ✅ 정산완료 / 🗑️ 폐기완료</strong>)으로 누가 정산됐는지 한눈에 확인할 수 있습니다.</div></div>
         </div>
-        <div className="guide-warn">🔒 개인정보 보호: 정산 완료 <strong>3일 후</strong> 해당 인플루언서의 개인정보(성명·연락처·주소·통장/신분증 파일)가 <strong>자동 폐기</strong>됩니다. 채널명과 정산 기록은 회계용으로만 남습니다. (되돌릴 수 없음)</div>
+        <div className="guide-warn">🔒 개인정보 보호: 정산 완료 <strong>3일 후</strong> 해당 인플루언서의 개인정보(성명·연락처·주소·통장/신분증/계약서 파일)가 <strong>자동 폐기</strong>됩니다. 채널명과 정산 기록은 회계용으로만 남습니다. (되돌릴 수 없음)</div>
       </div>
       <div className="guide-card" style={{marginTop:8}}>
         <div className="guide-card-title">📦 진행 중 / 보관 — 목록 정리</div>

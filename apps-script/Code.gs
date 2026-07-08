@@ -277,6 +277,7 @@ function purgeExpiredPrivacy(data) {
             if (p && p.channelName === r.name) {
               if (p.bankFile) deletePfileByUrl(p.bankFile.url);
               if (p.idFile) deletePfileByUrl(p.idFile.url);
+              if (p.contractFile) deletePfileByUrl(p.contractFile.url);
               return false;
             }
             return true;
