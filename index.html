@@ -5033,8 +5033,9 @@ function AppMain({ authInfo, onLogout }) {
     {modal==='addShip'&&<AddShipModal onConfirm={r=>{addShipRow(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
     {modal==='addReview'&&<AddReviewModal onConfirm={r=>{addReviewRow(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
     {modal==='addPrivacy'&&<AddPrivacyModal prefill={privacyPrefill} brandId={bId} onConfirm={r=>{addPrivacyRow(r);setModal(null);setPrivacyPrefill(null);}} onCancel={()=>{setModal(null);setPrivacyPrefill(null);}}/>}
-    {/* 컨택현황에서 '개인정보 제출' → 영상검수와 동일한 개인정보 입력(통장·신분증 OCR) 모달 */}
-    {privacyModalRow&&isManager&&<ReviewPrivacyModal row={privacyModalRow} privacyRows={brand.privacyRows||[]} brandId={bId}
+    {/* 컨택현황에서 '개인정보 제출' → 영상검수와 동일한 개인정보 입력(통장·신분증 OCR) 모달.
+        스태프(알바)도 협업 성사 인플루언서의 개인정보(통장·신분증·계약서)를 수집·제출해야 하므로 관리자 전용이 아님. */}
+    {privacyModalRow&&<ReviewPrivacyModal row={privacyModalRow} privacyRows={brand.privacyRows||[]} brandId={bId}
       onUpdatePrivacy={(id,patch)=>{updatePrivacyRow(id,patch);ensureReviewRow({channelName:patch.channelName,realName:patch.realName,pa:privacyModalRow.pa});}}
       onAddPrivacy={(r)=>{addPrivacyRow(r);ensureReviewRow({channelName:r.channelName,realName:r.realName,pa:privacyModalRow.pa});}}
       onClose={()=>setPrivacyModalRow(null)}/>}

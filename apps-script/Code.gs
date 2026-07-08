@@ -332,9 +332,9 @@ function handle(e, body) {
       case 'rev':      need(); return json({ ok: true, rev: metaGet().rev });
       case 'get':      return getData(need(), e);
       case 'save':     return saveData(need(), body, p);
-      case 'pfileSave':return pfileSave(mgr(), body);
+      case 'pfileSave':return pfileSave(need(), body);
       case 'pfileGet': return pfileGet(need(), body, p);
-      case 'contractArchive': return contractArchive(mgr(), body);
+      case 'contractArchive': return contractArchive(need(), body);
       case 'users':    return usersList(mgr());
       case 'userCreate':return userCreate(mgr(), body);
       case 'userDelete':return userDelete(mgr(), body);
