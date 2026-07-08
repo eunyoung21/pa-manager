@@ -334,6 +334,7 @@ function handle(e, body) {
       case 'save':     return saveData(need(), body, p);
       case 'pfileSave':return pfileSave(mgr(), body);
       case 'pfileGet': return pfileGet(need(), body, p);
+      case 'contractArchive': return contractArchive(mgr(), body);
       case 'users':    return usersList(mgr());
       case 'userCreate':return userCreate(mgr(), body);
       case 'userDelete':return userDelete(mgr(), body);
@@ -425,6 +426,42 @@ function pfileGet(sess, body, p) {
   var blob = f.getBlob();
   var dataUrl = 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes());
   return json({ ok: true, id: id, dataUrl: dataUrl, type: blob.getContentType() });
+}
+
+/* 계약서 영구보관 — 개인정보로 올라온 계약서를 브랜드 드라이브 폴더(계약서 하위)에 복사.
+   pfile 은 정산 3일 후 자동폐기되지만, 이 보관본은 폐기 대상이 아니라 회계/증빙용으로 남는다. */
+var BRAND_DRIVE_FOLDER = {
+  basetune: '1naWNt2xs9biAipjDZWEWVVU1nrOC8sXv',
+  granny:   '1ubvCkIzuspkDtTvbDBvMFF5tV6jsxJp_'
+};
+function contractArchive(sess, body) {
+  var fid = BRAND_DRIVE_FOLDER[String((body && body.brand) || '')];
+  if (!fid) return json({ error: 'no brand folder' });
+  var parent = DriveApp.getFolderById(fid);
+  var subIt = parent.getFoldersByName('계약서');
+  var sub = subIt.hasNext() ? subIt.next() : parent.createFolder('계약서');
+  var base = String(((body.channelName || '') + (body.realName ? ('_' + body.realName) : ''))).replace(/[\\\/:*?"<>|]/g, '').trim() || '계약서';
+  var stamp = todayDisp().replace(/[^0-9]/g, '');
+  var nm = String(body.name || ''); var dot = nm.lastIndexOf('.'); var ext = dot >= 0 ? nm.slice(dot) : '';
+  var fname = base + '_계약서_' + stamp + ext;
+  // 1순위: 이미 올라온 pfile 을 서버 내에서 복사(바이트 재전송 없음)
+  var m = String((body && body.pfileUrl) || '').match(/[?&]id=(\d+)/);
+  if (m) {
+    var it = pfileFolder().getFilesByName(m[1]);
+    if (it.hasNext()) {
+      var copy = it.next().makeCopy(fname, sub);
+      return json({ ok: true, url: copy.getUrl(), name: fname });
+    }
+  }
+  // 2순위: pfile 을 못 찾으면 data(base64) 로 직접 저장
+  if (body.data) {
+    var mm = String(body.data).match(/^data:([^;]+);base64,(.*)$/);
+    if (!mm) return json({ error: 'bad data' });
+    var blob = Utilities.newBlob(Utilities.base64Decode(mm[2]), mm[1], fname);
+    var f = sub.createFile(blob);
+    return json({ ok: true, url: f.getUrl(), name: fname });
+  }
+  return json({ error: 'no source' });
 }
 
 /* 구글 시트 CSV 프록시 (앱의 '시트에서 불러오기' 기능용) */

@@ -1887,7 +1887,7 @@ function useFileSrc(file){
   return src;
 }
 
-function FileUpload({label,value,onChange,onPick}){
+function FileUpload({label,value,onChange,onPick,archive}){
   const ref=useRef(null);
   const [uploading,setUploading]=useState(false);
   const src=useFileSrc(value);
@@ -1899,7 +1899,11 @@ function FileUpload({label,value,onChange,onPick}){
       const dataUrl=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=ev=>res(ev.target.result);fr.onerror=rej;fr.readAsDataURL(file);});
       // 개인정보 첨부는 본문과 분리해 Drive에 저장(pfileSave) — 본문 페이로드를 가볍게 유지
       const d=await callApi('pfileSave',{data:dataUrl,name:file.name,type:file.type});
-      if(d&&d.ok&&d.url){onChange({name:file.name,url:d.url,type:file.type});}
+      if(d&&d.ok&&d.url){
+        onChange({name:file.name,url:d.url,type:file.type});
+        // 계약서 등 보관 대상은 브랜드 드라이브에 영구 복사(정산 3일 후 폐기와 무관) — 실패해도 첨부는 유지
+        if(archive&&archive.brand){try{await callApi('contractArchive',{brand:archive.brand,channelName:archive.channelName||'',realName:archive.realName||'',pfileUrl:d.url,name:file.name});}catch{}}
+      }
       else throw new Error('pfile 실패');
     }catch{
       // 폴백: base64 인라인(서버/DB 없거나 권한 없을 때) — 기존 동작 유지
@@ -1927,7 +1931,7 @@ function FileUpload({label,value,onChange,onPick}){
 }
 
 /* ─── ADD PRIVACY MODAL ─── */
-function AddPrivacyModal({onConfirm,onCancel,prefill}){
+function AddPrivacyModal({onConfirm,onCancel,prefill,brandId}){
   const isEdit=!!prefill?.id; // 기존 제출 건 수정
   const [f,setF]=useState({
     channelName:prefill?.channelName||prefill?.name||'',
@@ -1957,8 +1961,8 @@ function AddPrivacyModal({onConfirm,onCancel,prefill}){
           <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))}/>
         </div>
         <div className="modal-full">
-          <div className="modal-lbl">계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
-          <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))}/>
+          <div className="modal-lbl">계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF · 올리면 브랜드 드라이브에 자동 보관)</span></div>
+          <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))} archive={{brand:brandId,channelName:f.channelName,realName:f.realName}}/>
         </div>
         <div className="modal-full"><div className="modal-lbl">비고</div><input className="modal-inp" value={f.notes} onChange={u('notes')}/></div>
       </div>
@@ -2860,7 +2864,7 @@ function CopyBtn({value,digits}){
 }
 
 /* ─── 영상검수 행별 개인정보 모달 (관리자 전용) — 그 사람만, 통장·신분증 OCR 자동채움 ─── */
-function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, onClose }){
+function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, onClose, brandId }){
   const norm=v=>String(v||'').trim().toLowerCase().replace(/\s+/g,'');
   const existing=(privacyRows||[]).find(p=>norm(p.channelName)&&norm(p.channelName)===norm(row.channelName))
     || (row.realName?(privacyRows||[]).find(p=>norm(p.realName)&&norm(p.realName)===norm(row.realName)):null)
@@ -2934,8 +2938,8 @@ function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, o
         </div>
         <div className="modal-full"><div className="modal-lbl">주민등록번호</div>
           <div style={{display:'flex',gap:6}}><input className="modal-inp" style={{flex:1}} value={f.rrn} onChange={u('rrn')} placeholder="000000-0000000"/><CopyBtn value={f.rrn}/></div></div>
-        <div className="modal-full"><div className="modal-lbl">📄 계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
-          <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))}/>
+        <div className="modal-full"><div className="modal-lbl">📄 계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF · 올리면 브랜드 드라이브에 자동 보관)</span></div>
+          <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))} archive={{brand:brandId,channelName:f.channelName,realName:f.realName}}/>
         </div>
       </div>
       {ocrMsg&&<div style={{fontSize:12,color:'var(--accent)',marginTop:8}}>{ocrMsg}</div>}
@@ -3108,7 +3112,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
     </div>
     </div>
     <CalSidebar rows={rows} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
-    {pvRow&&<ReviewPrivacyModal row={pvRow} privacyRows={privacyRows} onUpdatePrivacy={onUpdatePrivacy} onAddPrivacy={onAddPrivacy} onClose={()=>setPvRow(null)}/>}
+    {pvRow&&<ReviewPrivacyModal row={pvRow} privacyRows={privacyRows} brandId={brand?.id} onUpdatePrivacy={onUpdatePrivacy} onAddPrivacy={onAddPrivacy} onClose={()=>setPvRow(null)}/>}
   </div>;
 }
 
@@ -5028,9 +5032,9 @@ function AppMain({ authInfo, onLogout }) {
     {modal==='addClaudeS1'&&<AddStep1Modal onConfirm={r=>{addClaudeS1Row(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
     {modal==='addShip'&&<AddShipModal onConfirm={r=>{addShipRow(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
     {modal==='addReview'&&<AddReviewModal onConfirm={r=>{addReviewRow(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
-    {modal==='addPrivacy'&&<AddPrivacyModal prefill={privacyPrefill} onConfirm={r=>{addPrivacyRow(r);setModal(null);setPrivacyPrefill(null);}} onCancel={()=>{setModal(null);setPrivacyPrefill(null);}}/>}
+    {modal==='addPrivacy'&&<AddPrivacyModal prefill={privacyPrefill} brandId={bId} onConfirm={r=>{addPrivacyRow(r);setModal(null);setPrivacyPrefill(null);}} onCancel={()=>{setModal(null);setPrivacyPrefill(null);}}/>}
     {/* 컨택현황에서 '개인정보 제출' → 영상검수와 동일한 개인정보 입력(통장·신분증 OCR) 모달 */}
-    {privacyModalRow&&isManager&&<ReviewPrivacyModal row={privacyModalRow} privacyRows={brand.privacyRows||[]}
+    {privacyModalRow&&isManager&&<ReviewPrivacyModal row={privacyModalRow} privacyRows={brand.privacyRows||[]} brandId={bId}
       onUpdatePrivacy={(id,patch)=>{updatePrivacyRow(id,patch);ensureReviewRow({channelName:patch.channelName,realName:patch.realName,pa:privacyModalRow.pa});}}
       onAddPrivacy={(r)=>{addPrivacyRow(r);ensureReviewRow({channelName:r.channelName,realName:r.realName,pa:privacyModalRow.pa});}}
       onClose={()=>setPrivacyModalRow(null)}/>}
