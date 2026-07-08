@@ -3078,7 +3078,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                         </span>
                       : <span style={{display:'inline-flex',flexDirection:'column',gap:2,alignItems:'center'}}>
                           <span style={{fontSize:10,color:'#f59e0b',fontWeight:600,whiteSpace:'nowrap'}}>⏳ 미정산</span>
-                          {isManager&&<button onClick={()=>onSettle&&onSettle(r.channelName,true)} title="단가 지급 완료 표시 (3일 후 개인정보 자동 폐기)" style={{fontSize:9,padding:'2px 7px',border:0,borderRadius:4,background:'var(--green)',color:'#fff',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>💰 정산완료</button>}
+                          {isManager&&<button onClick={()=>onSettle&&onSettle(r.channelName,true,{pa:r.pa,realName:r.realName})} title="단가 지급 완료 표시 (3일 후 개인정보 자동 폐기)" style={{fontSize:9,padding:'2px 7px',border:0,borderRadius:4,background:'var(--green)',color:'#fff',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>💰 정산완료</button>}
                         </span>}
                 </td>
                 <td data-label="개인정보" style={{textAlign:'center'}}>
@@ -4484,11 +4484,18 @@ function AppMain({ authInfo, onLogout }) {
   }
   // 인플루언서 정산(단가 지급) 완료 표시 — 채널명으로 컨택현황(step2) 행을 찾아 갱신.
   // 완료 후 3일 지나면 서버가 개인정보를 자동 폐기(infSettled/infSettledDate가 기준).
-  function setInfSettledByName(channelName,on){
+  function setInfSettledByName(channelName,on,ctx){
     // 채널명 정규화 매칭(공백·대소문자 무시) — 영상검수/개인정보의 상태표시와 동일 기준으로 정산 기록.
     const nz=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
     const key=nz(channelName); if(!key)return;
-    updateBrand(bId,b=>({...b,step2Rows:(b.step2Rows||[]).map(r=>nz(r.name)===key?{...r,infSettled:on?'Y':'',infSettledDate:on?today():''}:r)}));
+    updateBrand(bId,b=>{
+      const rows=b.step2Rows||[];
+      const hit=rows.some(r=>nz(r.name)===key);
+      if(hit) return {...b,step2Rows:rows.map(r=>nz(r.name)===key?{...r,infSettled:on?'Y':'',infSettledDate:on?today():''}:r)};
+      // 컨택현황에 아직 없는 인원(영상검수에서 바로 정산) — 정산 기록/개인정보 폐기 기준이 step2에 있어야 하므로 최소 행을 만들어 둔다.
+      if(!on) return b; // 취소인데 대상 행이 없으면 할 일 없음
+      return {...b,step2Rows:[...rows,{id:makeId(),date:today(),name:channelName||'',link:'',followers:'',pa:(ctx&&ctx.pa)||'',category:'',contactStatus:'컨택 완료',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:'영상검수에서 정산 처리됨',infSettled:'Y',infSettledDate:today()}]};
+    });
   }
 
   // 구글 시트 URL → {sheetId, gid} 추출
