@@ -2945,7 +2945,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
   const [monthFilter,setMonthFilter]=useState(null);
   const [openId,setOpenId]=useState(null);
   const [pvRow,setPvRow]=useState(null); // 개인정보 모달 대상 행(관리자 전용)
-  const [copiedAll,setCopiedAll]=useState(false);
+  const [copiedId,setCopiedId]=useState(null);
   const [colF,setColF]=useState({}); const [showColF,setShowColF]=useState(false);
   const q=search.trim().toLowerCase();
   const s=v=>String(v||'');
@@ -2979,12 +2979,11 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
   function up(id,k,v){onUpdate(id,{[k]:v});}
   const driveLink=brand?BRAND_DRIVE[brand.id]:null;
   // PA 코드 한번에 복사 — 현재 화면(shown)에 있는 코드들을 줄바꿈으로 모아 복사.
-  const paCodes=shown.map(r=>String(r.paCode||'').trim()).filter(Boolean);
-  function copyAllCodes(){
-    if(!paCodes.length)return;
-    const t=paCodes.join('\n');
-    const ok=()=>{setCopiedAll(true);setTimeout(()=>setCopiedAll(false),1500);};
-    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok).catch(()=>{});else ok();
+  // PA 코드 개별 복사 — 방금 복사한 행만 잠깐 ✅로 표시.
+  function copyCode(id,code){
+    const c=String(code||'').trim(); if(!c)return;
+    const ok=()=>{setCopiedId(id);setTimeout(()=>setCopiedId(v=>v===id?null:v),1200);};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(c).then(ok).catch(ok);else ok();
   }
 
   return <div className="view-wrap">
@@ -3001,7 +3000,6 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
       <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
       <button className="fchip" onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
-      <button className="btn btn-ghost" style={{fontSize:11}} onClick={copyAllCodes} disabled={!paCodes.length} title="현재 목록의 PA 코드를 줄바꿈으로 모두 복사">{copiedAll?'✅ 복사됨':`📋 PA코드 전체복사 (${paCodes.length})`}</button>
       {driveLink&&<a href={driveLink} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
     </div>
     <div className="table-wrap">
@@ -3036,7 +3034,10 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                 <td style={{fontWeight:500}}><Cell value={r.channelName} onChange={v=>up(r.id,'channelName',v)} placeholder="채널명"/></td>
                 <td><Cell value={r.realName||''} onChange={v=>up(r.id,'realName',v)} placeholder={nameOf(r.channelName)||'본명'}/></td>
                 <td><Cell value={r.pa||''} onChange={v=>up(r.id,'pa',v)} type="select" options={PA_LIST}/></td>
-                <td><Cell value={r.paCode} onChange={v=>up(r.id,'paCode',v)} placeholder="코드" style={{whiteSpace:'nowrap'}}/></td>
+                <td><div style={{display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
+                  <Cell value={r.paCode} onChange={v=>up(r.id,'paCode',v)} placeholder="코드"/>
+                  {String(r.paCode||'').trim()&&<button onClick={()=>copyCode(r.id,r.paCode)} title="PA 코드 복사" style={{border:0,background:'transparent',cursor:'pointer',fontSize:12,lineHeight:1,padding:'2px 3px',color:copiedId===r.id?'var(--green)':'var(--dim)'}}>{copiedId===r.id?'✅':'📋'}</button>}
+                </div></td>
                 <td data-label="게시 링크">
                   {r.postLink
                     ?<span style={{display:'flex',alignItems:'center',gap:6}}>
