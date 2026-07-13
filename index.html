@@ -1887,7 +1887,7 @@ function useFileSrc(file){
   return src;
 }
 
-function FileUpload({label,value,onChange,onPick,archive}){
+function FileUpload({label,value,onChange,onPick,archive,inline}){
   const ref=useRef(null);
   const [uploading,setUploading]=useState(false);
   const src=useFileSrc(value);
@@ -1897,6 +1897,10 @@ function FileUpload({label,value,onChange,onPick,archive}){
     setUploading(true);
     try{
       const dataUrl=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=ev=>res(ev.target.result);fr.onerror=rej;fr.readAsDataURL(file);});
+      // 통장·신분증 등 민감 첨부(inline)는 Drive에 저장하지 않고 본문에만 인라인 보관 — 정산 3일 후 자동폐기 대상. OCR로 필요한 정보만 뽑고 이미지는 Drive에 남기지 않음.
+      if(inline){
+        onChange({name:file.name,url:dataUrl,type:file.type});
+      } else {
       // 개인정보 첨부는 본문과 분리해 Drive에 저장(pfileSave) — 본문 페이로드를 가볍게 유지
       const d=await callApi('pfileSave',{data:dataUrl,name:file.name,type:file.type});
       if(d&&d.ok&&d.url){
@@ -1905,6 +1909,7 @@ function FileUpload({label,value,onChange,onPick,archive}){
         if(archive&&archive.brand){try{await callApi('contractArchive',{brand:archive.brand,channelName:archive.channelName||'',realName:archive.realName||'',pfileUrl:d.url,name:file.name});}catch{}}
       }
       else throw new Error('pfile 실패');
+      }
     }catch{
       // 폴백: base64 인라인(서버/DB 없거나 권한 없을 때) — 기존 동작 유지
       const reader=new FileReader();
@@ -1954,11 +1959,11 @@ function AddPrivacyModal({onConfirm,onCancel,prefill,brandId}){
         <div className="modal-full"><div className="modal-lbl">주소</div><input className="modal-inp" value={f.address} onChange={u('address')}/></div>
         <div className="modal-full">
           <div className="modal-lbl">통장사본 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
-          <FileUpload label="통장사본 첨부" value={f.bankFile} onChange={v=>setF(p=>({...p,bankFile:v}))}/>
+          <FileUpload label="통장사본 첨부" value={f.bankFile} onChange={v=>setF(p=>({...p,bankFile:v}))} inline/>
         </div>
         <div className="modal-full">
           <div className="modal-lbl">신분증사본 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
-          <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))}/>
+          <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))} inline/>
         </div>
         <div className="modal-full">
           <div className="modal-lbl">계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF · 올리면 브랜드 드라이브에 자동 보관)</span></div>
@@ -2927,14 +2932,14 @@ function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, o
         <div><div className="modal-lbl">연락처</div><input className="modal-inp" value={f.phone} onChange={u('phone')} placeholder="010-0000-0000"/></div>
         <div className="modal-full"><div className="modal-lbl">주소</div><input className="modal-inp" value={f.address} onChange={u('address')}/></div>
         <div className="modal-full"><div className="modal-lbl">💳 통장사본 <span style={{color:'var(--dim)',fontSize:10}}>(올리면 예금주·은행·계좌 자동인식)</span></div>
-          <FileUpload label="통장사본 첨부" value={f.bankFile} onChange={v=>setF(p=>({...p,bankFile:v}))} onPick={onBankPick}/>
+          <FileUpload label="통장사본 첨부" value={f.bankFile} onChange={v=>setF(p=>({...p,bankFile:v}))} onPick={onBankPick} inline/>
         </div>
         <div><div className="modal-lbl">은행</div><input className="modal-inp" value={f.bankName} onChange={u('bankName')} placeholder="예: 국민"/></div>
         <div><div className="modal-lbl">예금주</div><input className="modal-inp" value={f.bankHolder} onChange={u('bankHolder')}/></div>
         <div className="modal-full"><div className="modal-lbl">계좌번호</div>
           <div style={{display:'flex',gap:6}}><input className="modal-inp" style={{flex:1}} value={f.bankAccount} onChange={u('bankAccount')}/><CopyBtn value={f.bankAccount} digits/></div></div>
         <div className="modal-full"><div className="modal-lbl">🪪 신분증사본 <span style={{color:'var(--dim)',fontSize:10}}>(올리면 주민번호 자동인식)</span></div>
-          <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))} onPick={onIdPick}/>
+          <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))} onPick={onIdPick} inline/>
         </div>
         <div className="modal-full"><div className="modal-lbl">주민등록번호</div>
           <div style={{display:'flex',gap:6}}><input className="modal-inp" style={{flex:1}} value={f.rrn} onChange={u('rrn')} placeholder="000000-0000000"/><CopyBtn value={f.rrn}/></div></div>
@@ -3242,12 +3247,12 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
               <td style={{textAlign:'center'}}>
                 {r.bankFile
                   ?<FileCell file={r.bankFile} onDelete={()=>onUpdate(r.id,{bankFile:null})}/>
-                  :<FileUpload label="첨부" value={null} onChange={v=>onUpdate(r.id,{bankFile:v})}/>}
+                  :<FileUpload label="첨부" value={null} onChange={v=>onUpdate(r.id,{bankFile:v})} inline/>}
               </td>
               <td style={{textAlign:'center'}}>
                 {r.idFile
                   ?<FileCell file={r.idFile} onDelete={()=>onUpdate(r.id,{idFile:null})}/>
-                  :<FileUpload label="첨부" value={null} onChange={v=>onUpdate(r.id,{idFile:v})}/>}
+                  :<FileUpload label="첨부" value={null} onChange={v=>onUpdate(r.id,{idFile:v})} inline/>}
               </td>
               <td style={{textAlign:'center'}}>
                 {r.contractFile
