@@ -3502,8 +3502,9 @@ function SettleTable({byPA,bs,togglePaid,readOnly}){
 
 /* ─── SETTLE VIEW ─── */
 function SettleView({ brand, settlements, setSettlements, staffPA }) {
-  // staffPA: null=관리자(전체) / 문자열=해당 담당자 본인 것만(읽기전용). ''=계정에 담당자 미설정
+  // staffPA: null=관리자(전체) / 문자열(콤마 다중)=해당 담당자 본인 것만(읽기전용). ''=계정에 담당자 미설정
   const isStaffView = staffPA!=null;
+  const staffPASet = isStaffView ? new Set(parseTabs(staffPA).map(sanitizePA).filter(Boolean)) : null; // 본인 PA 여러 명
   // 정산 대상 = 컨택현황(step2)만. Claude 발굴 탭(claudeStep2)은 정산에서 제외.
   // 정산 대상 = 컨택현황(step2) + Claude 발굴 탭(claudeStep2). 단, Claude 탭은 DM은 내가 자동 발송하므로
   // DM 수당 없이 '협업 성사(2만)'만 담당 PA(알바)에게 정산(_claude 태그로 아래에서 DM 제외).
@@ -3511,7 +3512,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   // 정산에서 제외할 담당자(관리자 등 — 수당 정산 대상 아님)
   const SETTLE_EXCLUDE_PA=['이은영'];
   // 스태프는 본인 담당분만. 공통으로 제외 담당자(이은영)는 집계에서 뺌.
-  const allS2 = (isStaffView ? allRows2.filter(r=>sanitizePA(r.pa)===staffPA) : allRows2)
+  const allS2 = (isStaffView ? allRows2.filter(r=>staffPASet.has(sanitizePA(r.pa))) : allRows2)
     .filter(r=>!SETTLE_EXCLUDE_PA.includes(sanitizePA(r.pa)));
   const settle=getSettleInfo();
   const isUrgent=settle.days<=3;
@@ -3592,14 +3593,14 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
     const brandS=settlements[brand?.id]||{};
     return Object.keys(owed).map(ym=>{
       const paid=isStaffView
-        ? ((brandS[ym]||{})[staffPA]?.paid||0)            // 본인 지급액만
+        ? [...staffPASet].reduce((s,pa)=>s+((brandS[ym]||{})[pa]?.paid||0),0) // 본인 PA(들) 지급액 합
         : Object.values(brandS[ym]||{}).reduce((s,v)=>s+(v?.paid||0),0);
       return {ym,owed:owed[ym],out:owed[ym]-paid};
     }).filter(x=>x.out>0).sort((a,b)=>a.ym<b.ym?1:-1);
   },[allS2,settlements,brand,isStaffView,staffPA]);
 
   // 스태프인데 계정에 담당자(PA)가 지정되지 않은 경우 — 본인 식별 불가
-  if(isStaffView && !staffPA){
+  if(isStaffView && staffPASet.size===0){
     return <div style={{display:'flex',flex:'1 1 0',overflow:'hidden'}}>
       <div className="settle-page">
         <div className="empty" style={{marginTop:40}}>
@@ -3616,7 +3617,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
     {isStaffView && <div style={{background:'var(--accent-soft)',border:'1px solid var(--accent)',borderRadius:10,padding:'10px 16px',marginBottom:14,display:'flex',alignItems:'center',gap:10}}>
       <span style={{fontSize:18}}>💰</span>
       <div>
-        <div style={{fontWeight:700,fontSize:13,color:'var(--ah)'}}>내 정산 내역 — {staffPA}</div>
+        <div style={{fontWeight:700,fontSize:13,color:'var(--ah)'}}>내 정산 내역 — {[...staffPASet].join(', ')}</div>
         <div style={{fontSize:11,color:'var(--muted)'}}>본인 담당분만 조회됩니다 (읽기 전용). 지급 처리는 관리자가 합니다.</div>
       </div>
     </div>}
@@ -3859,16 +3860,17 @@ function UserMgmtView() {
   const [users, setUsers] = useState(null);
   const [msg, setMsg]     = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [newUser, setNewUser] = useState({username:'', password:'', role:'staff', brand:'all', pa:'', tabs:DEFAULT_STAFF_TABS.slice()});
+  const [newUser, setNewUser] = useState({username:'', password:'', role:'staff', brand:'all', pa:[], tabs:DEFAULT_STAFF_TABS.slice()});
   const [pwModal, setPwModal] = useState(null); // {id, username}
   const [newPw, setNewPw]     = useState('');
   const [tabEdit, setTabEdit] = useState(null); // {id, tabs:[]} — 계정별 탭 권한 편집
+  const [paEdit, setPaEdit]   = useState(null); // {id, pa:[]} — 계정별 담당 PA(여러 명) 편집
   // 담당 브랜드 선택지 (전체 + 각 브랜드)
   const BRAND_OPTS = [{id:'all',name:'전체'}, ...DEFAULT_BRANDS.map(b=>({id:b.id,name:b.name}))];
   const brandLabel = id => (BRAND_OPTS.find(o=>o.id===id)||{}).name || '전체';
   // 담당자(PA) 선택지 — 정산 본인 조회 매핑용 ('' = 미지정)
   const PA_OPTS = ['', ...PA_LIST];
-  const paLabel = pa => pa || '미지정';
+  const paLabel = pa => parseTabs(pa).join(', ') || '미지정'; // 콤마 다중 PA 표시
 
   function load() {
     callApi('users')
@@ -3880,12 +3882,12 @@ function UserMgmtView() {
   async function addUser(e) {
     e.preventDefault();
     if (!newUser.username || !newUser.password) return;
-    // 스태프만 탭 권한 저장(관리자는 전체) — 콤마 문자열로 전달
-    const payload = {...newUser, tabs: (newUser.role==='staff'?newUser.tabs:[]).join(',')};
+    // 스태프만 탭 권한·담당 PA 저장(관리자는 전체) — 콤마 문자열로 전달
+    const payload = {...newUser, pa: (newUser.role==='staff'?newUser.pa:[]).join(','), tabs: (newUser.role==='staff'?newUser.tabs:[]).join(',')};
     const d = await callApi('userCreate', payload);
     if (!d || !d.ok) { setMsg('❌ ' + ((d&&d.error)||'오류')); return; }
     setMsg('✅ 계정이 추가됐습니다');
-    setNewUser({username:'', password:'', role:'staff', brand:'all', pa:'', tabs:DEFAULT_STAFF_TABS.slice()});
+    setNewUser({username:'', password:'', role:'staff', brand:'all', pa:[], tabs:DEFAULT_STAFF_TABS.slice()});
     setShowAdd(false);
     load();
   }
@@ -3902,6 +3904,13 @@ function UserMgmtView() {
     if (!d || !d.ok) { setMsg('❌ ' + ((d&&d.error)||'오류')); return; }
     setMsg('✅ 담당 브랜드가 변경됐습니다 (해당 계정 재로그인 시 적용)');
     load();
+  }
+
+  async function savePas(id, paArr) {
+    const d = await callApi('userPa', { id, pa: paArr.join(',') });
+    if (!d || !d.ok) { setMsg('❌ ' + ((d&&d.error)||'오류')); return; }
+    setMsg('✅ 담당 PA가 변경됐습니다 (해당 계정 재로그인 시 적용)');
+    setPaEdit(null); load();
   }
 
   async function changePa(id, pa) {
@@ -3968,10 +3977,14 @@ function UserMgmtView() {
           </select>
         </div>
         {newUser.role==='staff'&&<div style={{marginBottom:12}}>
-          <div className="login-lbl">담당자(PA) — 정산에서 본인 실적 조회용</div>
-          <select className="modal-sel" value={newUser.pa} onChange={e=>setNewUser(p=>({...p,pa:e.target.value}))}>
-            {PA_OPTS.map(pa=><option key={pa||'none'} value={pa}>{paLabel(pa)}</option>)}
-          </select>
+          <div className="login-lbl">담당자(PA) — 정산 본인 조회용 (여러 명 선택 가능)</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:7,marginTop:5}}>
+            {PA_LIST.map(pa=>{const on=newUser.pa.includes(pa);
+              return <label key={pa} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,padding:'5px 11px',borderRadius:16,border:'1px solid '+(on?'var(--accent)':'var(--border)'),background:on?'var(--accent-soft)':'var(--surface2)',color:on?'var(--accent)':'var(--text)',cursor:'pointer',userSelect:'none'}}>
+                <input type="checkbox" checked={on} onChange={()=>setNewUser(p=>({...p,pa:on?p.pa.filter(x=>x!==pa):[...p.pa,pa]}))} style={{margin:0}}/>
+                {pa}
+              </label>;})}
+          </div>
         </div>}
         {newUser.role==='staff'&&<div style={{marginBottom:12}}>
           <div className="login-lbl">볼 수 있는 탭 (권한 범위)</div>
@@ -3999,13 +4012,25 @@ function UserMgmtView() {
           <select className="modal-sel" style={{width:'auto',fontSize:11,padding:'2px 6px'}} value={u.brand||'all'} onChange={e=>changeBrand(u.id, e.target.value)} title="담당 브랜드">
             {BRAND_OPTS.map(o=><option key={o.id} value={o.id}>{o.id==='all'?'전체':o.name}</option>)}
           </select>
-          {u.role!=='manager'&&<select className="modal-sel" style={{width:'auto',fontSize:11,padding:'2px 6px'}} value={u.pa||''} onChange={e=>changePa(u.id, e.target.value)} title="담당자(PA) — 정산 본인 조회 매핑">
-            {PA_OPTS.map(pa=><option key={pa||'none'} value={pa}>{pa||'PA 미지정'}</option>)}
-          </select>}
+          {u.role!=='manager'&&<button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setPaEdit(paEdit&&paEdit.id===u.id?null:{id:u.id,pa:parseTabs(u.pa)})}>👤 담당 PA</button>}
           {u.role!=='manager'&&<button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setTabEdit(tabEdit&&tabEdit.id===u.id?null:{id:u.id,tabs:parseTabs(u.tabs).length?parseTabs(u.tabs):DEFAULT_STAFF_TABS.slice()})}>🗂 탭 권한</button>}
           <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>{setPwModal(u);setNewPw('');}}>🔑 비번 변경</button>
           <button className="btn btn-ghost" style={{fontSize:11,color:'var(--red)'}} onClick={()=>delUser(u.id, u.username)}>삭제</button>
         </div>
+        {paEdit&&paEdit.id===u.id&&<div style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,padding:'10px 14px'}}>
+          <div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>담당 PA(여러 명 선택 가능) — 체크 후 저장 (해당 계정 재로그인 시 적용)</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+            {PA_LIST.map(pa=>{const on=paEdit.pa.includes(pa);
+              return <label key={pa} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,padding:'5px 11px',borderRadius:16,border:'1px solid '+(on?'var(--accent)':'var(--border)'),background:on?'var(--accent-soft)':'var(--surface2)',color:on?'var(--accent)':'var(--text)',cursor:'pointer',userSelect:'none'}}>
+                <input type="checkbox" checked={on} onChange={()=>setPaEdit(p=>({...p,pa:on?p.pa.filter(x=>x!==pa):[...p.pa,pa]}))} style={{margin:0}}/>
+                {pa}
+              </label>;})}
+          </div>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:8}}>
+            <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setPaEdit(null)}>취소</button>
+            <button className="btn btn-primary" style={{fontSize:11}} onClick={()=>savePas(u.id, paEdit.pa)}>저장</button>
+          </div>
+        </div>}
         {tabEdit&&tabEdit.id===u.id&&<div style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,padding:'10px 14px'}}>
           <div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>이 계정이 볼 수 있는 탭 — 체크 후 저장 (해당 계정 재로그인 시 적용)</div>
           <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
