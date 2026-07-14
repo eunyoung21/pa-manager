@@ -1609,7 +1609,7 @@ function Cell({ value, onChange, type='text', options, placeholder, style, disab
       const popMax=Math.min(520,vw-16);
       const pop=rect?{position:'fixed',top:Math.round(rect.bottom+4),left:Math.round(Math.max(8,Math.min(rect.left,vw-popMax-8)))}:{position:'absolute',top:'100%',left:0,marginTop:4};
       return <span style={{position:'relative',display:'inline-block'}}>
-        <span className="cell-val" style={style}>{cur||<span style={{opacity:.4}}>—</span>}</span>
+        <span className="cell-val" style={{...style,whiteSpace:'nowrap'}}>{cur||<span style={{opacity:.4}}>—</span>}</span>
         <div onClick={e=>e.stopPropagation()} style={{...pop,zIndex:60,display:'flex',flexWrap:'nowrap',gap:6,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:8,boxShadow:'0 8px 24px rgba(0,0,0,.2)',width:'max-content',maxWidth:popMax,overflowX:'auto'}}>
           <button onClick={()=>{onChange('');setEditing(false);}} style={chip('')}>—</button>
           {options.map(o=>{const v=typeof o==='object'?o.value:o,l=typeof o==='object'?o.label:o;return <button key={v} onClick={()=>{onChange(v);setEditing(false);}} style={chip(v)}>{l}</button>;})}
@@ -1649,7 +1649,7 @@ function Cell({ value, onChange, type='text', options, placeholder, style, disab
   let disp=rawDisp&&/^\d{2,4}[.\-\/]\d{1,2}[.\-\/]\d{1,2}/.test(String(rawDisp))?normDate(rawDisp):rawDisp;
   // fmt 지정 시 표시값만 변환 (저장값은 그대로) — 예: 승인 → ✅ 승인
   if(fmt&&value) disp=fmt(value);
-  return <span className={`cell-val${!disp?' empty':''}`} onClick={start} style={style} title={disabled?'':undefined}>
+  return <span className={`cell-val${!disp?' empty':''}`} onClick={start} style={chips?{...style,whiteSpace:'nowrap'}:style} title={disabled?'':undefined}>
     {disp||<span style={{opacity:.4}}>{placeholder||'—'}</span>}
   </span>;
 }
