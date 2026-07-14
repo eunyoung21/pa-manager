@@ -1890,6 +1890,7 @@ function useFileSrc(file){
 function FileUpload({label,value,onChange,onPick,archive,inline}){
   const ref=useRef(null);
   const [uploading,setUploading]=useState(false);
+  const [zoom,setZoom]=useState(false); // 통장·신분증 크게 보기(라이트박스)
   const src=useFileSrc(value);
   async function handleFile(e){
     const file=e.target.files[0]; if(!file) return;
@@ -1920,14 +1921,22 @@ function FileUpload({label,value,onChange,onPick,archive,inline}){
     e.target.value='';
   }
   const isImg=value?.type?.startsWith('image/');
+  const dlName=value?.name||'첨부파일';
   return <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
     <input ref={ref} type="file" accept="image/*,.pdf" onChange={handleFile} style={{display:'none'}}/>
     {value
       ?<>
         {isImg
-          ?<img src={src} alt={value.name} style={{height:48,width:72,objectFit:'cover',borderRadius:6,border:'1px solid var(--border)',cursor:'pointer',background:'var(--surface2)'}} onClick={()=>src&&window.open(src,'_blank')}/>
+          ?<img src={src} alt={value.name} title="클릭하면 크게 보기" style={{height:48,width:72,objectFit:'cover',borderRadius:6,border:'1px solid var(--border)',cursor:src?'zoom-in':'default',background:'var(--surface2)'}} onClick={()=>src&&setZoom(true)}/>
           :<a href={src||undefined} target="_blank" rel="noopener" style={{fontSize:11,color:'var(--blue)',padding:'4px 8px',background:'var(--surface2)',borderRadius:6,border:'1px solid var(--border)'}}>📄 {value.name}</a>}
+        {src&&<a href={src} download={dlName} title="다운로드" style={{fontSize:11,color:'var(--blue)',padding:'4px 8px',background:'var(--surface2)',borderRadius:6,border:'1px solid var(--border)',textDecoration:'none',whiteSpace:'nowrap'}}>📥 다운로드</a>}
         <button onClick={()=>onChange(null)} style={{background:'none',border:'none',color:'var(--dim)',cursor:'pointer',fontSize:14,lineHeight:1}}>×</button>
+        {/* 크게 보기 — 인라인 data URL은 새 탭 열기가 막히므로 앱 내 라이트박스로 확대 */}
+        {zoom&&isImg&&src&&<div onClick={()=>setZoom(false)} style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,.85)',display:'flex',alignItems:'center',justifyContent:'center',padding:24,cursor:'zoom-out'}}>
+          <img src={src} alt={value.name} onClick={e=>e.stopPropagation()} style={{maxWidth:'92vw',maxHeight:'88vh',objectFit:'contain',borderRadius:8,boxShadow:'0 8px 40px rgba(0,0,0,.5)',cursor:'default'}}/>
+          <a href={src} download={dlName} onClick={e=>e.stopPropagation()} style={{position:'fixed',top:18,right:120,fontSize:13,color:'#fff',padding:'6px 14px',background:'rgba(255,255,255,.15)',borderRadius:8,textDecoration:'none'}}>📥 다운로드</a>
+          <button onClick={()=>setZoom(false)} style={{position:'fixed',top:18,right:20,fontSize:13,color:'#fff',padding:'6px 14px',background:'rgba(255,255,255,.15)',border:'none',borderRadius:8,cursor:'pointer'}}>✕ 닫기</button>
+        </div>}
       </>
       :<button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>ref.current?.click()} disabled={uploading}>
         {uploading?'업로드 중…':'📎 '+label}
