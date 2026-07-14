@@ -1405,12 +1405,6 @@ function save(s) { try { localStorage.setItem(LS,JSON.stringify(s)); } catch{} }
 // id 없거나 중복인 row에 고유 id 부여 (로드 시 정규화)
 function normalizeData(d) {
   if (!d?.brands) return d;
-  // 1회성 마이그레이션(기기별 최초 1회, 저장으로 서버에 영구반영): PA 알바 시드 + 클로드 탭 메모 정리
-  let _seedAlbas=false, _clearClaudeMemo=false;
-  try{ const S=window.localStorage;
-    if(!S.getItem('paSeedAlbas_v1')){ _seedAlbas=true; S.setItem('paSeedAlbas_v1','1'); }
-    if(!S.getItem('paClaudeMemoClear_v1')){ _clearClaudeMemo=true; S.setItem('paClaudeMemoClear_v1','1'); }
-  }catch{}
   const ensureId = rows => {
     const seen = new Set();
     return (rows||[]).map(r => {
@@ -1423,7 +1417,7 @@ function normalizeData(d) {
   // 옛 PA 이름(민선님 등) → 새 이름 변환: 행의 담당자 필드 + 저장된 paList 모두
   const mapPa = (rows,key) => (rows||[]).map(r => r[key]&&PA_RENAME[r[key]] ? {...r,[key]:PA_RENAME[r[key]]} : r);
   const paBase = (Array.isArray(d.paList)&&d.paList.length ? d.paList : PA_LIST);
-  const paList = [...paBase, ...(_seedAlbas?['안민영','권미림']:[])].map(renamePA).filter((v,i,a)=>v&&a.indexOf(v)===i);
+  const paList = [...paBase, '안민영','권미림'].map(renamePA).filter((v,i,a)=>v&&a.indexOf(v)===i);
   return {
     ...d,
     paList,
@@ -1448,10 +1442,11 @@ function normalizeData(d) {
       // Claude 리스트업(claudeStep1Rows)을 컨택현황(claudeStep2Rows)으로 1회 자동 통합 —
       // 이름 중복 제외, 페르소나·피드·가설은 메모에 보존. 통합 후 리스트업은 비움(다음 로드부터 재실행 안 됨).
       ...(() => {
-        // 클로드 발굴 행의 기본 담당 PA는 이은영(=DM은 내가 자동 발송). 단, 협업을 맡은 PA 알바 이름이
-        // 지정돼 있으면 그대로 둔다(성사 수당이 그 알바에게 정산되도록). 빈값/옛 'Claude' 표기만 이은영으로.
-        const fixPa=rows=>rows.map(r=>(!r.pa||!String(r.pa).trim()||r.pa==='Claude')?{...r,pa:'이은영'}:r);
-        const clearMemo=rows=>_clearClaudeMemo?rows.map(r=>r.memo?{...r,memo:''}:r):rows;
+        // 클로드 발굴 행: 담당 PA를 이은영으로 고정하지 않음 — 협업 성사 시 그 알바가 자기 이름을 직접 선택.
+        // 옛 'Claude'/이은영 표기는 '미지정'(빈값)으로 두고, 지정된 알바 이름은 유지(성사수당 귀속).
+        const fixPa=rows=>rows.map(r=>(r.pa==='Claude'||r.pa==='이은영')?{...r,pa:''}:r);
+        // 클로드 탭 메모는 사용하지 않음 — 로드할 때마다 항상 비움(요청).
+        const clearMemo=rows=>rows.map(r=>r.memo?{...r,memo:''}:r);
         // 카테고리(낚시·뷰티 등) 자동 채움 — 미지정(category 키 없음) 행만, 키워드 잡힐 때만. 사용자가 비운('') 건 건드리지 않음.
         const fillCat=rows=>rows.map(r=>{ if(r.category!=null) return r; const n=nicheOf([r.name,r.memo].join(' ')); return n?{...r,category:n}:r; });
         const c1=ensureId(b.claudeStep1Rows||[]); const c2=ensureId(b.claudeStep2Rows||[]);
@@ -1460,7 +1455,7 @@ function normalizeData(d) {
         const add=[];
         for(const r of c1){ if(!r.name||have.has(nm(r.name))) continue; have.add(nm(r.name));
           const cat=r.category||nicheOf([r.name,r.persona,r.feedMemo,r.hypothesis].join(' ')); // 발굴 때 분류된 값 우선, 없으면 텍스트로 추정
-          add.push({id:makeId(),step1Id:r.id,date:r.date||'',name:r.name,link:r.link||'',followers:r.followers||'',username:r.username||'',pa:'이은영',category:cat,contactStatus:'컨택 전',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''}); }
+          add.push({id:makeId(),step1Id:r.id,date:r.date||'',name:r.name,link:r.link||'',followers:r.followers||'',username:r.username||'',pa:'',category:cat,contactStatus:'컨택 전',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''}); }
         return {claudeStep1Rows:[], claudeStep2Rows:clearMemo(fillCat(fixPa([...c2,...add])))};
       })(),
       };
@@ -1476,7 +1471,7 @@ async function loadFromServer(retries=4) {
       const d=j.data;
       // 정규화 전 원본에 옛/변형 상태값·PA이름이 있었는지 표시(서버 영구 통일용)
       const legacyPaInRows=b=>['step1Rows','step2Rows','reviewRows'].some(k=>(b[k]||[]).some(x=>x.pa&&PA_RENAME[x.pa]))||(b.shippingRows||[]).some(x=>x.requester&&PA_RENAME[x.requester]);
-      const hadLegacy=d.brands.some(b=>b.name==='그래니샐러드'||(b.claudeStep1Rows||[]).length>0||(b.claudeStep2Rows||[]).some(x=>x.pa==='Claude')||(b.step2Rows||[]).some(x=>x.contactStatus&&normStatus(x.contactStatus)!==x.contactStatus)||legacyPaInRows(b))
+      const hadLegacy=d.brands.some(b=>b.name==='그래니샐러드'||(b.claudeStep1Rows||[]).length>0||(b.claudeStep2Rows||[]).some(x=>x.pa==='Claude'||x.pa==='이은영'||x.memo)||(b.step2Rows||[]).some(x=>x.contactStatus&&normStatus(x.contactStatus)!==x.contactStatus)||legacyPaInRows(b))
         ||(Array.isArray(d.paList)&&d.paList.some(p=>PA_RENAME[p]))||!Array.isArray(d.paList);
       const norm=normalizeData(d); norm._hadLegacy=hadLegacy; return norm;
     }
@@ -4464,7 +4459,7 @@ function AppMain({ authInfo, onLogout }) {
   }
   // 컨택현황에 빈 행 추가 — 직접 인플루언서 입력용.
   function addClaudeS2Row(){
-    updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),{id:makeId(),date:today(),name:'새 인플루언서',link:'',followers:'',pa:'이은영',category:'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''}]}));
+    updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),{id:makeId(),date:today(),name:'새 인플루언서',link:'',followers:'',pa:'',category:'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''}]}));
   }
   // 기존 Claude 리스트업(claudeStep1Rows)을 컨택현황으로 한 번에 합침(이름 중복 제외, 페르소나·메모는 메모에 보존). 합친 뒤 리스트업은 비움.
   function mergeClaudeListup(){
@@ -4475,9 +4470,8 @@ function AppMain({ authInfo, onLogout }) {
       for(const r of (b.claudeStep1Rows||[])){
         if(!r.name||have.has(nn(r.name)))continue;
         have.add(nn(r.name));
-        const note=[r.persona&&('페르소나: '+r.persona),r.feedMemo&&('피드: '+r.feedMemo),r.hypothesis&&('가설: '+r.hypothesis)].filter(Boolean).join(' / ');
         const cat=r.category||nicheOf([r.name,r.persona,r.feedMemo,r.hypothesis].join(' '));
-        add.push({id:makeId(),step1Id:r.id,date:r.date||today(),name:r.name,link:r.link||'',followers:r.followers||'',username:r.username||'',pa:'이은영',category:cat,contactStatus:'컨택 전',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:note});
+        add.push({id:makeId(),step1Id:r.id,date:r.date||today(),name:r.name,link:r.link||'',followers:r.followers||'',username:r.username||'',pa:'',category:cat,contactStatus:'컨택 전',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''});
       }
       return{...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...add],claudeStep1Rows:[]};
     });
@@ -4493,7 +4487,7 @@ function AppMain({ authInfo, onLogout }) {
         if(have.has(nn(seed.name)))continue;
         have.add(nn(seed.name));
         const sent=CLAUDE_SEED_SENT.includes(seed.username);
-        add.push({id:makeId(),date:seed.date,name:seed.name,link:seed.link,followers:seed.followers,pa:'이은영',category:nicheOf([seed.name,seed.persona].join(' ')),contactStatus:sent?'컨택 중':'컨택 전',dmSent:sent?'Y':'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''});
+        add.push({id:makeId(),date:seed.date,name:seed.name,link:seed.link,followers:seed.followers,pa:'',category:nicheOf([seed.name,seed.persona].join(' ')),contactStatus:sent?'컨택 중':'컨택 전',dmSent:sent?'Y':'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''});
       }
       return{...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...add]};
     });
