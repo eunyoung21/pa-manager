@@ -1573,23 +1573,40 @@ function reviewLabel(s){return REVIEW_LABEL[s]||s||'검수대기';}
 const REVIEW_OPTIONS=[{value:'검수대기',label:'검수대기'},{value:'승인',label:'✅ 승인'},{value:'반려',label:'❌ 반려'}];
 
 /* ─── INLINE CELL COMPONENT ─── */
-function Cell({ value, onChange, type='text', options, placeholder, style, disabled, fmt }) {
+function Cell({ value, onChange, type='text', options, placeholder, style, disabled, fmt, chips }) {
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(value||'');
+  const [rect,setRect]=useState(null); // chips 팝오버 위치(클릭한 셀 기준, fixed)
   const ref=useRef(null);
 
   useEffect(()=>{if(editing&&ref.current)ref.current.focus();},[editing]);
 
   function commit(){onChange(draft);setEditing(false);}
-  function start(){
+  function start(e){
     if(disabled)return;
     // 드래그로 텍스트를 선택한 상태면 편집 진입 금지 → 선택이 풀리지 않아 복사 가능
     const sel=window.getSelection&&window.getSelection();
     if(sel&&!sel.isCollapsed&&String(sel).trim())return;
+    if(chips&&e&&e.currentTarget)setRect(e.currentTarget.getBoundingClientRect());
     setDraft(value||'');setEditing(true);
   }
 
   if(editing){
+    if(type==='select'&&chips){
+      // 담당 PA 등 — 세로 드롭다운 대신 가로 칩으로 고르기(셀 아래 팝오버)
+      const cur=value||'';
+      const chip=v=>({fontSize:12,padding:'5px 12px',borderRadius:16,border:'1px solid '+(v===cur?'var(--accent)':'var(--border)'),background:v===cur?'var(--accent-soft)':'var(--surface2)',color:v===cur?'var(--accent)':'var(--text)',cursor:'pointer',fontWeight:v===cur?700:500,whiteSpace:'nowrap'});
+      const popW=340;
+      const pop=rect?{position:'fixed',top:Math.round(rect.bottom+4),left:Math.round(Math.max(8,Math.min(rect.left,(window.innerWidth||360)-popW-8)))}:{position:'absolute',top:'100%',left:0,marginTop:4};
+      return <span style={{position:'relative',display:'inline-block'}}>
+        <span className="cell-val" style={style}>{cur||<span style={{opacity:.4}}>—</span>}</span>
+        <div onClick={e=>e.stopPropagation()} style={{...pop,zIndex:60,display:'flex',flexWrap:'wrap',gap:6,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:8,boxShadow:'0 8px 24px rgba(0,0,0,.2)',width:'max-content',maxWidth:popW}}>
+          <button onClick={()=>{onChange('');setEditing(false);}} style={chip('')}>—</button>
+          {options.map(o=>{const v=typeof o==='object'?o.value:o,l=typeof o==='object'?o.label:o;return <button key={v} onClick={()=>{onChange(v);setEditing(false);}} style={chip(v)}>{l}</button>;})}
+        </div>
+        <div onClick={()=>setEditing(false)} style={{position:'fixed',inset:0,zIndex:59}}/>
+      </span>;
+    }
     if(type==='select'){
       return <select ref={ref} className="cell-sel" value={draft}
         onChange={e=>{setDraft(e.target.value);onChange(e.target.value);setEditing(false);}}
@@ -2514,7 +2531,7 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, onPasteImport, filter, set
                 :<Cell value={r.link} onChange={v=>up(r.id,'link',v)} placeholder="URL" style={{width:60}}/>}
             </td>
             <td><Cell value={r.followers} onChange={v=>up(r.id,'followers',v)} style={{width:70}}/></td>
-            <td><Cell value={r.pa} onChange={v=>up(r.id,'pa',v)} type="select" options={PA_LIST}
+            <td><Cell value={r.pa} onChange={v=>up(r.id,'pa',v)} type="select" chips options={PA_LIST}
               style={r.pa?{...paColor(sanitizePA(r.pa)),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
             <td><Cell value={r.persona} onChange={v=>up(r.id,'persona',v)} placeholder="페르소나"/></td>
             <td>
@@ -2648,7 +2665,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
               </td>
               <td data-label="팔로워"><Cell value={r.followers} onChange={v=>up(r.id,'followers',v)} style={{width:70}}/></td>
               {isClaude&&<td data-label="카테고리"><Cell value={r.category!=null?r.category:nicheOf([r.name,r.memo].join(' '))} onChange={v=>up(r.id,'category',v)} placeholder="예: 낚시" style={{width:72}}/></td>}
-              <td data-label="담당 PA" style={{textAlign:'center',whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>up(r.id,'pa',v)} type="select" options={PA_LIST}
+              <td data-label="담당 PA" style={{textAlign:'center',whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>up(r.id,'pa',v)} type="select" chips options={PA_LIST}
                 style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
               <td data-label="진행 상태" style={{textAlign:'center'}}><Cell value={normStatus(r.contactStatus)} onChange={v=>setStatus(r,v)} type="select" options={CONTACT_STATUS}
                 style={r.contactStatus?{...csColor(r.contactStatus),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap'}:undefined}/></td>
@@ -2779,7 +2796,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
           {shown.map(r=><tr key={r.id}>
             <td className="del-col"><button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button></td>
             <td data-label="출고요청일"><Cell value={r.requestDate} onChange={v=>up(r.id,'requestDate',v)} type="date" style={{width:80}}/></td>
-            <td data-label="요청자"><Cell value={r.requester||''} onChange={v=>up(r.id,'requester',v)} type="select" options={PA_LIST}/></td>
+            <td data-label="요청자"><Cell value={r.requester||''} onChange={v=>up(r.id,'requester',v)} type="select" chips options={PA_LIST}/></td>
             <td data-label="채널명"><Cell value={r.channelName||''} onChange={v=>up(r.id,'channelName',v)} placeholder={chanOf(r.recipient)||'채널명'} style={{color:'var(--blue)',fontSize:11,width:84}}/></td>
             <td data-label="수령자명"><span style={{display:'flex',alignItems:'center',gap:2}}>
               <ShipCopyBtn row={r} product={product}/>
@@ -3117,7 +3134,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                 <td><Cell value={r.date} onChange={v=>up(r.id,'date',v)} type="date" style={{width:80}}/></td>
                 <td style={{fontWeight:500}}><Cell value={r.channelName} onChange={v=>up(r.id,'channelName',v)} placeholder="채널명"/></td>
                 <td><Cell value={r.realName||''} onChange={v=>up(r.id,'realName',v)} placeholder={nameOf(r.channelName)||'본명'}/></td>
-                <td><Cell value={r.pa||''} onChange={v=>up(r.id,'pa',v)} type="select" options={PA_LIST}/></td>
+                <td><Cell value={r.pa||''} onChange={v=>up(r.id,'pa',v)} type="select" chips options={PA_LIST}/></td>
                 <td><div style={{display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
                   <Cell value={r.paCode} onChange={v=>up(r.id,'paCode',v)} placeholder="코드"/>
                   {String(r.paCode||'').trim()&&<button onClick={()=>copyCode(r.id,r.paCode)} title="PA 코드 복사" style={{border:0,background:'transparent',cursor:'pointer',fontSize:12,lineHeight:1,padding:'2px 3px',color:copiedId===r.id?'var(--green)':'var(--dim)'}}>{copiedId===r.id?'✅':'📋'}</button>}
