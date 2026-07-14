@@ -342,6 +342,7 @@ function handle(e, body) {
       case 'userPassword':return userField(mgr(), body, 'password');
       case 'userBrand':return userField(mgr(), body, 'brand');
       case 'userPa':   return userField(mgr(), body, 'pa');
+      case 'userTabs': return userField(mgr(), body, 'tabs');
       case 'usersImport':return usersImport(mgr(), body);
       case 'logs':     return logsList(mgr());
       case 'backups':  return backupsList(mgr());
@@ -368,7 +369,7 @@ function login(body) {
   logAction('login', { username: username }, null);
   return json({
     ok: true, token: makeToken(u.username, u.role, u.brand),
-    role: u.role, username: u.username, brand: u.brand || 'all', pa: u.pa || ''
+    role: u.role, username: u.username, brand: u.brand || 'all', pa: u.pa || '', tabs: u.tabs || ''
   });
 }
 
@@ -477,7 +478,7 @@ function sheetProxy(sess, body) {
 /* users */
 function usersList(sess) {
   return json({ ok: true, users: readUsers().map(function (u) {
-    return { id: u.id, username: u.username, role: u.role, brand: u.brand, pa: u.pa, createdAt: u.createdAt };
+    return { id: u.id, username: u.username, role: u.role, brand: u.brand, pa: u.pa, tabs: u.tabs || '', createdAt: u.createdAt };
   }) });
 }
 function userCreate(sess, body) {
@@ -486,7 +487,7 @@ function userCreate(sess, body) {
   for (var i = 0; i < users.length; i++) if (users[i].username === body.username) return json({ error: '이미 존재하는 아이디' });
   var id = Utilities.getUuid().replace(/-/g, '').slice(0, 8);
   users.push({ id: id, username: body.username, passwordHash: sha256hex(body.password + SALT),
-    role: body.role || 'staff', brand: body.brand || 'all', pa: body.pa || '', createdAt: new Date().toISOString() });
+    role: body.role || 'staff', brand: body.brand || 'all', pa: body.pa || '', tabs: body.tabs || '', createdAt: new Date().toISOString() });
   writeUsers(users);
   return json({ ok: true, id: id });
 }
@@ -529,6 +530,8 @@ function userField(sess, body, field) {
     users[idx].brand = body.brand || 'all';
   } else if (field === 'pa') {
     users[idx].pa = body.pa || '';
+  } else if (field === 'tabs') {
+    users[idx].tabs = body.tabs || '';
   }
   writeUsers(users);
   return json({ ok: true });

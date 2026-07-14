@@ -702,6 +702,15 @@ const TABS = [
   { key:'settle',   label:'💰 정산', mgr:true, staffOwn:true },
   { key:'guide',    label:'📖 가이드', guide:true },
 ];
+// 스태프 계정에 개별 부여 가능한 탭(계정별 권한 범위). 관리자 전용(계정관리·접속로그)은 제외.
+const STAFF_TAB_OPTS = [
+  {key:'claudeS2',label:'🤖 자동화'},{key:'shipping',label:'📦 출고'},{key:'review',label:'🎬 영상검수'},
+  {key:'dm',label:'💬 DM 템플릿'},{key:'settle',label:'💰 정산'},{key:'step2',label:'📨 컨택현황'},
+  {key:'step1',label:'📋 리스트업'},{key:'dashboard',label:'📊 대시보드'},{key:'guide',label:'📖 가이드'},
+];
+// 새 스태프 기본 권한 — 자동화·출고·영상검수·DM템플릿·정산
+const DEFAULT_STAFF_TABS = ['claudeS2','shipping','review','dm','settle'];
+const parseTabs = v => Array.isArray(v) ? v : String(v||'').split(',').map(s=>s.trim()).filter(Boolean);
 
 // Claude(인플루언서 발굴 봇)가 그래니살라용으로 발굴한 50명 — '리스트업(Claude)' 탭의 시드 데이터.
 const CLAUDE_SEED_SENT=["dubu_yaksa","jiy_eon_","jeonggam.yaksa"];
@@ -3850,9 +3859,10 @@ function UserMgmtView() {
   const [users, setUsers] = useState(null);
   const [msg, setMsg]     = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [newUser, setNewUser] = useState({username:'', password:'', role:'staff', brand:'all', pa:''});
+  const [newUser, setNewUser] = useState({username:'', password:'', role:'staff', brand:'all', pa:'', tabs:DEFAULT_STAFF_TABS.slice()});
   const [pwModal, setPwModal] = useState(null); // {id, username}
   const [newPw, setNewPw]     = useState('');
+  const [tabEdit, setTabEdit] = useState(null); // {id, tabs:[]} — 계정별 탭 권한 편집
   // 담당 브랜드 선택지 (전체 + 각 브랜드)
   const BRAND_OPTS = [{id:'all',name:'전체'}, ...DEFAULT_BRANDS.map(b=>({id:b.id,name:b.name}))];
   const brandLabel = id => (BRAND_OPTS.find(o=>o.id===id)||{}).name || '전체';
@@ -3870,12 +3880,21 @@ function UserMgmtView() {
   async function addUser(e) {
     e.preventDefault();
     if (!newUser.username || !newUser.password) return;
-    const d = await callApi('userCreate', newUser);
+    // 스태프만 탭 권한 저장(관리자는 전체) — 콤마 문자열로 전달
+    const payload = {...newUser, tabs: (newUser.role==='staff'?newUser.tabs:[]).join(',')};
+    const d = await callApi('userCreate', payload);
     if (!d || !d.ok) { setMsg('❌ ' + ((d&&d.error)||'오류')); return; }
     setMsg('✅ 계정이 추가됐습니다');
-    setNewUser({username:'', password:'', role:'staff', brand:'all', pa:''});
+    setNewUser({username:'', password:'', role:'staff', brand:'all', pa:'', tabs:DEFAULT_STAFF_TABS.slice()});
     setShowAdd(false);
     load();
+  }
+
+  async function saveTabs(id, tabsArr) {
+    const d = await callApi('userTabs', { id, tabs: tabsArr.join(',') });
+    if (!d || !d.ok) { setMsg('❌ ' + ((d&&d.error)||'오류')); return; }
+    setMsg('✅ 탭 권한이 변경됐습니다 (해당 계정 재로그인 시 적용)');
+    setTabEdit(null); load();
   }
 
   async function changeBrand(id, brand) {
@@ -3954,6 +3973,16 @@ function UserMgmtView() {
             {PA_OPTS.map(pa=><option key={pa||'none'} value={pa}>{paLabel(pa)}</option>)}
           </select>
         </div>}
+        {newUser.role==='staff'&&<div style={{marginBottom:12}}>
+          <div className="login-lbl">볼 수 있는 탭 (권한 범위)</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:7,marginTop:5}}>
+            {STAFF_TAB_OPTS.map(o=>{const on=newUser.tabs.includes(o.key);
+              return <label key={o.key} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,padding:'5px 11px',borderRadius:16,border:'1px solid '+(on?'var(--accent)':'var(--border)'),background:on?'var(--accent-soft)':'var(--surface2)',color:on?'var(--accent)':'var(--text)',cursor:'pointer',userSelect:'none'}}>
+                <input type="checkbox" checked={on} onChange={()=>setNewUser(p=>({...p,tabs:on?p.tabs.filter(k=>k!==o.key):[...p.tabs,o.key]}))} style={{margin:0}}/>
+                {o.label}
+              </label>;})}
+          </div>
+        </div>}
         <div style={{display:'flex',justifyContent:'flex-end'}}>
           <button className="btn btn-primary" type="submit" style={{fontSize:12}}>추가</button>
         </div>
@@ -3961,10 +3990,10 @@ function UserMgmtView() {
 
       {!users && <div style={{color:'var(--muted)',fontSize:12}}>불러오는 중…</div>}
       {users && <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {users.map(u => <div key={u.id} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'12px 14px',display:'flex',alignItems:'center',gap:10}}>
-          <div style={{flex:1}}>
+        {users.map(u => <React.Fragment key={u.id}><div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'12px 14px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <div style={{flex:1,minWidth:120}}>
             <div style={{fontWeight:600,fontSize:13}}>{u.username}</div>
-            <div style={{fontSize:10,color:'var(--muted)',marginTop:2}}>생성일: {new Date(u.createdAt).toLocaleDateString('ko-KR')} · 담당: {brandLabel(u.brand||'all')}{u.role!=='manager'&&` · 담당자(PA): ${paLabel(u.pa)}`}</div>
+            <div style={{fontSize:10,color:'var(--muted)',marginTop:2}}>생성일: {new Date(u.createdAt).toLocaleDateString('ko-KR')} · 담당: {brandLabel(u.brand||'all')}{u.role!=='manager'&&` · 담당자(PA): ${paLabel(u.pa)} · 탭 ${parseTabs(u.tabs).length||'전체'}`}</div>
           </div>
           <span style={{...roleColor(u.role),padding:'2px 8px',borderRadius:4,fontSize:10,fontWeight:700}}>{roleLabel(u.role)}</span>
           <select className="modal-sel" style={{width:'auto',fontSize:11,padding:'2px 6px'}} value={u.brand||'all'} onChange={e=>changeBrand(u.id, e.target.value)} title="담당 브랜드">
@@ -3973,9 +4002,25 @@ function UserMgmtView() {
           {u.role!=='manager'&&<select className="modal-sel" style={{width:'auto',fontSize:11,padding:'2px 6px'}} value={u.pa||''} onChange={e=>changePa(u.id, e.target.value)} title="담당자(PA) — 정산 본인 조회 매핑">
             {PA_OPTS.map(pa=><option key={pa||'none'} value={pa}>{pa||'PA 미지정'}</option>)}
           </select>}
+          {u.role!=='manager'&&<button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setTabEdit(tabEdit&&tabEdit.id===u.id?null:{id:u.id,tabs:parseTabs(u.tabs).length?parseTabs(u.tabs):DEFAULT_STAFF_TABS.slice()})}>🗂 탭 권한</button>}
           <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>{setPwModal(u);setNewPw('');}}>🔑 비번 변경</button>
           <button className="btn btn-ghost" style={{fontSize:11,color:'var(--red)'}} onClick={()=>delUser(u.id, u.username)}>삭제</button>
-        </div>)}
+        </div>
+        {tabEdit&&tabEdit.id===u.id&&<div style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,padding:'10px 14px'}}>
+          <div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>이 계정이 볼 수 있는 탭 — 체크 후 저장 (해당 계정 재로그인 시 적용)</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+            {STAFF_TAB_OPTS.map(o=>{const on=tabEdit.tabs.includes(o.key);
+              return <label key={o.key} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,padding:'5px 11px',borderRadius:16,border:'1px solid '+(on?'var(--accent)':'var(--border)'),background:on?'var(--accent-soft)':'var(--surface2)',color:on?'var(--accent)':'var(--text)',cursor:'pointer',userSelect:'none'}}>
+                <input type="checkbox" checked={on} onChange={()=>setTabEdit(p=>({...p,tabs:on?p.tabs.filter(k=>k!==o.key):[...p.tabs,o.key]}))} style={{margin:0}}/>
+                {o.label}
+              </label>;})}
+          </div>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:8}}>
+            <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setTabEdit(null)}>취소</button>
+            <button className="btn btn-primary" style={{fontSize:11}} onClick={()=>saveTabs(u.id, tabEdit.tabs)}>저장</button>
+          </div>
+        </div>}
+        </React.Fragment>)}
       </div>}
     </div>
 
@@ -4937,10 +4982,16 @@ function AppMain({ authInfo, onLogout }) {
   useEffect(()=>{
     if(allowedBrands.length && !allowedBrands.some(b=>b.id===bId)) setBId(allowedBrands[0].id);
   },[userBrand,brands.length]);
+  // 계정별 탭 권한(스태프) — authInfo.tabs 있으면 그 탭만. 없으면(기존 계정) 전체 스태프 탭.
+  const myTabs = !isManager && authInfo?.tabs ? new Set(parseTabs(authInfo.tabs)) : null;
   const visibleTabs=[
-    ...TABS.filter(t=>(!t.mgr||isManager||t.staffOwn)&&(!t.guide||true)),
+    ...TABS.filter(t=>(!t.mgr||isManager||t.staffOwn)&&(!t.guide||true)&&(!myTabs||myTabs.has(t.key))),
     ...(isManager ? [{key:'users', label:'👤 계정관리', mgr:true}, {key:'log', label:'🔐 접속로그', mgr:true}] : [])
   ];
+  // 현재 탭이 권한 밖이면 첫 허용 탭으로 이동(스태프 권한 제한 대응)
+  useEffect(()=>{
+    if(visibleTabs.length && !visibleTabs.some(t=>t.key===tab)) setTab(visibleTabs[0].key);
+  },[authInfo]);
   // 자주 쓰는 핵심 탭만 노출, 나머지(Claude·DM·가이드·계정·로그)는 '⋯ 더보기'로 접어 어지러움 감소.
   const PRIMARY_TABS=new Set(['dashboard','step1','step2','shipping','review','dm','settle','claudeS2','guide']);
   const primaryTabs=visibleTabs.filter(t=>PRIMARY_TABS.has(t.key));
