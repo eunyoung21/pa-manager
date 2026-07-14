@@ -2966,6 +2966,58 @@ function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, o
   </div>;
 }
 
+/* ─── 1차 영상 검수 체크리스트 (영상검수 탭 상단 참고 카드 · 브랜드별 자동) ─── */
+const REVIEW_CHECKLIST_COMMON=[
+  {t:'나레이션 오류 여부'},
+  {t:'자막 삽입 여부(필수) 및 오탈자·누락 여부'},
+  {t:'면책문구 포함 여부'},
+  {t:'화질 확인(선명한 화질 필수)'},
+  {t:'무료 BGM 또는 사용 허가된 음원 사용 여부'},
+  {t:'저작권이 있는 콘텐츠 사용 여부', note:'예) 유행하는 팝송, 아이돌 음원, 애니메이션 캐릭터, 드라마·영화 장면 등'},
+  {t:'과도하거나 부적절한 연출 여부', note:'예) 욕설, 선정적이거나 불쾌감을 줄 수 있는 장면 등'},
+];
+const REVIEW_CHECKLIST_BRAND={
+  granny:[
+    {t:'제품 실제 섭취 장면 포함 여부'},
+    {t:'다이어트·체중 감량(살 빠짐)을 직접적으로 표현하는 내용 미사용 여부'},
+  ],
+  basetune:[
+    {t:'"마스터 엔지니어링 2명이 함께 구현한 통화 품질 개선" 문구 포함 여부'},
+    {t:'서로 다른 복장 및 상황에서 실제 착용하는 장면이 3컷 이상 포함되었는지 확인'},
+  ],
+};
+function ReviewChecklist({ brandId, brandName }){
+  const [open,setOpen]=useState(false);
+  const [checked,setChecked]=useState(()=>new Set()); // 세션 참고용 — 저장 안 함(새로고침 시 초기화)
+  const brandItems=REVIEW_CHECKLIST_BRAND[brandId]||[];
+  const toggle=k=>setChecked(s=>{const n=new Set(s);n.has(k)?n.delete(k):n.add(k);return n;});
+  const total=REVIEW_CHECKLIST_COMMON.length+brandItems.length, done=checked.size;
+  const renderItem=(sec,i,it)=>{const k=sec+i, on=checked.has(k);
+    return <div key={k} onClick={()=>toggle(k)} style={{display:'flex',gap:8,alignItems:'flex-start',padding:'6px 8px',borderRadius:7,cursor:'pointer',background:on?'var(--accent-soft)':'transparent'}}>
+      <span style={{flex:'none',fontSize:14,lineHeight:'18px',color:on?'var(--accent)':'var(--dim)'}}>{on?'☑':'□'}</span>
+      <span style={{fontSize:12.5,lineHeight:1.45,color:'var(--text)',opacity:on?.55:1}}>
+        <span style={{textDecoration:on?'line-through':'none'}}>{it.t}</span>
+        {it.note&&<span style={{display:'block',fontSize:11,color:'var(--muted)',marginTop:1}}>{it.note}</span>}
+      </span>
+    </div>;};
+  const renderSection=(label,items,sec)=><div style={{marginBottom:10}}>
+    <div style={{fontSize:11.5,fontWeight:800,color:'var(--muted)',letterSpacing:.3,margin:'0 0 4px 2px'}}>{label}</div>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:'2px 10px'}}>{items.map((it,i)=>renderItem(sec,i,it))}</div>
+  </div>;
+  return <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden',margin:'0 0 12px',flex:'none'}}>
+    <div onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 16px',cursor:'pointer',borderBottom:open?'1px solid var(--border)':'none'}}>
+      <span style={{fontSize:14,fontWeight:700}}>✅ 1차 영상 검수 체크리스트</span>
+      <span style={{fontSize:11,color:'var(--muted)',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{brandName||''} · 업로드 영상 게시 전 확인{done>0?` · ${done}/${total}`:''}</span>
+      <span style={{color:'var(--muted)',fontSize:12,flexShrink:0}}>{open?'▲ 접기':'▼ 펼치기'}</span>
+    </div>
+    {open&&<div style={{padding:'14px 16px'}}>
+      {renderSection('공통',REVIEW_CHECKLIST_COMMON,'c')}
+      {brandItems.length>0&&renderSection(brandName||'브랜드',brandItems,'b')}
+      <div style={{fontSize:11,color:'var(--dim)',marginTop:6}}>※ 참고용 체크리스트입니다. 체크는 저장되지 않습니다(새로고침 시 초기화).</div>
+    </div>}
+  </div>;
+}
+
 /* ─── REVIEW VIEW ─── */
 function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onAdd, onPasteImport, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, isManager }) {
   const [dayFilter,setDayFilter]=useState(null);
@@ -3015,6 +3067,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
 
   return <div className="view-wrap">
     <div className="view-main">
+    <ReviewChecklist brandId={brand?.id} brandName={brand?.name}/>
     <div className="toolbar">
       {[{k:'all',l:`전체 (${cnt.all})`,c:''},{k:'paid',l:`✅ 정산완료 (${cnt.paid})`,c:'f-ap'},{k:'unpaid',l:`⏳ 미정산 (${cnt.unpaid})`,c:'f-wt'},{k:'purged',l:`🗑️ 폐기완료 (${cnt.purged})`,c:'f-rj'},{k:'live',l:`🔴 라이브 (${cnt.live})`,c:'f-deal'}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
