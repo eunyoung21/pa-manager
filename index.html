@@ -695,7 +695,7 @@ const TABS = [
   { key:'dashboard', label:'📊 대시보드' },
   { key:'step1',    label:'📋 STEP1 리스트업' },
   { key:'step2',    label:'📨 STEP2 컨택현황' },
-  { key:'claudeS2', label:'🤖 Claude', mgr:true, staffOwn:true },
+  { key:'claudeS2', label:'🤖 자동화', mgr:true, staffOwn:true },
   { key:'shipping', label:'📦 출고' },
   { key:'review',   label:'🎬 영상검수' },
   { key:'dm',       label:'💬 DM 템플릿' },
@@ -5046,7 +5046,7 @@ function AppMain({ authInfo, onLogout }) {
       />}
       {tab==='claudeS2'&&<div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'var(--surface2)'}}>
-          <span style={{fontSize:12,color:'var(--muted)'}}>🤖 Claude가 발굴한 인플루언서 — 리스트업·컨택을 한 곳에서 (DM발송·협업성사 체크)</span>
+          <span style={{fontSize:12,color:'var(--muted)'}}>🤖 자동화로 발굴·DM 발송된 인플루언서 — 컨택·협업성사를 한 곳에서 (담당 PA·협업성사 체크)</span>
           <span style={{fontSize:11,color:'var(--muted)'}}>{(brand.claudeStep2Rows||[]).length}명</span>
           <button className="btn btn-primary" style={{fontSize:11}} onClick={addClaudeS2Row}>＋ 추가</button>
           {(brand.claudeStep1Rows||[]).length>0&&<button className="btn" style={{fontSize:11,background:'var(--accent)',color:'#fff'}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
