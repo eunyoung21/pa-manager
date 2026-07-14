@@ -2992,17 +2992,17 @@ function ReviewChecklist({ brandId, brandName }){
   const brandItems=REVIEW_CHECKLIST_BRAND[brandId]||[];
   const toggle=k=>setChecked(s=>{const n=new Set(s);n.has(k)?n.delete(k):n.add(k);return n;});
   const total=REVIEW_CHECKLIST_COMMON.length+brandItems.length, done=checked.size;
-  const renderItem=(sec,i,it)=>{const k=sec+i, on=checked.has(k);
-    return <div key={k} onClick={()=>toggle(k)} style={{display:'flex',gap:8,alignItems:'flex-start',padding:'6px 8px',borderRadius:7,cursor:'pointer',background:on?'var(--accent-soft)':'transparent'}}>
-      <span style={{flex:'none',fontSize:14,lineHeight:'18px',color:on?'var(--accent)':'var(--dim)'}}>{on?'☑':'□'}</span>
-      <span style={{fontSize:12.5,lineHeight:1.45,color:'var(--text)',opacity:on?.55:1}}>
-        <span style={{textDecoration:on?'line-through':'none'}}>{it.t}</span>
-        {it.note&&<span style={{display:'block',fontSize:11,color:'var(--muted)',marginTop:1}}>{it.note}</span>}
-      </span>
+  const renderItem=(sec,i,it,last)=>{const k=sec+i, on=checked.has(k);
+    return <div key={k} onClick={()=>toggle(k)} style={{display:'flex',gap:11,alignItems:'flex-start',padding:'11px 4px',cursor:'pointer',borderBottom:last?'none':'1px solid var(--border)'}}>
+      <span style={{flex:'none',fontSize:18,lineHeight:'23px',color:on?'var(--accent)':'var(--dim)'}}>{on?'☑':'☐'}</span>
+      <div style={{minWidth:0}}>
+        <div style={{fontSize:14,lineHeight:1.5,fontWeight:500,color:on?'var(--muted)':'var(--text)',textDecoration:on?'line-through':'none'}}>{it.t}</div>
+        {it.note&&<div style={{fontSize:12,color:'var(--muted)',marginTop:3,lineHeight:1.45}}>{it.note}</div>}
+      </div>
     </div>;};
-  const renderSection=(label,items,sec)=><div style={{marginBottom:10}}>
-    <div style={{fontSize:11.5,fontWeight:800,color:'var(--muted)',letterSpacing:.3,margin:'0 0 4px 2px'}}>{label}</div>
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:'2px 10px'}}>{items.map((it,i)=>renderItem(sec,i,it))}</div>
+  const renderSection=(label,items,sec)=><div style={{marginBottom:16}}>
+    <div style={{display:'inline-block',fontSize:12.5,fontWeight:800,color:'var(--accent)',background:'var(--accent-soft)',padding:'4px 12px',borderRadius:20,marginBottom:4}}>{label}</div>
+    <div>{items.map((it,i)=>renderItem(sec,i,it,i===items.length-1))}</div>
   </div>;
   return <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden',margin:'0 0 12px',flex:'none'}}>
     <div onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 16px',cursor:'pointer',borderBottom:open?'1px solid var(--border)':'none'}}>
@@ -3010,7 +3010,7 @@ function ReviewChecklist({ brandId, brandName }){
       <span style={{fontSize:11,color:'var(--muted)',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{brandName||''} · 업로드 영상 게시 전 확인{done>0?` · ${done}/${total}`:''}</span>
       <span style={{color:'var(--muted)',fontSize:12,flexShrink:0}}>{open?'▲ 접기':'▼ 펼치기'}</span>
     </div>
-    {open&&<div style={{padding:'14px 16px'}}>
+    {open&&<div style={{padding:'16px 18px',maxWidth:780}}>
       {renderSection('공통',REVIEW_CHECKLIST_COMMON,'c')}
       {brandItems.length>0&&renderSection(brandName||'브랜드',brandItems,'b')}
       <div style={{fontSize:11,color:'var(--dim)',marginTop:6}}>※ 참고용 체크리스트입니다. 체크는 저장되지 않습니다(새로고침 시 초기화).</div>
