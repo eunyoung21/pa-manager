@@ -659,7 +659,7 @@ let IS_STAFF = new URLSearchParams(window.location.search).get('mode') === 'staf
 /* ─── CONSTANTS ─── */
 const SHEET_ID = '1hJe8pxXne_zw8bUqo33z0XYBXfRwIk7Gu-hzA8-qIa8';
 // 담당 PA 목록 — 저장 데이터(paList)에서 동적으로 채워짐. 아래는 기본값.
-let PA_LIST  = ['유송미','박민선','이은영','기타'];
+let PA_LIST  = ['유송미','박민선','이은영','안민영','권미림','기타'];
 // 옛 이름 → 새 이름 1회 변환 (기존 데이터 호환)
 const PA_RENAME = {'송미님':'유송미','민선님':'박민선','이은영님':'이은영'};
 const renamePA = v => (v && PA_RENAME[v]) ? PA_RENAME[v] : v;
@@ -1405,6 +1405,12 @@ function save(s) { try { localStorage.setItem(LS,JSON.stringify(s)); } catch{} }
 // id 없거나 중복인 row에 고유 id 부여 (로드 시 정규화)
 function normalizeData(d) {
   if (!d?.brands) return d;
+  // 1회성 마이그레이션(기기별 최초 1회, 저장으로 서버에 영구반영): PA 알바 시드 + 클로드 탭 메모 정리
+  let _seedAlbas=false, _clearClaudeMemo=false;
+  try{ const S=window.localStorage;
+    if(!S.getItem('paSeedAlbas_v1')){ _seedAlbas=true; S.setItem('paSeedAlbas_v1','1'); }
+    if(!S.getItem('paClaudeMemoClear_v1')){ _clearClaudeMemo=true; S.setItem('paClaudeMemoClear_v1','1'); }
+  }catch{}
   const ensureId = rows => {
     const seen = new Set();
     return (rows||[]).map(r => {
@@ -1416,7 +1422,8 @@ function normalizeData(d) {
   };
   // 옛 PA 이름(민선님 등) → 새 이름 변환: 행의 담당자 필드 + 저장된 paList 모두
   const mapPa = (rows,key) => (rows||[]).map(r => r[key]&&PA_RENAME[r[key]] ? {...r,[key]:PA_RENAME[r[key]]} : r);
-  const paList = (Array.isArray(d.paList)&&d.paList.length ? d.paList : PA_LIST).map(renamePA).filter((v,i,a)=>v&&a.indexOf(v)===i);
+  const paBase = (Array.isArray(d.paList)&&d.paList.length ? d.paList : PA_LIST);
+  const paList = [...paBase, ...(_seedAlbas?['안민영','권미림']:[])].map(renamePA).filter((v,i,a)=>v&&a.indexOf(v)===i);
   return {
     ...d,
     paList,
@@ -1441,18 +1448,20 @@ function normalizeData(d) {
       // Claude 리스트업(claudeStep1Rows)을 컨택현황(claudeStep2Rows)으로 1회 자동 통합 —
       // 이름 중복 제외, 페르소나·피드·가설은 메모에 보존. 통합 후 리스트업은 비움(다음 로드부터 재실행 안 됨).
       ...(() => {
-        const fixPa=rows=>rows.map(r=>r.pa==='이은영'?r:{...r,pa:'이은영'}); // 클로드 담당 PA는 모두 이은영
+        // 클로드 발굴 행의 기본 담당 PA는 이은영(=DM은 내가 자동 발송). 단, 협업을 맡은 PA 알바 이름이
+        // 지정돼 있으면 그대로 둔다(성사 수당이 그 알바에게 정산되도록). 빈값/옛 'Claude' 표기만 이은영으로.
+        const fixPa=rows=>rows.map(r=>(!r.pa||!String(r.pa).trim()||r.pa==='Claude')?{...r,pa:'이은영'}:r);
+        const clearMemo=rows=>_clearClaudeMemo?rows.map(r=>r.memo?{...r,memo:''}:r):rows;
         // 카테고리(낚시·뷰티 등) 자동 채움 — 미지정(category 키 없음) 행만, 키워드 잡힐 때만. 사용자가 비운('') 건 건드리지 않음.
         const fillCat=rows=>rows.map(r=>{ if(r.category!=null) return r; const n=nicheOf([r.name,r.memo].join(' ')); return n?{...r,category:n}:r; });
         const c1=ensureId(b.claudeStep1Rows||[]); const c2=ensureId(b.claudeStep2Rows||[]);
-        if(!c1.length) return {claudeStep1Rows:c1, claudeStep2Rows:fillCat(fixPa(c2))};
+        if(!c1.length) return {claudeStep1Rows:c1, claudeStep2Rows:clearMemo(fillCat(fixPa(c2)))};
         const have=new Set(c2.map(r=>nm(r.name)));
         const add=[];
         for(const r of c1){ if(!r.name||have.has(nm(r.name))) continue; have.add(nm(r.name));
-          const note=[r.persona&&('페르소나: '+r.persona),r.feedMemo&&('피드: '+r.feedMemo),r.hypothesis&&('가설: '+r.hypothesis)].filter(Boolean).join(' / ');
           const cat=r.category||nicheOf([r.name,r.persona,r.feedMemo,r.hypothesis].join(' ')); // 발굴 때 분류된 값 우선, 없으면 텍스트로 추정
-          add.push({id:makeId(),step1Id:r.id,date:r.date||'',name:r.name,link:r.link||'',followers:r.followers||'',username:r.username||'',pa:'이은영',category:cat,contactStatus:'컨택 전',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:note}); }
-        return {claudeStep1Rows:[], claudeStep2Rows:fillCat(fixPa([...c2,...add]))};
+          add.push({id:makeId(),step1Id:r.id,date:r.date||'',name:r.name,link:r.link||'',followers:r.followers||'',username:r.username||'',pa:'이은영',category:cat,contactStatus:'컨택 전',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''}); }
+        return {claudeStep1Rows:[], claudeStep2Rows:clearMemo(fillCat(fixPa([...c2,...add])))};
       })(),
       };
     })
@@ -1467,7 +1476,7 @@ async function loadFromServer(retries=4) {
       const d=j.data;
       // 정규화 전 원본에 옛/변형 상태값·PA이름이 있었는지 표시(서버 영구 통일용)
       const legacyPaInRows=b=>['step1Rows','step2Rows','reviewRows'].some(k=>(b[k]||[]).some(x=>x.pa&&PA_RENAME[x.pa]))||(b.shippingRows||[]).some(x=>x.requester&&PA_RENAME[x.requester]);
-      const hadLegacy=d.brands.some(b=>b.name==='그래니샐러드'||(b.claudeStep1Rows||[]).length>0||(b.claudeStep2Rows||[]).some(x=>x.pa&&x.pa!=='이은영')||(b.step2Rows||[]).some(x=>x.contactStatus&&normStatus(x.contactStatus)!==x.contactStatus)||legacyPaInRows(b))
+      const hadLegacy=d.brands.some(b=>b.name==='그래니샐러드'||(b.claudeStep1Rows||[]).length>0||(b.claudeStep2Rows||[]).some(x=>x.pa==='Claude')||(b.step2Rows||[]).some(x=>x.contactStatus&&normStatus(x.contactStatus)!==x.contactStatus)||legacyPaInRows(b))
         ||(Array.isArray(d.paList)&&d.paList.some(p=>PA_RENAME[p]))||!Array.isArray(d.paList);
       const norm=normalizeData(d); norm._hadLegacy=hadLegacy; return norm;
     }
@@ -2613,13 +2622,13 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
           <th style={{width:85}}>성사일</th>
           <th style={{width:90}}>단가</th>
           {!IS_STAFF&&!isClaude&&<th style={{width:80}}>DM수당</th>}
-          {!IS_STAFF&&!isClaude&&<th style={{width:80}}>성사수당</th>}
+          {!IS_STAFF&&<th style={{width:80}}>성사수당</th>}
           {!IS_STAFF&&!isClaude&&<th style={{width:80}}>소계</th>}
           <th style={{minWidth:100}}>메모</th>
           <th style={{width:70,textAlign:'center'}}>개인정보</th>
         </tr>
         {showColF&&<tr className="colf-row">
-          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent','dealDone','dealDate','rate',...((!IS_STAFF&&!isClaude)?[null,null,null]:[]),'memo',null].map((f,i)=>(
+          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent','dealDone','dealDate','rate',...(!IS_STAFF?(isClaude?[null]:[null,null,null]):[]),'memo',null].map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
           ))}
         </tr>}
@@ -2653,7 +2662,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
               <td data-label="성사일"><Cell value={r.dealDate} onChange={v=>up(r.id,'dealDate',v)} type="date" style={{width:85}} placeholder={r.dealDone==='Y'?'날짜 입력':'—'}/></td>
               <td data-label="단가"><Cell value={r.rate} onChange={v=>up(r.id,'rate',v)} style={{width:80,color:'var(--yellow)'}}/></td>
               {!IS_STAFF&&!isClaude&&<td data-label="DM수당" style={{color:pay.dm>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.dm)}</td>}
-              {!IS_STAFF&&!isClaude&&<td data-label="성사수당" style={{color:pay.deal>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.deal)}</td>}
+              {!IS_STAFF&&<td data-label="성사수당" style={{color:pay.deal>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.deal)}</td>}
               {!IS_STAFF&&!isClaude&&<td data-label="소계" style={{color:'var(--yellow)',fontWeight:700,fontSize:11}}>{fmtMoney(pay.subtotal)}</td>}
               <td data-label="메모"><Cell value={r.memo} onChange={v=>up(r.id,'memo',v)} type="textarea" placeholder="메모…"/></td>
               <td data-label="개인정보" style={{textAlign:'center'}}>
@@ -2667,7 +2676,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
               </td>
             </tr>;
           })}
-          {shown.length===0&&<tr><td colSpan={(IS_STAFF?13:16)+(isClaude?1:0)} className="empty" style={{height:80}}>
+          {shown.length===0&&<tr><td colSpan={13+(isClaude?1:0)+(!IS_STAFF&&!isClaude?2:0)+(!IS_STAFF?1:0)} className="empty" style={{height:80}}>
             <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'보관된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'STEP1에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
           </td></tr>}
         </tbody>
@@ -3474,7 +3483,9 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   // staffPA: null=관리자(전체) / 문자열=해당 담당자 본인 것만(읽기전용). ''=계정에 담당자 미설정
   const isStaffView = staffPA!=null;
   // 정산 대상 = 컨택현황(step2)만. Claude 발굴 탭(claudeStep2)은 정산에서 제외.
-  const allRows2=brand?.step2Rows||[];
+  // 정산 대상 = 컨택현황(step2) + Claude 발굴 탭(claudeStep2). 단, Claude 탭은 DM은 내가 자동 발송하므로
+  // DM 수당 없이 '협업 성사(2만)'만 담당 PA(알바)에게 정산(_claude 태그로 아래에서 DM 제외).
+  const allRows2=[...(brand?.step2Rows||[]), ...((brand?.claudeStep2Rows||[]).map(r=>({...r,_claude:true})))];
   // 정산에서 제외할 담당자(관리자 등 — 수당 정산 대상 아님)
   const SETTLE_EXCLUDE_PA=['이은영'];
   // 스태프는 본인 담당분만. 공통으로 제외 담당자(이은영)는 집계에서 뺌.
@@ -3487,7 +3498,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   const monthOpts=useMemo(()=>{
     const s=new Set([settle.coverYM]);
     allS2.forEach(r=>{
-      if(r.dmSent==='Y'){const y=parseYM(r.dmDate)||parseYM(r.date);if(y)s.add(y);}
+      if(!r._claude&&r.dmSent==='Y'){const y=parseYM(r.dmDate)||parseYM(r.date);if(y)s.add(y);}
       if(r.dealDone==='Y'){const y=parseYM(r.dealDate)||parseYM(r.date);if(y)s.add(y);}
     });
     return Array.from(s).sort().reverse();
@@ -3502,7 +3513,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
       //    한 사람이 6월 DM·7월 성사면 → 6월 DM 2천, 7월 성사 2만으로 분리 집계.
       const dmYM=parseYM(r.dmDate)||parseYM(r.date);
       const dealYM=parseYM(r.dealDate)||parseYM(r.date);
-      const dm  =(r.dmSent==='Y'  &&(month==='all'||dmYM===month))  ?2000 :0;
+      const dm  =(!r._claude&&r.dmSent==='Y'&&(month==='all'||dmYM===month))?2000 :0; // Claude 탭은 DM 수당 없음
       const deal=(r.dealDone==='Y'&&(month==='all'||dealYM===month))?20000:0;
       const subtotal=dm+deal;
       if(subtotal===0) return;
@@ -3515,7 +3526,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   },[allS2,month]);
 
   // 결과 미정으로 정산 보류된 인원(진행중 등인데 DM은 보낸 사람) — 빠진 게 아님을 안내
-  const heldPeople=allS2.filter(r=>r.name && ((r.dmSent==='Y'&&!(parseYM(r.dmDate)||parseYM(r.date)))||(r.dealDone==='Y'&&!(parseYM(r.dealDate)||parseYM(r.date))))).length;
+  const heldPeople=allS2.filter(r=>r.name && ((!r._claude&&r.dmSent==='Y'&&!(parseYM(r.dmDate)||parseYM(r.date)))||(r.dealDone==='Y'&&!(parseYM(r.dealDate)||parseYM(r.date))))).length;
 
   // 정산 완료 기록은 월별로 분리 저장: settlements[brandId][month][pa]
   const brandS=settlements[brand?.id]||{};
@@ -3553,7 +3564,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   const pendingMonths=useMemo(()=>{
     const owed={};
     allS2.filter(r=>r.name).forEach(r=>{
-      if(r.dmSent==='Y'){const k=parseYM(r.dmDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+2000;}
+      if(!r._claude&&r.dmSent==='Y'){const k=parseYM(r.dmDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+2000;}
       if(r.dealDone==='Y'){const k=parseYM(r.dealDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+20000;}
     });
     const brandS=settlements[brand?.id]||{};
@@ -4482,7 +4493,7 @@ function AppMain({ authInfo, onLogout }) {
         if(have.has(nn(seed.name)))continue;
         have.add(nn(seed.name));
         const sent=CLAUDE_SEED_SENT.includes(seed.username);
-        add.push({id:makeId(),date:seed.date,name:seed.name,link:seed.link,followers:seed.followers,pa:'이은영',category:nicheOf([seed.name,seed.persona].join(' ')),contactStatus:sent?'컨택 중':'컨택 전',dmSent:sent?'Y':'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:sent?'그래니살라 협업 제안 DM 발송함(2026-06-16)':(seed.persona?('페르소나: '+seed.persona):'')});
+        add.push({id:makeId(),date:seed.date,name:seed.name,link:seed.link,followers:seed.followers,pa:'이은영',category:nicheOf([seed.name,seed.persona].join(' ')),contactStatus:sent?'컨택 중':'컨택 전',dmSent:sent?'Y':'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''});
       }
       return{...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...add]};
     });
