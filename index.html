@@ -695,7 +695,7 @@ const TABS = [
   { key:'dashboard', label:'📊 대시보드' },
   { key:'step1',    label:'📋 STEP1 리스트업' },
   { key:'step2',    label:'📨 STEP2 컨택현황' },
-  { key:'claudeS2', label:'🤖 Claude', mgr:true },
+  { key:'claudeS2', label:'🤖 Claude', mgr:true, staffOwn:true },
   { key:'shipping', label:'📦 출고' },
   { key:'review',   label:'🎬 영상검수' },
   { key:'dm',       label:'💬 DM 템플릿' },
@@ -2635,13 +2635,13 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
           <th style={{width:85}}>성사일</th>
           <th style={{width:90}}>단가</th>
           {!IS_STAFF&&!isClaude&&<th style={{width:80}}>DM수당</th>}
-          {!IS_STAFF&&<th style={{width:80}}>성사수당</th>}
+          {(!IS_STAFF||isClaude)&&<th style={{width:80}}>성사수당</th>}
           {!IS_STAFF&&!isClaude&&<th style={{width:80}}>소계</th>}
           <th style={{minWidth:100}}>메모</th>
           <th style={{width:70,textAlign:'center'}}>개인정보</th>
         </tr>
         {showColF&&<tr className="colf-row">
-          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent','dealDone','dealDate','rate',...(!IS_STAFF?(isClaude?[null]:[null,null,null]):[]),'memo',null].map((f,i)=>(
+          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent','dealDone','dealDate','rate',...((!IS_STAFF||isClaude)?(isClaude?[null]:[null,null,null]):[]),'memo',null].map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
           ))}
         </tr>}
@@ -2675,7 +2675,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
               <td data-label="성사일"><Cell value={r.dealDate} onChange={v=>up(r.id,'dealDate',v)} type="date" style={{width:85}} placeholder={r.dealDone==='Y'?'날짜 입력':'—'}/></td>
               <td data-label="단가"><Cell value={r.rate} onChange={v=>up(r.id,'rate',v)} style={{width:80,color:'var(--yellow)'}}/></td>
               {!IS_STAFF&&!isClaude&&<td data-label="DM수당" style={{color:pay.dm>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.dm)}</td>}
-              {!IS_STAFF&&<td data-label="성사수당" style={{color:pay.deal>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.deal)}</td>}
+              {(!IS_STAFF||isClaude)&&<td data-label="성사수당" style={{color:pay.deal>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.deal)}</td>}
               {!IS_STAFF&&!isClaude&&<td data-label="소계" style={{color:'var(--yellow)',fontWeight:700,fontSize:11}}>{fmtMoney(pay.subtotal)}</td>}
               <td data-label="메모"><Cell value={r.memo} onChange={v=>up(r.id,'memo',v)} type="textarea" placeholder="메모…"/></td>
               <td data-label="개인정보" style={{textAlign:'center'}}>
@@ -2689,7 +2689,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
               </td>
             </tr>;
           })}
-          {shown.length===0&&<tr><td colSpan={13+(isClaude?1:0)+(!IS_STAFF&&!isClaude?2:0)+(!IS_STAFF?1:0)} className="empty" style={{height:80}}>
+          {shown.length===0&&<tr><td colSpan={13+(isClaude?1:0)+(!IS_STAFF&&!isClaude?2:0)+((!IS_STAFF||isClaude)?1:0)} className="empty" style={{height:80}}>
             <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'보관된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'STEP1에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
           </td></tr>}
         </tbody>
