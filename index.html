@@ -1595,12 +1595,13 @@ function Cell({ value, onChange, type='text', options, placeholder, style, disab
     if(type==='select'&&chips){
       // 담당 PA 등 — 세로 드롭다운 대신 가로 칩으로 고르기(셀 아래 팝오버)
       const cur=value||'';
-      const chip=v=>({fontSize:12,padding:'5px 12px',borderRadius:16,border:'1px solid '+(v===cur?'var(--accent)':'var(--border)'),background:v===cur?'var(--accent-soft)':'var(--surface2)',color:v===cur?'var(--accent)':'var(--text)',cursor:'pointer',fontWeight:v===cur?700:500,whiteSpace:'nowrap'});
-      const popW=340;
-      const pop=rect?{position:'fixed',top:Math.round(rect.bottom+4),left:Math.round(Math.max(8,Math.min(rect.left,(window.innerWidth||360)-popW-8)))}:{position:'absolute',top:'100%',left:0,marginTop:4};
+      const chip=v=>({flex:'0 0 auto',fontSize:12,padding:'5px 12px',borderRadius:16,border:'1px solid '+(v===cur?'var(--accent)':'var(--border)'),background:v===cur?'var(--accent-soft)':'var(--surface2)',color:v===cur?'var(--accent)':'var(--text)',cursor:'pointer',fontWeight:v===cur?700:500,whiteSpace:'nowrap'});
+      const vw=window.innerWidth||360;
+      const popMax=Math.min(520,vw-16);
+      const pop=rect?{position:'fixed',top:Math.round(rect.bottom+4),left:Math.round(Math.max(8,Math.min(rect.left,vw-popMax-8)))}:{position:'absolute',top:'100%',left:0,marginTop:4};
       return <span style={{position:'relative',display:'inline-block'}}>
         <span className="cell-val" style={style}>{cur||<span style={{opacity:.4}}>—</span>}</span>
-        <div onClick={e=>e.stopPropagation()} style={{...pop,zIndex:60,display:'flex',flexWrap:'wrap',gap:6,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:8,boxShadow:'0 8px 24px rgba(0,0,0,.2)',width:'max-content',maxWidth:popW}}>
+        <div onClick={e=>e.stopPropagation()} style={{...pop,zIndex:60,display:'flex',flexWrap:'nowrap',gap:6,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:8,boxShadow:'0 8px 24px rgba(0,0,0,.2)',width:'max-content',maxWidth:popMax,overflowX:'auto'}}>
           <button onClick={()=>{onChange('');setEditing(false);}} style={chip('')}>—</button>
           {options.map(o=>{const v=typeof o==='object'?o.value:o,l=typeof o==='object'?o.label:o;return <button key={v} onClick={()=>{onChange(v);setEditing(false);}} style={chip(v)}>{l}</button>;})}
         </div>
