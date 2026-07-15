@@ -1923,10 +1923,12 @@ function FileUpload({label,value,onChange,onPick,archive,inline}){
   const ref=useRef(null);
   const [uploading,setUploading]=useState(false);
   const [zoom,setZoom]=useState(false); // 통장·신분증 크게 보기(라이트박스)
+  const [archErr,setArchErr]=useState(''); // 드라이브 보관 실패 사유(조용히 삼키면 안 올라간 걸 알 수 없음)
   const src=useFileSrc(value);
   async function handleFile(e){
     const file=e.target.files[0]; if(!file) return;
     if(onPick) onPick(file); // 업로드 전 원본 파일 전달(OCR 등)
+    setArchErr('');
     setUploading(true);
     try{
       const dataUrl=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=ev=>res(ev.target.result);fr.onerror=rej;fr.readAsDataURL(file);});
@@ -1938,8 +1940,12 @@ function FileUpload({label,value,onChange,onPick,archive,inline}){
       const d=await callApi('pfileSave',{data:dataUrl,name:file.name,type:file.type});
       if(d&&d.ok&&d.url){
         onChange({name:file.name,url:d.url,type:file.type});
-        // 계약서 등 보관 대상은 브랜드 드라이브에 영구 복사(정산 3일 후 폐기와 무관) — 실패해도 첨부는 유지
-        if(archive&&archive.brand){try{await callApi('contractArchive',{brand:archive.brand,channelName:archive.channelName||'',realName:archive.realName||'',pfileUrl:d.url,name:file.name});}catch{}}
+        // 계약서 등 보관 대상은 브랜드 드라이브에 영구 복사(정산 3일 후 폐기와 무관) — 실패해도 첨부는 유지하되 사유는 드러낸다.
+        // data 도 함께 보냄: 백엔드가 pfile 복사본을 못 찾으면 base64 로 직접 저장(2순위)하므로 'no source' 로 조용히 실패하지 않는다.
+        if(archive&&archive.brand){
+          const a=await callApi('contractArchive',{brand:archive.brand,channelName:archive.channelName||'',realName:archive.realName||'',pfileUrl:d.url,data:dataUrl,name:file.name});
+          setArchErr(a&&a.ok?'':('드라이브 보관 실패 — '+((a&&a.error)||'응답 없음')));
+        }
       }
       else throw new Error('pfile 실패');
       }
@@ -1973,6 +1979,7 @@ function FileUpload({label,value,onChange,onPick,archive,inline}){
       :<button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>ref.current?.click()} disabled={uploading}>
         {uploading?'업로드 중…':'📎 '+label}
       </button>}
+    {archErr&&<span style={{fontSize:11,color:'var(--red)',flexBasis:'100%'}}>⚠ {archErr}</span>}
   </div>;
 }
 
