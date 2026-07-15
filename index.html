@@ -4559,7 +4559,13 @@ function AppMain({ authInfo, onLogout }) {
         if(!r.name||have.has(nn(r.name)))continue;
         have.add(nn(r.name));
         const cat=r.category||nicheOf([r.name,r.persona,r.feedMemo,r.hypothesis].join(' '));
-        add.push({id:makeId(),step1Id:r.id,date:r.date||today(),name:r.name,link:r.link||'',followers:r.followers||'',username:r.username||'',pa:'',category:cat,contactStatus:'컨택 전',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''});
+        // 진행상태는 step1 행에 이미 있으면 살린다. 예전엔 '컨택 전'/'N'을 무조건 덮어써서,
+        // 리스트업 단계에서 DM을 보내고 dmSent=Y 를 찍어둔 경우 합치는 순간 표기가 사라졌다
+        // (= 보냈는데 미발송으로 남아 다음 회차에 중복발송). 메모/페르소나도 함께 보존.
+        add.push({id:makeId(),step1Id:r.id,date:r.date||today(),name:r.name,link:r.link||'',followers:r.followers||'',username:r.username||'',pa:r.pa&&r.pa!=='Claude'?r.pa:'',category:cat,
+          contactStatus:r.contactStatus||'컨택 전',dmSent:r.dmSent||'N',dmDate:r.dmDate||'',dealDone:r.dealDone||'N',
+          rate:r.rate||'',shipDate:r.shipDate||'',expectedPost:r.expectedPost||'',shippingDone:r.shippingDone||'미완료',contractDone:r.contractDone||'미완료',contractUrl:r.contractUrl||'',
+          memo:r.memo||[r.persona,r.feedMemo,r.hypothesis].filter(Boolean).join(' / ')});
       }
       return{...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...add],claudeStep1Rows:[]};
     });
