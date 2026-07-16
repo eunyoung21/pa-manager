@@ -65,6 +65,7 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD G
 .fchip.f-deal.active{background:#dcfce7;color:#15803d;border-color:#86efac;}
 .fchip.f-done.active{background:#dcfce7;color:#15803d;border-color:#86efac;}
 .fchip.f-arc.active{background:#fef3c7;color:#b45309;border-color:#fcd34d;}
+.fchip.f-rep.active{background:#ede9fe;color:#6d28d9;border-color:#c4b5fd;}
 .sep{flex:1;}
 .cnt{font-size:11px;color:var(--dim);}
 .search-wrap{position:relative;display:flex;align-items:center;}
@@ -2588,6 +2589,9 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     // 검색은 보관 포함 전체에서 — 누적돼도 누구든 찾을 수 있게.
     if(q) return [r.name,r.pa,r.memo,r.contactStatus].some(v=>s2(v).toLowerCase().includes(q));
     if(filter==='dm') return r.dmSent==='Y';
+    if(filter==='rep') return r.replied==='Y'&&!isArchived(r);            // 답장 온 사람만 모아보기
+    if(filter==='wait') return r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r); // 답장O·승인 전
+    if(filter==='apv') return r.approved==='Y'&&!isArchived(r);           // 승인됨(소통 진행)
     if(filter==='deal') return r.dealDone==='Y';
     if(filter==='nd') return r.dmSent!=='Y'&&!isArchived(r);
     if(filter==='rej') return isRej(r);
@@ -2601,18 +2605,27 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     const base=ka<kb?-1:ka>kb?1:0;   // 오름차순 기준
     return sortDir==='asc'?base:-base;
   });
-  const cnt={all:named.filter(r=>!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isArchived).length};
+  const cnt={all:named.filter(r=>!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isArchived).length,
+    rep:named.filter(r=>r.replied==='Y'&&!isArchived(r)).length,
+    wait:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r)).length,
+    apv:named.filter(r=>r.approved==='Y'&&!isArchived(r)).length};
   function up(id,k,v){onUpdate(id,{[k]:v});}
   // 협업성사/DM발송을 Y로 바꾸면 날짜 자동 기록, 다시 N으로 해제하면 날짜도 같이 제거(정산 월 구분 일관성).
   function setDeal(r,v){const patch={dealDone:v};if(v==='Y'&&!r.dealDate)patch.dealDate=today();if(v!=='Y')patch.dealDate='';onUpdate(r.id,patch);}
   function setDm(r,v){const patch={dmSent:v};if(v==='Y'&&!r.dmDate)patch.dmDate=today();if(v!=='Y')patch.dmDate='';onUpdate(r.id,patch);}
   // 진행 상태를 '거절'로 바꾸면 거절일 자동 기록(그달 DM 수당 정산 기준), 벗어나면 제거.
   function setStatus(r,v){const patch={contactStatus:v};if(v==='거절'&&!r.rejectDate)patch.rejectDate=today();if(v!=='거절')patch.rejectDate='';onUpdate(r.id,patch);}
+  // 답장(알바가 체크) — 답장 온 사람만 따로 모아보기 위한 표시. Y로 바꾸면 답장일 자동 기록.
+  function setReplied(r,v){const patch={replied:v};if(v==='Y'&&!r.replyDate)patch.replyDate=today();if(v!=='Y'){patch.replyDate='';}onUpdate(r.id,patch);}
+  // 승인(관리자만) — 승인하면 그때부터 알바가 소통 진행. 승인 시 답장도 자동 Y(답장 없이 승인되는 일 방지).
+  function setApproved(r,v){const patch={approved:v};if(v==='Y'){if(!r.approveDate)patch.approveDate=today();if(r.replied!=='Y'){patch.replied='Y';if(!r.replyDate)patch.replyDate=today();}}else{patch.approveDate='';}onUpdate(r.id,patch);}
 
   return <div className="view-wrap">
     <div className="view-main">
     <div className="toolbar">
-      {[{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'dm',l:`DM 발송 (${cnt.dm})`,c:'f-dm'},{k:'deal',l:`협업 성사 (${cnt.deal})`,c:'f-deal'},{k:'nd',l:`미발송 (${cnt.nd})`,c:'f-wt'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:'f-rj'},{k:'arc',l:`📦 보관 (${cnt.arc})`,c:'f-arc'}]
+      {[{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'dm',l:`DM 발송 (${cnt.dm})`,c:'f-dm'},
+        ...(isClaude?[{k:'rep',l:`💬 답장옴 (${cnt.rep})`,c:'f-rep'},{k:'wait',l:`⏳ 승인대기 (${cnt.wait})`,c:'f-wt'},{k:'apv',l:`✅ 승인됨 (${cnt.apv})`,c:'f-ap'}]:[]),
+        {k:'deal',l:`협업 성사 (${cnt.deal})`,c:'f-deal'},{k:'nd',l:`미발송 (${cnt.nd})`,c:'f-wt'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:'f-rj'},{k:'arc',l:`📦 보관 (${cnt.arc})`,c:'f-arc'}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
       <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
@@ -2647,6 +2660,8 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
           <th style={{width:75}}>담당 PA</th>
           <th style={{width:90}}>진행 상태</th>
           <th style={{width:65}}>DM발송</th>
+          {isClaude&&<th style={{width:60}}>답장</th>}
+          {isClaude&&<th style={{width:70}}>승인</th>}
           <th style={{width:65}}>협업성사</th>
           <th style={{width:85}}>성사일</th>
           <th style={{width:90}}>단가</th>
@@ -2657,7 +2672,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
           <th style={{width:70,textAlign:'center'}}>개인정보</th>
         </tr>
         {showColF&&<tr className="colf-row">
-          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent','dealDone','dealDate','rate',...((!IS_STAFF||isClaude)?(isClaude?[null]:[null,null,null]):[]),'memo',null].map((f,i)=>(
+          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent',...(isClaude?['replied','approved']:[]),'dealDone','dealDate','rate',...((!IS_STAFF||isClaude)?(isClaude?[null]:[null,null,null]):[]),'memo',null].map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
           ))}
         </tr>}
@@ -2687,6 +2702,12 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
               <td data-label="진행 상태" style={{textAlign:'center'}}><Cell value={normStatus(r.contactStatus)} onChange={v=>setStatus(r,v)} type="select" options={CONTACT_STATUS}
                 style={r.contactStatus?{...csColor(r.contactStatus),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap'}:undefined}/></td>
               <td data-label="DM발송" style={{textAlign:'center'}}><YN value={r.dmSent} onChange={v=>setDm(r,v)}/></td>
+              {isClaude&&<td data-label="답장" style={{textAlign:'center'}} title={r.replyDate?`답장일 ${r.replyDate}`:'답장 오면 체크'}><YN value={r.replied} onChange={v=>setReplied(r,v)}/></td>}
+              {isClaude&&<td data-label="승인" style={{textAlign:'center'}}>
+                {IS_STAFF
+                  ? <span style={{display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap',...(r.approved==='Y'?{background:'#dcfce7',color:'#15803d'}:{background:'var(--surface3)',color:'var(--muted)'})}} title={r.approved==='Y'?`관리자 승인 ${r.approveDate||''}`:'관리자 승인 대기'}>{r.approved==='Y'?'✅ 승인됨':'🔒 대기'}</span>
+                  : <YN value={r.approved} onChange={v=>setApproved(r,v)}/>}
+              </td>}
               <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>setDeal(r,v)}/></td>
               <td data-label="성사일"><Cell value={r.dealDate} onChange={v=>up(r.id,'dealDate',v)} type="date" style={{width:85}} placeholder={r.dealDone==='Y'?'날짜 입력':'—'}/></td>
               <td data-label="단가"><Cell value={r.rate} onChange={v=>up(r.id,'rate',v)} style={{width:80,color:'var(--yellow)'}}/></td>
@@ -2705,7 +2726,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
               </td>
             </tr>;
           })}
-          {shown.length===0&&<tr><td colSpan={13+(isClaude?1:0)+(!IS_STAFF&&!isClaude?2:0)+((!IS_STAFF||isClaude)?1:0)} className="empty" style={{height:80}}>
+          {shown.length===0&&<tr><td colSpan={13+(isClaude?3:0)+(!IS_STAFF&&!isClaude?2:0)+((!IS_STAFF||isClaude)?1:0)} className="empty" style={{height:80}}>
             <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'보관된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'STEP1에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
           </td></tr>}
         </tbody>
@@ -5135,7 +5156,7 @@ function AppMain({ authInfo, onLogout }) {
       />}
       {tab==='claudeS2'&&<div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'var(--surface2)'}}>
-          <span style={{fontSize:12,color:'var(--muted)'}}>🤖 자동화로 발굴·DM 발송된 인플루언서 — 컨택·협업성사를 한 곳에서 (담당 PA·협업성사 체크)</span>
+          <span style={{fontSize:12,color:'var(--muted)'}}>🤖 자동 DM 발송 → 💬 답장(알바 체크) → ✅ 승인(관리자) → 알바가 소통 진행 → 협업성사</span>
           <span style={{fontSize:11,color:'var(--muted)'}}>{(brand.claudeStep2Rows||[]).length}명</span>
           <button className="btn btn-primary" style={{fontSize:11}} onClick={addClaudeS2Row}>＋ 추가</button>
           {(brand.claudeStep1Rows||[]).length>0&&<button className="btn" style={{fontSize:11,background:'var(--accent)',color:'#fff'}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
