@@ -2624,8 +2624,9 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     <div className="view-main">
     <div className="toolbar">
       {[{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'dm',l:`DM 발송 (${cnt.dm})`,c:'f-dm'},
-        ...(isClaude?[{k:'rep',l:`💬 답장옴 (${cnt.rep})`,c:'f-rep'},{k:'wait',l:`⏳ 승인대기 (${cnt.wait})`,c:'f-wt'},{k:'apv',l:`✅ 승인됨 (${cnt.apv})`,c:'f-ap'}]:[]),
-        {k:'deal',l:`협업 성사 (${cnt.deal})`,c:'f-deal'},{k:'nd',l:`미발송 (${cnt.nd})`,c:'f-wt'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:'f-rj'},{k:'arc',l:`📦 보관 (${cnt.arc})`,c:'f-arc'}]
+        ...(isClaude?[{k:'rep',l:`💬 답장옴 (${cnt.rep})`,c:'f-rep'},{k:'apv',l:`✅ 승인됨 (${cnt.apv})`,c:'f-ap'}]:[]),
+        {k:'deal',l:`협업 성사 (${cnt.deal})`,c:'f-deal'},{k:'nd',l:`미발송 (${cnt.nd})`,c:'f-wt'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:'f-rj'},
+        ...(!isClaude?[{k:'arc',l:`📦 보관 (${cnt.arc})`,c:'f-arc'}]:[])]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
       <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
