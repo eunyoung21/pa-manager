@@ -15,3 +15,10 @@ node/
 # 로컬/편집기
 .claude/
 *.log
+
+# clasp (Apps Script 배포) — scriptId/자격증명, 공개 저장소라 커밋 금지
+.clasp.json
+.clasprc.json
+
+# 라이브 데이터 덤프(실명·인스타 링크 등 PII) — 공개 저장소라 커밋 금지
+sheet-export/pa-live.json

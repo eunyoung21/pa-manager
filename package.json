@@ -1,0 +1,17 @@
+{
+  "name": "pa-manager",
+  "version": "1.0.0",
+  "description": "PA Manager (ey)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "push": "clasp push -f",
+    "deploy": "clasp push -f && clasp redeploy $npm_config_dep"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.3.0"
+  }
+}
