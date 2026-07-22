@@ -221,6 +221,25 @@ function preSaveGuard(incoming, force) {
     snapshot('shrink-blocked', cur, { reason: 'shrink-blocked', prevCount: curCount, newCount: C, at: new Date().toISOString() });
     return { block: true, prevCount: curCount, newCount: C };
   }
+  // ①-b 브랜드별 배열 급감 → 개별 유실 차단. 전체 행수 가드로는 못 잡는 케이스
+  //     (예: 그래니 step2 182→4 는 전체 1400행 중 ~12% 감소라 ① 을 통과해 유실됐음).
+  //     어떤 브랜드의 한 배열이 30행 이상이었는데 절반 미만으로 급감하면 차단.
+  if (!force) {
+    var GKEYS = ['step1Rows', 'step2Rows', 'claudeStep1Rows', 'claudeStep2Rows', 'shippingRows', 'reviewRows', 'privacyRows'];
+    var curById = {};
+    for (var ci = 0; ci < (cur.brands || []).length; ci++) curById[cur.brands[ci].id] = cur.brands[ci];
+    for (var bi = 0; bi < incoming.brands.length; bi++) {
+      var nb = incoming.brands[bi], ob = curById[nb.id];
+      if (!ob) continue;
+      for (var ki = 0; ki < GKEYS.length; ki++) {
+        var oN = ((ob[GKEYS[ki]]) || []).length, nN = ((nb[GKEYS[ki]]) || []).length;
+        if (oN >= 30 && nN < oN * 0.5) {
+          snapshot('shrink-blocked-brand', cur, { reason: 'shrink-blocked-brand', brand: nb.id, key: GKEYS[ki], prev: oN, next: nN, at: new Date().toISOString() });
+          return { block: true, prevCount: curCount, newCount: C, brand: nb.id, key: GKEYS[ki], prev: oN, next: nN };
+        }
+      }
+    }
+  }
   // ② 6시간 주기 스냅샷
   var m = metaGet();
   var pbucket = Math.floor(Date.now() / (6 * 3600 * 1000));
@@ -391,7 +410,7 @@ function saveData(sess, body, p) {
   if (!lock.tryLock(25000)) return json({ error: 'busy, retry' });
   try {
     var g = preSaveGuard(incoming, force);
-    if (g.block) return json({ blocked: true, error: '안전장치: 데이터 급감 감지로 저장을 막았습니다.', prevCount: g.prevCount, newCount: g.newCount });
+    if (g.block) return json({ blocked: true, error: '안전장치: 데이터 급감 감지로 저장을 막았습니다.' + (g.brand ? ' (' + g.brand + ' ' + g.key + ' ' + g.prev + '→' + g.next + ')' : ''), prevCount: g.prevCount, newCount: g.newCount, brand: g.brand, key: g.key });
     var rev = writeData(incoming, g.pbucket !== undefined ? { pbucket: g.pbucket } : null);
     logAction('save', sess, null);
     return json({ ok: true, rev: rev });

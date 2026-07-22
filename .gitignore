@@ -4,6 +4,8 @@ access.log
 users.json
 pa-live*.json
 sheet-export/pa-live.json
+sheet-export/sheet-appdata-current.json
+sheet-appdata*.json
 uploads/
 node_modules/
 
