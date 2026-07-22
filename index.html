@@ -123,6 +123,7 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 .yn-y{background:#dcfce7;color:#15803d;border-color:#86efac;}
 .yn-n{background:var(--surface2);color:var(--dim);border-color:var(--border);}
 .yn-n:hover{border-color:var(--muted);color:var(--muted);}
+.yn-rej{background:#fee2e2;color:#b91c1c;border-color:#fca5a5;}
 
 /* BADGES */
 .badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;}
@@ -2709,7 +2710,17 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
                   ? <span style={{display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap',...(r.approved==='Y'?{background:'#dcfce7',color:'#15803d'}:{background:'var(--surface3)',color:'var(--muted)'})}} title={r.approved==='Y'?`관리자 승인 ${r.approveDate||''}`:'관리자 승인 대기'}>{r.approved==='Y'?'✅ 승인됨':'🔒 대기'}</span>
                   : <YN value={r.approved} onChange={v=>setApproved(r,v)}/>}
               </td>}
-              <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>setDeal(r,v)}/></td>
+              {/* 자동화 탭: Y/N 분리 버튼 — N = 협업 안 함 → 거절(보관)으로 이동, 거절 상태에서 다시 누르면 복귀 */}
+              <td data-label="협업성사" style={{textAlign:'center'}}>
+                {isClaude
+                  ? <span style={{display:'inline-flex',gap:3}}>
+                      <button className={`yn-btn ${r.dealDone==='Y'?'yn-y':'yn-n'}`} style={{padding:'2px 7px'}} title={r.dealDone==='Y'?'협업 성사 취소':'협업 성사'}
+                        onClick={()=>{if(r.dealDone==='Y'){setDeal(r,'N');return;}const patch={dealDone:'Y'};if(!r.dealDate)patch.dealDate=today();if(isRej(r)){patch.contactStatus='진행중';patch.rejectDate='';}onUpdate(r.id,patch);}}>Y</button>
+                      <button className={`yn-btn ${isRej(r)?'yn-rej':'yn-n'}`} style={{padding:'2px 7px'}} title={isRej(r)?'거절 취소 (컨택 전으로 되돌림)':'협업 안 함 → 거절(보관)으로 이동'}
+                        onClick={()=>{if(isRej(r)){setStatus(r,'컨택 전');return;}const patch={dealDone:'N',dealDate:'',contactStatus:'거절'};if(!r.rejectDate)patch.rejectDate=today();onUpdate(r.id,patch);}}>N</button>
+                    </span>
+                  : <YN value={r.dealDone} onChange={v=>setDeal(r,v)}/>}
+              </td>
               <td data-label="성사일"><Cell value={r.dealDate} onChange={v=>up(r.id,'dealDate',v)} type="date" style={{width:85}} placeholder={r.dealDone==='Y'?'날짜 입력':'—'}/></td>
               <td data-label="단가"><Cell value={r.rate} onChange={v=>up(r.id,'rate',v)} style={{width:80,color:'var(--yellow)'}}/></td>
               {!IS_STAFF&&!isClaude&&<td data-label="DM수당" style={{color:pay.dm>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.dm)}</td>}
@@ -5157,7 +5168,7 @@ function AppMain({ authInfo, onLogout }) {
       />}
       {tab==='claudeS2'&&<div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'var(--surface2)'}}>
-          <span style={{fontSize:12,color:'var(--muted)'}}>🤖 자동 DM 발송 → 💬 답장(알바 체크) → ✅ 승인(관리자) → 알바가 소통 진행 → 협업성사</span>
+          <span style={{fontSize:12,color:'var(--muted)'}}>🤖 자동 DM 발송 → 💬 답장(알바 체크) → ✅ 승인(관리자) → 알바가 소통 진행 → 협업성사 Y · 안 하면 N(거절 보관)</span>
           <span style={{fontSize:11,color:'var(--muted)'}}>{(brand.claudeStep2Rows||[]).length}명</span>
           <button className="btn btn-primary" style={{fontSize:11}} onClick={addClaudeS2Row}>＋ 추가</button>
           {(brand.claudeStep1Rows||[]).length>0&&<button className="btn" style={{fontSize:11,background:'var(--accent)',color:'#fff'}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
