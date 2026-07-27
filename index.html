@@ -3551,10 +3551,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   const allRows2=[...(brand?.step2Rows||[]), ...((brand?.claudeStep2Rows||[]).map(r=>({...r,_claude:true})))];
   // 정산에서 제외할 담당자(관리자 등 — 수당 정산 대상 아님)
   const SETTLE_EXCLUDE_PA=['이은영'];
-  // 클로드 발굴 탭에서도 DM 수당을 인정할 담당 PA(본인이 직접 DM 발송) — 여기 있는 PA는 DM+성사 둘 다 잡힘
-  const DM_ALSO_ON_CLAUDE=['박민선'];
-  // DM 수당 인정 여부: 일반 탭이거나, 클로드 탭이라도 예외 PA면 인정
-  const dmPaid=r=>(!r._claude||DM_ALSO_ON_CLAUDE.includes(sanitizePA(r.pa)))&&r.dmSent==='Y';
+  // DM 수당 인정 여부: 컨택현황(일반 탭)에서 DM발송한 건만. 클로드 발굴 탭(_claude)은 DM 자동발송이라 제외.
+  const dmPaid=r=>!r._claude&&r.dmSent==='Y';
   // 스태프는 본인 담당분만. 공통으로 제외 담당자(이은영)는 집계에서 뺌.
   const allS2 = (isStaffView ? allRows2.filter(r=>staffPASet.has(sanitizePA(r.pa))) : allRows2)
     .filter(r=>!SETTLE_EXCLUDE_PA.includes(sanitizePA(r.pa)));
@@ -3580,7 +3578,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
       //    한 사람이 6월 DM·7월 성사면 → 6월 DM 2천, 7월 성사 2만으로 분리 집계.
       const dmYM=parseYM(r.dmDate)||parseYM(r.date);
       const dealYM=parseYM(r.dealDate)||parseYM(r.date);
-      const dm  =(dmPaid(r)&&(month==='all'||dmYM===month))?2000 :0; // Claude 탭은 DM 수당 없음(단, DM_ALSO_ON_CLAUDE 예외 PA는 인정)
+      const dm  =(dmPaid(r)&&(month==='all'||dmYM===month))?2000 :0; // Claude 발굴 탭은 DM 자동발송이라 DM 수당 없음
       const deal=(r.dealDone==='Y'&&(month==='all'||dealYM===month))?20000:0;
       const subtotal=dm+deal;
       if(subtotal===0) return;
