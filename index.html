@@ -1473,7 +1473,94 @@ function normalizeData(d) {
     })
   };
 }
+/* ─── 동시편집 병합(리베이스) ───────────────────────────────────────────────
+   이 앱은 "화면 전체 상태"를 통째로 저장한다. 두 사람(매니저·알바)이 같이 쓰면
+   나중에 저장한 쪽이 상대의 최근 입력을 통째로 덮어써 사라졌다(2026-07 사고).
+   → 저장 직전에 서버 최신본을 가져와, 내가 "기준선(base) 이후 실제로 바꾼 것"만
+     그 위에 얹어서(3-way merge) 올린다. 상대 입력은 그대로 살아남는다. */
+const MERGE_ROW_KEYS=['step1Rows','step2Rows','claudeStep1Rows','claudeStep2Rows','shippingRows','reviewRows','privacyRows'];
+const _eq=(a,b)=>JSON.stringify(a===undefined?null:a)===JSON.stringify(b===undefined?null:b);
+function _byId(rows){const m=Object.create(null);(rows||[]).forEach(r=>{if(r&&r.id!=null)m[r.id]=r;});return m;}
+// 한 배열(예: step2Rows)의 3-way 병합. 기준=서버(theirs), 그 위에 내 변경(base→mine)만 반영.
+function mergeRows(base, mine, theirs){
+  const B=_byId(base), M=_byId(mine), T=_byId(theirs);
+  const out=[], used=new Set();
+  for(const r of (theirs||[])){
+    const id=r&&r.id;
+    if(id==null){ out.push(r); continue; }
+    used.add(id);
+    if(B[id]&&!M[id]) continue;              // 내가 지운 행 → 삭제 반영
+    const mr=M[id];
+    if(!mr){ out.push(r); continue; }        // 상대가 새로 추가한 행 → 그대로 유지
+    const br=B[id];
+    if(!br){ out.push(mr); continue; }       // 기준선에 없던 행 → 내 것 사용
+    let merged=r, touched=false;             // 필드 단위: 내가 바꾼 필드만 서버 행 위에 덮어씀
+    const keys=new Set([...Object.keys(mr),...Object.keys(br)]);
+    for(const k of keys){
+      if(_eq(mr[k],br[k])) continue;         // 내가 안 건드린 필드 → 서버 값(상대 수정) 유지
+      if(!touched){ merged={...r}; touched=true; }
+      if(mr[k]===undefined) delete merged[k]; else merged[k]=mr[k];
+    }
+    out.push(merged);
+  }
+  const seenJson=new Set(out.map(r=>JSON.stringify(r)));
+  for(const r of (mine||[])){
+    const id=r&&r.id;
+    if(id==null){ const js=JSON.stringify(r); if(!seenJson.has(js)){ out.push(r); seenJson.add(js);} continue; } // id 없는 행은 내용으로 중복만 거름
+    if(used.has(id)) continue;
+    if(B[id]) continue;                      // 기준선엔 있었는데 서버에 없음 = 상대가 지움 → 존중
+    if(T[id]) continue;
+    out.push(r);                             // 내가 새로 추가한 행
+  }
+  return out;
+}
+function mergeDeep(base, mine, theirs){
+  const out={...(theirs||{})};
+  const keys=new Set([...Object.keys(mine||{}),...Object.keys(base||{})]);
+  keys.forEach(k=>{
+    const mv=(mine||{})[k], bv=(base||{})[k];
+    if(_eq(mv,bv)) return;                   // 내가 안 바꿈 → 서버 값 유지
+    if(mv===undefined){ if(_eq(bv,out[k])) delete out[k]; return; } // 내가 지움(상대가 그새 바꿨으면 유지)
+    if(mv&&out[k]&&typeof mv==='object'&&typeof out[k]==='object'&&!Array.isArray(mv)&&!Array.isArray(out[k])) out[k]=mergeDeep(bv||{},mv,out[k]);
+    else out[k]=mv;
+  });
+  return out;
+}
+// base=내가 마지막으로 서버와 맞춘 상태, mine=지금 내 화면, theirs=서버 최신 → 병합 결과
+function rebaseData(base, mine, theirs){
+  if(!theirs||!theirs.brands) return mine;
+  if(!base||!base.brands||!mine||!mine.brands) return theirs; // 기준선 없음 → 서버 우선(덮어쓰기 금지)
+  const bB={}, tB={};
+  (base.brands||[]).forEach(b=>{bB[b.id]=b;});
+  (theirs.brands||[]).forEach(b=>{tB[b.id]=b;});
+  const mineById={}; (mine.brands||[]).forEach(b=>{mineById[b.id]=b;});
+  const brands=(theirs.brands||[]).map(tb=>{
+    const mb=mineById[tb.id]; if(!mb) return tb;
+    const bb=bB[tb.id]||{};
+    const out={...tb};
+    MERGE_ROW_KEYS.forEach(k=>{ out[k]=mergeRows(bb[k]||[], mb[k]||[], tb[k]||[]); });
+    Object.keys(mb).forEach(k=>{ if(MERGE_ROW_KEYS.indexOf(k)>=0) return; if(!_eq(mb[k],bb[k])) out[k]=mb[k]; });
+    return out;
+  });
+  (mine.brands||[]).forEach(mb=>{ if(!tB[mb.id]&&!bB[mb.id]) brands.push(mb); });
+  const paList=[...(theirs.paList||[])];
+  (mine.paList||[]).forEach(p=>{ if(p&&paList.indexOf(p)<0) paList.push(p); });
+  return { brands, settlements: mergeDeep(base.settlements||{}, mine.settlements||{}, theirs.settlements||{}), paList };
+}
 let _lastRev=null; // 마지막으로 받은 서버 리비전 — 폴링에서 변경 여부 판단(304 대체)
+// 서버 최신본을 받아 내 변경분을 얹은 결과를 돌려준다({merged, theirs, rev}) — 저장 충돌 해소용
+async function pullMerge(mine, base, srvData, srvRev){
+  let raw=srvData, rev=srvRev;
+  if(!raw){
+    const j=await callApi('get');
+    if(!(j&&j.ok&&j.data&&j.data.brands)) return null;
+    raw=j.data; rev=j.rev;
+  }
+  if(!raw||!raw.brands) return null;
+  const theirs=normalizeData(raw);
+  delete theirs._hadLegacy;
+  return { merged: rebaseData(base, mine, theirs), theirs, rev };
+}
 async function loadFromServer(retries=4) {
   try {
     const j=await callApi('get');
@@ -4273,7 +4360,10 @@ function AppMain({ authInfo, onLogout }) {
   const [saveState,   setSaveState]   = useState('idle'); // idle|saving|saved|error — 헤더 저장 표시기
   const saveTimerRef = useRef(null);   // 자동저장 디바운스 타이머
   const savedClearRef= useRef(null);   // '저장됨' 표시를 잠시 후 지우는 타이머
-  const dirtyRef     = useRef(false);  // 서버에 아직 저장 안 된 로컬 변경 존재 여부 — 폴링이 덮어쓰지 못하게 가드
+  const dirtyRef     = useRef(false);  // 서버에 아직 저장 안 된 로컬 변경 존재 여부
+  const baseRef      = useRef(null);   // ★동시편집 기준선 — 마지막으로 서버와 맞춘 상태(내 변경분만 골라내 병합할 때 씀)
+  const bootBaseRef  = useRef(null);   // 페이지 열 때의 로컬 상태(서버 로드 전 편집분을 가려내는 기준선)
+  const skipSaveRef  = useRef(null);   // 서버에서 받아 적용한 상태는 되저장하지 않음({json,until}) — 저장 핑퐁 방지
   const saveSeqRef   = useRef(0);      // 편집 시퀀스 — 저장 도중 새 편집이 끼면 옛 저장 성공으로 dirty를 끄지 않도록
   const saveErrRef   = useRef('');     // 마지막 저장 실패 사유(사용자에게 표시 — 원인 진단용)
   const retryRef     = useRef(0);      // 저장 실패 재시도 횟수(지수 백오프로 백엔드 과부하 방지)
@@ -4286,6 +4376,7 @@ function AppMain({ authInfo, onLogout }) {
   const serverLoadedRef = useRef(false); // 서버 최초 로드 완료 전 자동저장 차단(낡은 localStorage가 서버를 덮어쓰는 것 방지)
   const mountedRef   = useRef(false);    // 자동저장 effect의 첫 마운트 실행 구분용
   const editedBeforeLoadRef = useRef(false); // 서버 로드 완료 전에 사용자가 실제 편집했는지(콜드스타트 중 입력 보존)
+  if(bootBaseRef.current===null) bootBaseRef.current={brands:saved.brands||DEFAULT_BRANDS, settlements:saved.settlements||{}, paList:saved.paList||[]}; // 첫 렌더 1회
   useEffect(()=>{ brandsRef.current=brands; },[brands]);
   useEffect(()=>{ settlementsRef.current=settlements; },[settlements]);
   useEffect(()=>{ paListRef.current=paList; },[paList]);
@@ -4300,12 +4391,20 @@ function AppMain({ authInfo, onLogout }) {
         setBrands(snap.brands); setSettlements(snap.settlements);
         setMsg('↩️ 가져오기 전으로 되돌렸습니다');
         const s={brands:snap.brands,settlements:snap.settlements,paList};
-        callApi('save',{data:s}).catch(()=>{});
-        save(s);
+        save(s); // 서버 저장은 자동저장 effect가 병합(3-way)해서 올린다 — 여기서 통째로 덮어쓰지 않음
       }
     }
     window.addEventListener('keydown',onKey);
     return()=>window.removeEventListener('keydown',onKey);
+  },[]);
+
+  // 병합/서버본을 화면에 적용. skipSave=true 면 "서버에서 받은 그대로"라 되저장하지 않는다.
+  const applyMerged = React.useCallback((d, skipSave)=>{
+    if(!d||!d.brands) return;
+    const target={brands:d.brands, settlements:d.settlements||{}, paList:(d.paList&&d.paList.length)?d.paList:paListRef.current};
+    skipSaveRef.current = skipSave ? {json:JSON.stringify(target), until:Date.now()+5000} : null;
+    setBrands(target.brands); setSettlements(target.settlements);
+    if(d.paList&&d.paList.length) setPaList(d.paList);
   },[]);
 
   // Server sync + auto-import on first load
@@ -4317,17 +4416,20 @@ function AppMain({ authInfo, onLogout }) {
       // 사라지는 사고가 났음. → ★ 로컬이 서버보다 행수가 적으면(=낡음) 무조건 서버를 택한다.
       if(editedBeforeLoadRef.current){
         serverLoadedRef.current=true;
-        const cntRows=bs=>(bs||[]).reduce((n,b)=>n+['step1Rows','step2Rows','claudeStep1Rows','claudeStep2Rows','shippingRows','reviewRows','privacyRows'].reduce((m,k)=>m+((b[k]||[]).length),0),0);
-        const localN=cntRows(brandsRef.current), serverN=d?.brands?cntRows(d.brands):0;
-        if(d?.brands?.length && serverN>localN){
-          // 로컬이 서버보다 적음 = 낡은 로컬 → 서버 데이터 적용(편집 한두 개는 양보, 전체 데이터 보호 우선)
-          const valid=d.brands.every(b=>Array.isArray(b.step1Rows));
-          if(valid){ setBrands(d.brands); if(d.settlements)setSettlements(d.settlements); if(d.paList&&d.paList.length)setPaList(d.paList); }
-          dirtyRef.current=false;
+        if(d?.brands?.length){
+          // 서버본 위에 "로드 대기 중 내가 실제로 바꾼 것"만 얹는다.
+          // (예전엔 낡은 로컬 전체를 그대로 저장해 남의 최신 입력을 지웠음 → 3-way 병합으로 교체)
+          const theirs={brands:d.brands, settlements:d.settlements||{}, paList:d.paList||[]};
+          const mine={brands:brandsRef.current,settlements:settlementsRef.current,paList:paListRef.current};
+          const merged=rebaseData(bootBaseRef.current, mine, theirs);
+          baseRef.current=theirs;
+          const changed=JSON.stringify(merged.brands)!==JSON.stringify(theirs.brands)||JSON.stringify(merged.settlements)!==JSON.stringify(theirs.settlements);
+          applyMerged(merged, !changed);       // 내 편집이 있으면 자동저장 effect가 서버에 올린다
+          dirtyRef.current=changed;
           setMsg('🔄 최신 데이터로 동기화했어요');
           return;
         }
-        // 로컬이 서버 이상(내 편집이 반영된 최신본) → 내 편집 보존하고 저장
+        // 서버를 못 읽음 → 내 편집 보존하고 저장
         dirtyRef.current=true;
         const s={brands:brandsRef.current,settlements:settlementsRef.current,paList:paListRef.current};
         save(s);
@@ -4337,11 +4439,12 @@ function AppMain({ authInfo, onLogout }) {
       if(d?.brands?.length){
         const valid=d.brands.every(b=>Array.isArray(b.step1Rows));
         if(valid){
+          baseRef.current={brands:d.brands, settlements:d.settlements||{}, paList:d.paList||[]};
           setBrands(d.brands); currentBrands=d.brands;
           // 옛 상태값(컨택 중→진행중, 불발→거절, 옛 PA이름)이 정규화로 바뀌었으면 서버에 1회 영구 저장
           if(d._hadLegacy){
             const s={brands:d.brands,settlements:d.settlements||{},paList:d.paList};
-            callApi('save',{data:s}).catch(()=>{});
+            callApi('save',{data:s, baseRev:_lastRev}).catch(()=>{}); // 정규화 1회 저장도 동시편집 보호 적용
             save(s);
           }
         }
@@ -4373,19 +4476,24 @@ function AppMain({ authInfo, onLogout }) {
     // 서버 데이터 폴링 — 2분 간격, 탭이 보일 때만(트래픽 절약). rev가 안 바뀌면 전체 조회 생략.
     const iv=setInterval(async ()=>{
       if(document.visibilityState!=='visible')return;
-      if(dirtyRef.current)return; // 미저장 로컬 변경이 있으면 폴링이 덮어쓰지 않음(입력 중 내용 사라짐 방지)
       try{ const rj=await callApi('rev'); if(!rj||rj.rev==null||rj.rev===_lastRev)return; }catch{ return; } // 변경 없음
       loadFromServer().then(d=>{
-        if(dirtyRef.current)return; // 비동기 응답 도착 사이 새 편집이 생겼으면 적용 안 함
-        if(d?.brands?.length&&JSON.stringify(d.brands)!==JSON.stringify(brandsRef.current)){
-          // ★ 데이터 유실 방지: 서버가 갑자기 훨씬 적은 데이터를 주면(일시 장애 폴백 등)
-          //    화면을 덮어쓰지 않는다. 줄어든 데이터로 화면이 바뀌면 입력이 사라지고 저장도 꼬임.
-          const cnt=bs=>(bs||[]).reduce((n,b)=>n+['step1Rows','step2Rows','claudeStep1Rows','claudeStep2Rows','shippingRows','reviewRows','privacyRows'].reduce((m,k)=>m+((b[k]||[]).length),0),0);
-          const cur=cnt(brandsRef.current), inc=cnt(d.brands);
-          if(cur>=20 && inc < cur*0.7) console.warn('[poll] 서버 데이터 급감 무시',cur,'→',inc);
-          else setBrands(d.brands);
-        }
-        if(d?.settlements)setSettlements(d.settlements);
+        if(!d?.brands?.length)return;
+        // ★ 데이터 유실 방지: 서버가 갑자기 훨씬 적은 데이터를 주면(일시 장애 폴백 등) 화면을 덮어쓰지 않는다.
+        const cnt=bs=>(bs||[]).reduce((n,b)=>n+['step1Rows','step2Rows','claudeStep1Rows','claudeStep2Rows','shippingRows','reviewRows','privacyRows'].reduce((m,k)=>m+((b[k]||[]).length),0),0);
+        const cur=cnt(brandsRef.current), inc=cnt(d.brands);
+        if(cur>=20 && inc < cur*0.7){ console.warn('[poll] 서버 데이터 급감 무시',cur,'→',inc); return; }
+        const theirs={brands:d.brands, settlements:d.settlements||{}, paList:d.paList||[]};
+        const mine={brands:brandsRef.current, settlements:settlementsRef.current, paList:paListRef.current};
+        // 미저장 편집이 있어도 화면이 멈추지 않게: 서버 최신본 위에 내 변경분만 얹어 적용
+        // (예전엔 dirty면 폴링을 건너뛰어, 편집 중인 사람에겐 상대 입력이 영영 안 보였음)
+        const merged=(dirtyRef.current&&baseRef.current)?rebaseData(baseRef.current, mine, theirs):theirs;
+        baseRef.current=theirs;
+        const mineChanged=JSON.stringify(merged.brands)!==JSON.stringify(theirs.brands)||JSON.stringify(merged.settlements)!==JSON.stringify(theirs.settlements);
+        if(JSON.stringify(merged.brands)!==JSON.stringify(brandsRef.current)||JSON.stringify(merged.settlements)!==JSON.stringify(settlementsRef.current)){
+          applyMerged(merged, !mineChanged); // 서버본 그대로면 되저장 안 함(저장 핑퐁·트래픽 방지)
+          if(!mineChanged) dirtyRef.current=false;
+        } else if(!mineChanged) dirtyRef.current=false;
       });
     },120000);
     return()=>clearInterval(iv);
@@ -4394,12 +4502,36 @@ function AppMain({ authInfo, onLogout }) {
   // 시트 가져오기는 사용자가 '동기화' 버튼을 누를 때만 실행 (자동 동기화 없음)
 
   // 서버 저장 1회 — 상태 표시기(저장 중/저장됨/실패)를 함께 갱신. 실패 시 '재시도'에서도 재사용.
-  const postData = React.useCallback((s,seq)=>{
+  const postData = React.useCallback(async (s,seq,depth=0)=>{
     setSaveState('saving');
     blockedRef.current=false;
-    return callApi('save',{data:s})
-      .then(j=>{
+    let payload=s;
+    try{
+      // ★ 저장 전 동시편집 확인: 내가 마지막으로 본 뒤 다른 사람이 저장했으면,
+      //   그 최신본 위에 내 변경분만 얹어서(3-way 병합) 올린다. 통째 덮어쓰기 금지.
+      if(_lastRev!=null && baseRef.current && depth===0){
+        const rj=await callApi('rev');
+        if(rj && rj.rev!=null && rj.rev!==_lastRev){
+          const r=await pullMerge(payload, baseRef.current);
+          if(r){ payload=r.merged; _lastRev=r.rev; baseRef.current=r.theirs; applyMerged(payload, true); }
+        }
+      }
+    }catch(e){ console.warn('[save] 사전 병합 실패(그대로 저장 시도)', e); }
+    return callApi('save',{data:payload, baseRev:_lastRev})
+      .then(async j=>{
         console.log('[save] 응답', j);
+        // 서버가 "그 사이 남이 저장함(conflict)"이라고 알려주면 최신본 위에 다시 얹어 재시도
+        if(j && j.conflict){
+          const r=(depth<4)?await pullMerge(payload, baseRef.current, j.data, j.rev):null;
+          if(r){
+            _lastRev=r.rev; baseRef.current=r.theirs;
+            applyMerged(r.merged, true);
+            return postData(r.merged, seq, depth+1);
+          }
+          saveErrRef.current='동시 편집 충돌 — 새로고침(F5) 후 다시 시도하세요';
+          setSaveState('error');
+          return;
+        }
         // 서버 안전장치(급감 차단): 이 화면 데이터가 서버보다 크게 적을 때. 자동 새로고침하면
         // 오히려 편집분이 날아갈 수 있어 새로고침하지 않고, 원인(행수)을 명확히 보여준다.
         if(j && j.blocked){
@@ -4411,6 +4543,7 @@ function AppMain({ authInfo, onLogout }) {
         }
         if(!j || !j.ok){ saveErrRef.current=(j&&j.error)||'알 수 없는 오류'; throw new Error(saveErrRef.current); }
         if(j.rev!=null) _lastRev=j.rev; // 내 저장으로 rev 동기화 → 폴링이 불필요한 재조회 안 함
+        baseRef.current=payload;        // 서버에 방금 올린 것 = 새 기준선(다음 병합의 base)
         // 저장한 뒤로 새 편집이 없었으면 dirty 해제 → 그때부터 폴링이 다시 최신 서버값을 반영 가능
         if(seq===saveSeqRef.current) dirtyRef.current=false;
         saveErrRef.current=''; retryRef.current=0;
@@ -4461,7 +4594,12 @@ function AppMain({ authInfo, onLogout }) {
       mountedRef.current=true;
       return;
     }
-    dirtyRef.current=true;               // 미저장 변경 발생 — 폴링 덮어쓰기 차단
+    // 서버에서 받아 그대로 적용한 상태면 되저장하지 않는다(두 화면이 2분마다 서로 되저장하던 핑퐁 차단)
+    if(skipSaveRef.current){
+      if(Date.now()>skipSaveRef.current.until) skipSaveRef.current=null;         // 만료(형태 불일치 대비) → 정상 저장
+      else { if(JSON.stringify(s)===skipSaveRef.current.json) skipSaveRef.current=null; return; }
+    }
+    dirtyRef.current=true;               // 미저장 변경 발생
     const seq=++saveSeqRef.current;
     clearTimeout(saveTimerRef.current);
     if(immediateRef.current){
@@ -4944,8 +5082,7 @@ function AppMain({ authInfo, onLogout }) {
         };
       });
       const s={brands:next,settlements,paList};
-      callApi('save',{data:s}).catch(()=>{});
-      save(s);
+      save(s); // 서버 저장은 자동저장 effect가 병합해서 올린다(통째 덮어쓰기 금지)
       return next;
     });
     setMsg('🧹 중복 데이터 정리 완료');

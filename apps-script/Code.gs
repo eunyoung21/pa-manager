@@ -409,6 +409,13 @@ function saveData(sess, body, p) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return json({ error: 'busy, retry' });
   try {
+    // ★ 동시편집 보호: 클라가 읽은 리비전(baseRev) 이후 다른 사람이 저장했으면 통째 덮어쓰기를 막는다.
+    //   클라는 conflict 를 받으면 최신본을 받아 자기 변경분만 얹어(3-way 병합) 다시 저장한다.
+    //   baseRev 를 안 보내는 옛 클라이언트(캐시된 페이지)는 종전대로 동작(하위호환).
+    if (!force && body.baseRev !== undefined && body.baseRev !== null && body.baseRev !== '') {
+      var curRev = metaGet().rev;
+      if (Number(body.baseRev) !== Number(curRev)) return json({ conflict: true, rev: curRev });
+    }
     var g = preSaveGuard(incoming, force);
     if (g.block) return json({ blocked: true, error: '안전장치: 데이터 급감 감지로 저장을 막았습니다.' + (g.brand ? ' (' + g.brand + ' ' + g.key + ' ' + g.prev + '→' + g.next + ')' : ''), prevCount: g.prevCount, newCount: g.newCount, brand: g.brand, key: g.key });
     var rev = writeData(incoming, g.pbucket !== undefined ? { pbucket: g.pbucket } : null);
