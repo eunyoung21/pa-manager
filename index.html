@@ -2579,9 +2579,11 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
   const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
   function setCol(f,v){setColF(p=>({...p,[f]:v}));}
   const cfVal=(r,f)=>f==='contactStatus'?normStatus(r.contactStatus):s2(r[f]);
-  // '전체'=진행 중만(보관 제외). 보관 = 거절 OR 개인정보 폐기 완료 → 데이터·정산은 그대로 두고 '📦 보관' 칩에서만 모아 봄.
+  // '전체'=진행 중만(거절 제외). 개인정보 폐기(privacyPurged)는 연락처만 지운 것이지 목록에서 치운 게 아니므로 진행 중에 그대로 보인다.
+  // (예전엔 폐기된 행도 숨겨서, 정산 3일 뒤 자동폐기되는 최근 건들이 통째로 사라져 보였음 — 2026-07-28 수정)
   const isRej=r=>normStatus(r.contactStatus)==='거절';
-  const isArchived=r=>isRej(r)||r.privacyPurged;
+  const isPurged=r=>!!r.privacyPurged;
+  const isArchived=r=>isRej(r);
   const named=rows.filter(r=>s2(r.name).trim());
   const mode=filter==='rej'?'reject':filter==='arc'?'archive':'active';
   const byDayAll=dayFilter?named.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?named.filter(r=>parseYM(r.date)===monthFilter):named;
@@ -2596,7 +2598,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     if(filter==='deal') return r.dealDone==='Y';
     if(filter==='nd') return r.dmSent!=='Y'&&!isArchived(r);
     if(filter==='rej') return isRej(r);
-    if(filter==='arc') return isArchived(r);
+    if(filter==='arc') return isPurged(r);
     return !isArchived(r); // 'all' = 진행 중만
   }).sort((a,b)=>{   // 날짜 정렬(최신순/오래된순 토글) — 같은 날짜는 기존 순서 유지(안정 정렬)
     const ka=parseDateKey(a.date),kb=parseDateKey(b.date);
@@ -2606,7 +2608,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     const base=ka<kb?-1:ka>kb?1:0;   // 오름차순 기준
     return sortDir==='asc'?base:-base;
   });
-  const cnt={all:named.filter(r=>!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isArchived).length,
+  const cnt={all:named.filter(r=>!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
     rep:named.filter(r=>r.replied==='Y'&&!isArchived(r)).length,
     wait:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r)).length,
     apv:named.filter(r=>r.approved==='Y'&&!isArchived(r)).length};
@@ -2627,7 +2629,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
       {[{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'dm',l:`DM 발송 (${cnt.dm})`,c:'f-dm'},
         ...(isClaude?[{k:'rep',l:`💬 답장옴 (${cnt.rep})`,c:'f-rep'},{k:'apv',l:`✅ 승인됨 (${cnt.apv})`,c:'f-ap'}]:[]),
         {k:'deal',l:`협업 성사 (${cnt.deal})`,c:'f-deal'},{k:'nd',l:`미발송 (${cnt.nd})`,c:'f-wt'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:'f-rj'},
-        ...(!isClaude?[{k:'arc',l:`📦 보관 (${cnt.arc})`,c:'f-arc'}]:[])]
+        ...(!isClaude?[{k:'arc',l:`🗑️ 개인정보 폐기 (${cnt.arc})`,c:'f-arc'}]:[])]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
       <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
@@ -2643,9 +2645,9 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     </div>
     {(mode==='archive'||mode==='reject')&&<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',padding:'7px 12px',margin:'0 0 2px',background:'var(--surface2)',borderTop:'1px solid var(--border)',borderBottom:'1px solid var(--border)',fontSize:12,color:'var(--muted)'}}>
       {mode==='archive'
-        ? <><span>📦 <b style={{color:'var(--orange)'}}>보관</b> — 거절했거나 개인정보가 폐기된 인플루언서 모음</span>
+        ? <><span>🗑️ <b style={{color:'var(--orange)'}}>개인정보 폐기</b> — 정산 3일 뒤 연락처·첨부가 자동 폐기된 인플루언서 모음</span>
             <span style={{color:'var(--dim)'}}>·</span>
-            <span>데이터·수당 정산은 <b>그대로 보존</b>됩니다 (지워지지 않음)</span></>
+            <span>행 자체는 <b>진행 중 목록에도 그대로</b> 있고 데이터·수당 정산도 보존됩니다</span></>
         : <><span>🚫 <b style={{color:'var(--red)'}}>거절</b> 인플루언서 모음</span>
             <span style={{color:'var(--dim)'}}>·</span>
             <span>진행상태를 다른 값으로 바꾸면 <b>컨택현황</b>으로 돌아갑니다</span></>}
@@ -2739,7 +2741,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
             </tr>;
           })}
           {shown.length===0&&<tr><td colSpan={13+(isClaude?3:0)+(!IS_STAFF&&!isClaude?2:0)+((!IS_STAFF||isClaude)?1:0)} className="empty" style={{height:80}}>
-            <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'보관된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'STEP1에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
+            <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'개인정보가 폐기된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'STEP1에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
           </td></tr>}
         </tbody>
       </table>
@@ -3820,10 +3822,10 @@ function GuideView({ brand }) {
         <div className="guide-warn">🔒 개인정보 보호: 정산 완료 <strong>3일 후</strong> 해당 인플루언서의 개인정보(성명·연락처·주소·통장/신분증/계약서 파일)가 <strong>자동 폐기</strong>됩니다. 채널명과 정산 기록은 회계용으로만 남습니다. (되돌릴 수 없음)</div>
       </div>
       <div className="guide-card" style={{marginTop:8}}>
-        <div className="guide-card-title">📦 진행 중 / 보관 — 목록 정리</div>
+        <div className="guide-card-title">📦 진행 중 / 거절 — 목록 정리</div>
         <div className="guide-steps">
-          <div className="guide-step"><div className="guide-step-num">1</div><div className="guide-step-text">기본 화면은 <strong>진행 중</strong>만 보여줍니다. 거절했거나 개인정보가 폐기된 인플루언서는 자동으로 목록에서 빠집니다.</div></div>
-          <div className="guide-step"><div className="guide-step-num">2</div><div className="guide-step-text">상단 <strong>📦 보관</strong> 칩을 누르면 거절·폐기된 인플루언서를 모아 볼 수 있습니다.</div></div>
+          <div className="guide-step"><div className="guide-step-num">1</div><div className="guide-step-text">기본 화면은 <strong>진행 중</strong>만 보여줍니다. <strong>거절</strong>한 인플루언서만 목록에서 빠집니다(개인정보가 폐기돼도 행은 그대로 보입니다).</div></div>
+          <div className="guide-step"><div className="guide-step-num">2</div><div className="guide-step-text">상단 <strong>🗑️ 개인정보 폐기</strong> 칩을 누르면 정산 후 연락처가 폐기된 인플루언서만 모아 볼 수 있습니다.</div></div>
           <div className="guide-step"><div className="guide-step-num">3</div><div className="guide-step-text">리스트업도 <strong>진행 중</strong>에서 반려된 인플루언서가 빠지고, <strong>📦 반려</strong> 칩에서 따로 봅니다.</div></div>
         </div>
         <div className="guide-tip">💡 데이터와 수당 정산은 <strong>그대로 보존</strong>됩니다(삭제 아님). 검색창은 보관 항목까지 포함해 누구든 찾을 수 있습니다.</div>
