@@ -354,8 +354,10 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 </head>
 <body>
 <div id="root"></div>
-<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<!-- React는 운영(production) 빌드로 고정 — 개발 빌드는 렌더마다 속성 검증(validateProperty·ARIA 경고)을
+     돌려 표가 클수록 눈에 띄게 느리다. 버전도 핀(옛 Babel 자동 업그레이드 사고 재발 방지). -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
@@ -2605,7 +2607,16 @@ const NICHE_RULES=[
   ['자동차',['자동차','드라이브','오토','카스타']],
   ['교육',['교육','영어','공부','학습','과외','입시','수능']],
 ];
-function nicheOf(text){const t=String(text||'').toLowerCase();for(const[w,ks]of NICHE_RULES){if(ks.some(k=>t.includes(k.toLowerCase())))return w;}return '';}
+// 카테고리 추정 — 표의 모든 행이 매 렌더마다 부르므로 결과를 캐시한다(같은 텍스트면 재계산 없음).
+const _nicheCache=new Map();
+function nicheOf(text){
+  const key=String(text||'');
+  const hit=_nicheCache.get(key); if(hit!==undefined) return hit;
+  const t=key.toLowerCase(); let out='';
+  for(const[w,ks]of NICHE_RULES){if(ks.some(k=>t.includes(k.toLowerCase()))){out=w;break;}}
+  if(_nicheCache.size<5000) _nicheCache.set(key,out);
+  return out;
+}
 
 function Step1View({ rows, onUpdate, onDelete, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
   const [dayFilter,setDayFilter]=useState(null);
@@ -2772,6 +2783,11 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
   // 승인(관리자만) — 승인하면 그때부터 알바가 소통 진행. 승인 시 답장도 자동 Y(답장 없이 승인되는 일 방지).
   function setApproved(r,v){const patch={approved:v};if(v==='Y'){if(!r.approveDate)patch.approveDate=today();if(r.replied!=='Y'){patch.replied='Y';if(!r.replyDate)patch.replyDate=today();}}else{patch.approveDate='';}onUpdate(r.id,patch);}
 
+  // 행(Step2Row)에 넘길 핸들러 묶음 — ref 라 신원이 고정돼 memo 가 살아 있고,
+  // 내용은 매 렌더마다 최신으로 갱신되므로 클릭 시점엔 항상 최신 함수가 불린다.
+  const hRef=useRef({});
+  hRef.current={up,setStatus,setDm,setDeal,setReplied,setApproved,onDelete,onUpdate,onAddPrivacy,isRej};
+
   return <div className="view-wrap">
     <div className="view-main">
     <div className="toolbar">
@@ -2832,59 +2848,8 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
         </thead>
         <tbody>
           {shown.map(r=>{
-            const pay=calcPay(r);
-            const paStyle=paColor(sanitizePA(r.pa));
             const privSubmitted=(privacyRows||[]).some(p=>p.channelName===r.name);
-            return <tr key={r.id}>
-              <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
-                {isClaude&&<button className="row-del-btn" title={isRej(r)?'거절 취소 (컨택 전으로 되돌림)':'맘에 안 들면 거절 — 보관함으로 이동(데이터는 학습용으로 보존)'}
-                  style={{color:isRej(r)?'var(--red)':'var(--dim)',borderColor:isRej(r)?'#fca5a5':undefined}}
-                  onClick={()=>setStatus(r,isRej(r)?'컨택 전':'거절')}>{isRej(r)?'↩':'🚫'}</button>}
-                <button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button>
-              </span></td>
-              <td data-label="날짜"><Cell value={r.date} onChange={v=>up(r.id,'date',v)} type="date" style={{width:75}}/></td>
-              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}><Cell value={r.name} onChange={v=>up(r.id,'name',v)} style={{whiteSpace:'nowrap',minWidth:'auto'}}/></td>
-              <td data-label="링크" style={{textAlign:'center'}}>
-                {r.link?<a href={r.link} target="_blank" rel="noopener" style={{color:'var(--blue)',fontSize:13}}>↗</a>
-                :<Cell value={r.link} onChange={v=>up(r.id,'link',v)} placeholder="URL" style={{width:50}}/>}
-              </td>
-              <td data-label="팔로워"><Cell value={r.followers} onChange={v=>up(r.id,'followers',v)} style={{width:70}}/></td>
-              {isClaude&&<td data-label="카테고리"><Cell value={r.category!=null?r.category:nicheOf([r.name,r.memo].join(' '))} onChange={v=>up(r.id,'category',v)} placeholder="예: 낚시" style={{width:72}}/></td>}
-              <td data-label="담당 PA" style={{textAlign:'center',whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>up(r.id,'pa',v)} type="select" chips options={PA_LIST}
-                style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
-              <td data-label="진행 상태" style={{textAlign:'center'}}><Cell value={normStatus(r.contactStatus)} onChange={v=>setStatus(r,v)} type="select" options={CONTACT_STATUS}
-                style={r.contactStatus?{...csColor(r.contactStatus),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap'}:undefined}/></td>
-              <td data-label="DM발송" style={{textAlign:'center'}}><YN value={r.dmSent} onChange={v=>setDm(r,v)}/></td>
-              {isClaude&&<td data-label="답장" style={{textAlign:'center'}} title={r.replyDate?`답장일 ${r.replyDate}`:'답장 오면 체크'}><YN value={r.replied} onChange={v=>setReplied(r,v)}/></td>}
-              {/* 자동화 탭 승인: Y/N 분리 버튼 — Y = 승인(진행), N = 승인 안 함 → 거절(보관)으로 이동,
-                  거절 상태에서 N을 다시 누르면 복귀. 승인 여부를 판단하는 자리에서 거절까지 끝내도록 옮겼다. */}
-              {isClaude&&<td data-label="승인" style={{textAlign:'center'}}>
-                {IS_STAFF
-                  ? <span style={{display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap',...(r.approved==='Y'?{background:'#dcfce7',color:'#15803d'}:{background:'var(--surface3)',color:'var(--muted)'})}} title={r.approved==='Y'?`관리자 승인 ${r.approveDate||''}`:'관리자 승인 대기'}>{r.approved==='Y'?'✅ 승인됨':'🔒 대기'}</span>
-                  : <span style={{display:'inline-flex',gap:3}}>
-                      <button className={`yn-btn ${r.approved==='Y'?'yn-y':'yn-n'}`} style={{padding:'2px 7px'}} title={r.approved==='Y'?'승인 취소':'승인 — 알바가 소통 진행'}
-                        onClick={()=>{if(r.approved==='Y'){setApproved(r,'N');return;}const patch={approved:'Y',approveDate:r.approveDate||today()};if(r.replied!=='Y'){patch.replied='Y';if(!r.replyDate)patch.replyDate=today();}if(isRej(r)){patch.contactStatus='진행중';patch.rejectDate='';}onUpdate(r.id,patch);}}>Y</button>
-                      <button className={`yn-btn ${isRej(r)?'yn-rej':'yn-n'}`} style={{padding:'2px 7px'}} title={isRej(r)?'거절 취소 (컨택 전으로 되돌림)':'승인 안 함 → 거절(보관)으로 이동'}
-                        onClick={()=>{if(isRej(r)){setStatus(r,'컨택 전');return;}const patch={approved:'',approveDate:'',contactStatus:'거절'};if(!r.rejectDate)patch.rejectDate=today();onUpdate(r.id,patch);}}>N</button>
-                    </span>}
-              </td>}
-              <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>setDeal(r,v)}/></td>
-              <td data-label="성사일"><Cell value={r.dealDate} onChange={v=>up(r.id,'dealDate',v)} type="date" style={{width:85}} placeholder={r.dealDone==='Y'?'날짜 입력':'—'}/></td>
-              <td data-label="단가"><Cell value={r.rate} onChange={v=>up(r.id,'rate',v)} style={{width:80,color:'var(--yellow)'}}/></td>
-              {!IS_STAFF&&!isClaude&&<td data-label="DM수당" style={{color:pay.dm>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.dm)}</td>}
-              {(!IS_STAFF||isClaude)&&<td data-label="성사수당" style={{color:pay.deal>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.deal)}</td>}
-              {!IS_STAFF&&!isClaude&&<td data-label="소계" style={{color:'var(--yellow)',fontWeight:700,fontSize:11}}>{fmtMoney(pay.subtotal)}</td>}
-              <td data-label="메모"><Cell value={r.memo} onChange={v=>up(r.id,'memo',v)} type="textarea" placeholder="메모…"/></td>
-              <td data-label="개인정보" style={{textAlign:'center'}}>
-                {r.dealDone==='Y'
-                  ? <button className="btn btn-ghost" title={privSubmitted?'제출된 개인정보 수정':'개인정보 제출'}
-                      style={{fontSize:10,padding:'3px 10px',whiteSpace:'nowrap',color:privSubmitted?'var(--green)':'var(--text)',borderColor:privSubmitted?'#22c55e55':'var(--border)'}}
-                      onClick={()=>onAddPrivacy&&onAddPrivacy(r)}>
-                      {privSubmitted?'✅ 제출됨 · 수정':'📝 제출'}
-                    </button>
-                  : <span style={{color:'var(--dim)',fontSize:11}}>—</span>}
-              </td>
-            </tr>;
+            return <Step2Row key={r.id} r={r} isClaude={isClaude} privSubmitted={privSubmitted} paList={PA_LIST} H={hRef}/>;
           })}
           {shown.length===0&&<tr><td colSpan={13+(isClaude?3:0)+(!IS_STAFF&&!isClaude?2:0)+((!IS_STAFF||isClaude)?1:0)} className="empty" style={{height:80}}>
             <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'개인정보가 폐기된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'STEP1에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
@@ -2896,6 +2861,67 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     <CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
   </div>;
 }
+
+/* ─── STEP2 행 (메모이제이션) ────────────────────────────────────────────────
+   표가 400행이 넘어가면서 한 칸만 고쳐도 전체 행이 다시 그려져 클릭이 눈에 띄게 느렸다.
+   → 행을 React.memo 로 분리해, 실제로 바뀐 행만 다시 그린다(다른 행은 객체가 그대로라 건너뜀).
+   핸들러는 매 렌더마다 새로 만들어지므로 그대로 넘기면 memo 가 무력해진다 → 핸들러 묶음(H)을
+   ref 로 넘겨 '항상 최신 함수를 클릭 시점에 읽되, 프로퍼티 신원은 고정'되게 한다. */
+const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList, H }){
+  const isRej=H.current.isRej;         // 렌더 중에만 쓰는 순수 판정(핸들러는 클릭 시점에 H.current 에서 읽는다)
+  const pay=calcPay(r);
+  const paStyle=paColor(sanitizePA(r.pa));
+  return <tr>
+              <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
+                {isClaude&&<button className="row-del-btn" title={isRej(r)?'거절 취소 (컨택 전으로 되돌림)':'맘에 안 들면 거절 — 보관함으로 이동(데이터는 학습용으로 보존)'}
+                  style={{color:isRej(r)?'var(--red)':'var(--dim)',borderColor:isRej(r)?'#fca5a5':undefined}}
+                  onClick={()=>H.current.setStatus(r,H.current.isRej(r)?'컨택 전':'거절')}>{isRej(r)?'↩':'🚫'}</button>}
+                <button className="row-del-btn" onClick={()=>H.current.onDelete(r.id)}>×</button>
+              </span></td>
+              <td data-label="날짜"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
+              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}><Cell value={r.name} onChange={v=>H.current.up(r.id,'name',v)} style={{whiteSpace:'nowrap',minWidth:'auto'}}/></td>
+              <td data-label="링크" style={{textAlign:'center'}}>
+                {r.link?<a href={r.link} target="_blank" rel="noopener" style={{color:'var(--blue)',fontSize:13}}>↗</a>
+                :<Cell value={r.link} onChange={v=>H.current.up(r.id,'link',v)} placeholder="URL" style={{width:50}}/>}
+              </td>
+              <td data-label="팔로워"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
+              {isClaude&&<td data-label="카테고리"><Cell value={r.category!=null?r.category:nicheOf([r.name,r.memo].join(' '))} onChange={v=>H.current.up(r.id,'category',v)} placeholder="예: 낚시" style={{width:72}}/></td>}
+              <td data-label="담당 PA" style={{textAlign:'center',whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
+                style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
+              <td data-label="진행 상태" style={{textAlign:'center'}}><Cell value={normStatus(r.contactStatus)} onChange={v=>H.current.setStatus(r,v)} type="select" options={CONTACT_STATUS}
+                style={r.contactStatus?{...csColor(r.contactStatus),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap'}:undefined}/></td>
+              <td data-label="DM발송" style={{textAlign:'center'}}><YN value={r.dmSent} onChange={v=>H.current.setDm(r,v)}/></td>
+              {isClaude&&<td data-label="답장" style={{textAlign:'center'}} title={r.replyDate?`답장일 ${r.replyDate}`:'답장 오면 체크'}><YN value={r.replied} onChange={v=>H.current.setReplied(r,v)}/></td>}
+              {/* 자동화 탭 승인: Y/N 분리 버튼 — Y = 승인(진행), N = 승인 안 함 → 거절(보관)으로 이동,
+                  거절 상태에서 N을 다시 누르면 복귀. 승인 여부를 판단하는 자리에서 거절까지 끝내도록 옮겼다. */}
+              {isClaude&&<td data-label="승인" style={{textAlign:'center'}}>
+                {IS_STAFF
+                  ? <span style={{display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap',...(r.approved==='Y'?{background:'#dcfce7',color:'#15803d'}:{background:'var(--surface3)',color:'var(--muted)'})}} title={r.approved==='Y'?`관리자 승인 ${r.approveDate||''}`:'관리자 승인 대기'}>{r.approved==='Y'?'✅ 승인됨':'🔒 대기'}</span>
+                  : <span style={{display:'inline-flex',gap:3}}>
+                      <button className={`yn-btn ${r.approved==='Y'?'yn-y':'yn-n'}`} style={{padding:'2px 7px'}} title={r.approved==='Y'?'승인 취소':'승인 — 알바가 소통 진행'}
+                        onClick={()=>{if(r.approved==='Y'){H.current.setApproved(r,'N');return;}const patch={approved:'Y',approveDate:r.approveDate||today()};if(r.replied!=='Y'){patch.replied='Y';if(!r.replyDate)patch.replyDate=today();}if(isRej(r)){patch.contactStatus='진행중';patch.rejectDate='';}H.current.onUpdate(r.id,patch);}}>Y</button>
+                      <button className={`yn-btn ${isRej(r)?'yn-rej':'yn-n'}`} style={{padding:'2px 7px'}} title={isRej(r)?'거절 취소 (컨택 전으로 되돌림)':'승인 안 함 → 거절(보관)으로 이동'}
+                        onClick={()=>{if(isRej(r)){H.current.setStatus(r,'컨택 전');return;}const patch={approved:'',approveDate:'',contactStatus:'거절'};if(!r.rejectDate)patch.rejectDate=today();H.current.onUpdate(r.id,patch);}}>N</button>
+                    </span>}
+              </td>}
+              <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>H.current.setDeal(r,v)}/></td>
+              <td data-label="성사일"><Cell value={r.dealDate} onChange={v=>H.current.up(r.id,'dealDate',v)} type="date" style={{width:85}} placeholder={r.dealDone==='Y'?'날짜 입력':'—'}/></td>
+              <td data-label="단가"><Cell value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80,color:'var(--yellow)'}}/></td>
+              {!IS_STAFF&&!isClaude&&<td data-label="DM수당" style={{color:pay.dm>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.dm)}</td>}
+              {(!IS_STAFF||isClaude)&&<td data-label="성사수당" style={{color:pay.deal>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.deal)}</td>}
+              {!IS_STAFF&&!isClaude&&<td data-label="소계" style={{color:'var(--yellow)',fontWeight:700,fontSize:11}}>{fmtMoney(pay.subtotal)}</td>}
+              <td data-label="메모"><Cell value={r.memo} onChange={v=>H.current.up(r.id,'memo',v)} type="textarea" placeholder="메모…"/></td>
+              <td data-label="개인정보" style={{textAlign:'center'}}>
+                {r.dealDone==='Y'
+                  ? <button className="btn btn-ghost" title={privSubmitted?'제출된 개인정보 수정':'개인정보 제출'}
+                      style={{fontSize:10,padding:'3px 10px',whiteSpace:'nowrap',color:privSubmitted?'var(--green)':'var(--text)',borderColor:privSubmitted?'#22c55e55':'var(--border)'}}
+                      onClick={()=>H.current.onAddPrivacy&&H.current.onAddPrivacy(r)}>
+                      {privSubmitted?'✅ 제출됨 · 수정':'📝 제출'}
+                    </button>
+                  : <span style={{color:'var(--dim)',fontSize:11}}>—</span>}
+              </td>
+            </tr>;
+});
 
 /* ─── SHIPPING VIEW ─── */
 function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdate, onDelete, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
@@ -4395,7 +4421,11 @@ function App() {
 }
 
 function AppMain({ authInfo, onLogout }) {
-  const saved=normalizeData(load())||{};
+  // ★ 로컬 백업은 첫 렌더에서 한 번만 읽는다. (예전엔 매 렌더마다 localStorage 전체를
+  //   JSON.parse + normalizeData 해서, 행이 많을수록 클릭 한 번이 눈에 띄게 느려졌다)
+  const savedRef=useRef(null);
+  if(savedRef.current===null) savedRef.current=normalizeData(load())||{};
+  const saved=savedRef.current;
   // 담당 브랜드 ('all'=전체, 'basetune'/'granny'=해당 브랜드만)
   const userBrand = authInfo?.brand || 'all';
   const [brands,      setBrands]      = useState(saved.brands||DEFAULT_BRANDS);
