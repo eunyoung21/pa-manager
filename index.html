@@ -2739,9 +2739,11 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     // 검색은 보관 포함 전체에서 — 누적돼도 누구든 찾을 수 있게.
     if(q) return [r.name,r.pa,r.memo,r.contactStatus].some(v=>s2(v).toLowerCase().includes(q));
     if(filter==='dm') return r.dmSent==='Y';
-    if(filter==='rep') return r.replied==='Y'&&!isArchived(r);            // 답장 온 사람만 모아보기
+    // 자동화 단계(답장옴 → 승인됨 → 협업 성사)는 서로 배타 — 다음 단계로 넘어가면 앞 단계에서 빠진다.
+    // (승인하면 '답장옴'에서 사라져 '승인됨'에만, 협업성사면 '협업 성사'에만 남는다)
+    if(filter==='rep') return r.replied==='Y'&&r.approved!=='Y'&&r.dealDone!=='Y'&&!isArchived(r);
     if(filter==='wait') return r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r); // 답장O·승인 전
-    if(filter==='apv') return r.approved==='Y'&&!isArchived(r);           // 승인됨(소통 진행)
+    if(filter==='apv') return r.approved==='Y'&&r.dealDone!=='Y'&&!isArchived(r); // 승인됨(소통 진행 중)
     if(filter==='deal') return r.dealDone==='Y';
     if(filter==='nd') return r.dmSent!=='Y'&&!isArchived(r);
     if(filter==='rej') return isRej(r);
@@ -2756,9 +2758,9 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     return sortDir==='asc'?base:-base;
   });
   const cnt={all:named.filter(r=>!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
-    rep:named.filter(r=>r.replied==='Y'&&!isArchived(r)).length,
+    rep:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length,
     wait:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r)).length,
-    apv:named.filter(r=>r.approved==='Y'&&!isArchived(r)).length};
+    apv:named.filter(r=>r.approved==='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length};
   function up(id,k,v){onUpdate(id,{[k]:v});}
   // 협업성사/DM발송을 Y로 바꾸면 날짜 자동 기록, 다시 N으로 해제하면 날짜도 같이 제거(정산 월 구분 일관성).
   function setDeal(r,v){const patch={dealDone:v};if(v==='Y'&&!r.dealDate)patch.dealDate=today();if(v!=='Y')patch.dealDate='';onUpdate(r.id,patch);}
