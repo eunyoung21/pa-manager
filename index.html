@@ -3055,17 +3055,29 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
 /* ─── DM TEMPLATE VIEW ─── */
 const DIFF_COLOR={'하':'var(--green)','중':'var(--yellow)','중~상':'var(--orange)','상':'var(--red)'};
 const STAGE_ORDER=['초반','중반','후반','특수'];
-function DMView({brand}){
+// 화면에 쓸 템플릿 목록 — 관리자가 편집한 적 있으면 브랜드에 저장된 dmTemplates,
+// 없으면 코드에 박힌 기본 템플릿(DM_TEMPLATES)을 쓴다.
+function dmTemplatesOf(brand){
+  if(brand&&Array.isArray(brand.dmTemplates)) return brand.dmTemplates;
+  return DM_TEMPLATES[brand?.id||'basetune']||[];
+}
+function DMView({brand, isManager, onSaveTemplates}){
   const [open,setOpen]=useState(null);
   const [copied,setCopied]=useState(null);
   const [stageFilter,setStageFilter]=useState('all');
   const [search,setSearch]=useState('');
+  const [edit,setEdit]=useState(false);        // 관리자 편집 모드(순서변경·삭제·수정)
+  const [editing,setEditing]=useState(null);   // 편집 중인 템플릿(모달)
   const bId=brand?.id||'basetune';
-  const templates=DM_TEMPLATES[bId]||[];
-  const q=search.trim().toLowerCase();
-  const shown=templates.filter(t=>{
+  const templates=dmTemplatesOf(brand);
+  const custom=Array.isArray(brand?.dmTemplates);
+  // 브랜드를 바꾸면 편집 모드는 닫는다(다른 브랜드 템플릿을 실수로 건드리지 않게)
+  useEffect(()=>{ setEdit(false); setEditing(null); },[bId]);
+  // 편집 모드에선 필터·검색을 끄고 전체를 순서대로 보여준다 — 걸러진 목록에서 순서를 바꾸면 헷갈림
+  const q=edit?'':search.trim().toLowerCase();
+  const shown=edit?templates:templates.filter(t=>{
     if(stageFilter!=='all'&&t.stage!==stageFilter) return false;
-    if(q) return t.title.toLowerCase().includes(q)||t.content.toLowerCase().includes(q)||t.insight.toLowerCase().includes(q);
+    if(q) return String(t.title||'').toLowerCase().includes(q)||String(t.content||'').toLowerCase().includes(q)||String(t.insight||'').toLowerCase().includes(q);
     return true;
   });
   function copy(t){
@@ -3073,35 +3085,71 @@ function DMView({brand}){
       setCopied(t.id); setTimeout(()=>setCopied(null),1500);
     });
   }
+  const commit=next=>{ if(onSaveTemplates) onSaveTemplates(next); };
+  // 순서변경 — 위/아래로 한 칸씩
+  function move(id,dir){
+    const i=templates.findIndex(t=>t.id===id), j=i+dir;
+    if(i<0||j<0||j>=templates.length) return;
+    const next=templates.slice(); const tmp=next[i]; next[i]=next[j]; next[j]=tmp;
+    commit(next);
+  }
+  function remove(t){
+    if(!window.confirm(`템플릿 '${t.title||'(제목 없음)'}' 을(를) 삭제할까요?`)) return;
+    commit(templates.filter(x=>x.id!==t.id));
+    if(open===t.id) setOpen(null);
+  }
+  function saveOne(f){
+    const t={id:f.id||makeId(),stage:f.stage,diff:f.diff,title:f.title,insight:f.insight,content:f.content};
+    commit(f._new?[...templates,t]:templates.map(x=>x.id===t.id?t:x));
+    setEditing(null);
+    if(f._new) setOpen(t.id);
+  }
+  function resetDefault(){
+    if(!window.confirm('편집한 내용을 모두 버리고 기본 템플릿으로 되돌릴까요?')) return;
+    commit(null); setOpen(null);
+  }
+  const IB={fontSize:11,lineHeight:1,padding:'4px 7px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface2)',color:'var(--text)',cursor:'pointer'};
   return <div className="dm-wrap">
     <div className="toolbar" style={{flexWrap:'wrap',gap:6}}>
-      <button className={`fchip ${stageFilter==='all'?'active':''}`} onClick={()=>setStageFilter('all')}>전체</button>
-      {STAGE_ORDER.map(s=><button key={s} className={`fchip ${stageFilter===s?'active':''}`} onClick={()=>setStageFilter(s)}>{s}</button>)}
+      {!edit&&<>
+        <button className={`fchip ${stageFilter==='all'?'active':''}`} onClick={()=>setStageFilter('all')}>전체</button>
+        {STAGE_ORDER.map(s=><button key={s} className={`fchip ${stageFilter===s?'active':''}`} onClick={()=>setStageFilter(s)}>{s}</button>)}
+      </>}
+      {edit&&<span style={{fontSize:11,color:'var(--muted)'}}>✏️ 편집 모드 — 제목·내용 수정, 순서변경(↑↓), 삭제. 저장은 자동입니다.</span>}
       <div className="sep"/>
-      <div className="search-wrap">
+      {!edit&&<div className="search-wrap">
         <input className="srch" placeholder="제목, 내용 검색…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
         {search&&<button className="srch-x" onClick={()=>setSearch('')}>×</button>}
-      </div>
+      </div>}
       <span className="cnt">{shown.length}개</span>
+      {isManager&&edit&&custom&&<button className="btn btn-ghost" style={{fontSize:11}} onClick={resetDefault}>↩️ 기본값 복원</button>}
+      {isManager&&<button className="btn" style={{fontSize:11,background:edit?'var(--accent)':'var(--surface3)',color:edit?'#fff':'var(--muted)'}} onClick={()=>{setEdit(!edit);setEditing(null);}}>{edit?'✅ 편집 끝내기':'✏️ 편집'}</button>}
       <a href={BRAND_DM_LINK[bId]} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📋 노션 원본</a>
     </div>
     <div className="dm-scroll">
       <div style={{fontSize:11,color:'var(--muted)',marginBottom:4}}>
         💡 난이도 — <span style={{color:DIFF_COLOR['하']}}>하</span>: 즉시 발송 / <span style={{color:DIFF_COLOR['중']}}>중</span>: 검토 후 발송 / <span style={{color:DIFF_COLOR['상']}}>상</span>: 인플루언서 톤 파악 후 유연하게 수정
       </div>
-      {shown.map(t=>{
+      {shown.map((t,i)=>{
         const isOpen=open===t.id;
         return <div key={t.id} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,overflow:'hidden'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',cursor:'pointer'}} onClick={()=>setOpen(isOpen?null:t.id)}>
             <span style={{background:'var(--surface3)',borderRadius:4,padding:'2px 8px',fontSize:10,fontWeight:600,color:'var(--muted)',whiteSpace:'nowrap'}}>{t.stage}</span>
-            <span style={{background:'transparent',border:`1px solid ${DIFF_COLOR[t.diff]}`,borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:600,color:DIFF_COLOR[t.diff],whiteSpace:'nowrap'}}>{t.diff}</span>
+            <span style={{background:'transparent',border:`1px solid ${DIFF_COLOR[t.diff]||'var(--border)'}`,borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:600,color:DIFF_COLOR[t.diff]||'var(--muted)',whiteSpace:'nowrap'}}>{t.diff}</span>
             <span style={{fontSize:12,fontWeight:600,flex:1}}>{t.title}</span>
+            {edit&&<span style={{display:'flex',gap:4}} onClick={e=>e.stopPropagation()}>
+              <button style={{...IB,opacity:i===0?.35:1,cursor:i===0?'default':'pointer'}} disabled={i===0} title="위로" onClick={()=>move(t.id,-1)}>↑</button>
+              <button style={{...IB,opacity:i===shown.length-1?.35:1,cursor:i===shown.length-1?'default':'pointer'}} disabled={i===shown.length-1} title="아래로" onClick={()=>move(t.id,1)}>↓</button>
+              <button style={IB} title="제목·내용 수정" onClick={()=>setEditing({...t})}>✏️</button>
+              <button style={{...IB,color:'var(--red)'}} title="삭제" onClick={()=>remove(t)}>🗑</button>
+            </span>}
             <span style={{color:'var(--dim)',fontSize:12}}>{isOpen?'▲':'▼'}</span>
           </div>
           {isOpen&&<div style={{borderTop:'1px solid var(--border)',padding:'10px 14px'}}>
             {t.insight&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:6,padding:'7px 10px',fontSize:11,color:'#1d4ed8',marginBottom:10}}>💡 {t.insight}</div>}
             <pre style={{background:'var(--surface2)',borderRadius:6,padding:'12px',fontSize:12,color:'var(--text)',whiteSpace:'pre-wrap',wordBreak:'break-word',lineHeight:1.7,margin:0}}>{t.content}</pre>
-            <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
+            <div style={{display:'flex',justifyContent:'flex-end',gap:6,marginTop:8}}>
+              {edit&&<button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setEditing({...t})}>✏️ 수정</button>}
               <button className="btn btn-primary" style={{fontSize:11}} onClick={()=>copy(t)}>
                 {copied===t.id?'✅ 복사됨':'📋 복사'}
               </button>
@@ -3109,6 +3157,53 @@ function DMView({brand}){
           </div>}
         </div>;
       })}
+      {edit&&<button className="btn-add" style={{marginTop:8}} onClick={()=>setEditing({id:'',stage:'초반',diff:'하',title:'',insight:'',content:'',_new:true})}>＋ 새 템플릿 추가</button>}
+    </div>
+    {editing&&<DMTemplateModal init={editing} onSave={saveOne} onClose={()=>setEditing(null)}/>}
+  </div>;
+}
+
+/* ─── DM 템플릿 편집 모달 (관리자 전용) — 입력은 모달 안에서만 다루고 저장할 때 한 번에 반영 ─── */
+function DMTemplateModal({init,onSave,onClose}){
+  const [f,setF]=useState(()=>({stage:'초반',diff:'하',title:'',insight:'',content:'',...init}));
+  const u=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  function submit(){
+    if(!String(f.title||'').trim()){ alert('제목을 입력하세요'); return; }
+    onSave({...f,title:f.title.trim()});
+  }
+  return <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.55)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+    <div onClick={e=>e.stopPropagation()} className="modal" style={{width:640}}>
+      <div className="modal-title">{f._new?'＋ 새 DM 템플릿':'✏️ DM 템플릿 수정'}</div>
+      <div className="modal-grid">
+        <div className="modal-full">
+          <div className="modal-lbl">제목 (목차에 보이는 이름)</div>
+          <input className="modal-inp" value={f.title} onChange={u('title')} placeholder="예: 1. 첫 컨택 진행 문구" autoFocus/>
+        </div>
+        <div>
+          <div className="modal-lbl">단계</div>
+          <select className="modal-sel" value={f.stage} onChange={u('stage')}>
+            {STAGE_ORDER.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <div className="modal-lbl">난이도</div>
+          <select className="modal-sel" value={f.diff} onChange={u('diff')}>
+            {Object.keys(DIFF_COLOR).map(d=><option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div className="modal-full">
+          <div className="modal-lbl">💡 주의사항 (비워두면 안 보임)</div>
+          <input className="modal-inp" value={f.insight} onChange={u('insight')} placeholder="예: 00은 인플루언서 이름으로 수정"/>
+        </div>
+        <div className="modal-full">
+          <div className="modal-lbl">본문 내용 (알바가 복사해서 보내는 글)</div>
+          <textarea className="modal-ta" style={{minHeight:280,lineHeight:1.6}} value={f.content} onChange={u('content')} placeholder="DM 본문을 그대로 붙여넣으세요"/>
+        </div>
+      </div>
+      <div className="modal-foot">
+        <button className="btn btn-ghost" onClick={onClose}>취소</button>
+        <button className="btn btn-primary" onClick={submit}>저장</button>
+      </div>
     </div>
   </div>;
 }
@@ -5470,7 +5565,11 @@ function AppMain({ authInfo, onLogout }) {
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}
       />}
-      {tab==='dm'&&<DMView brand={brand}/>}
+      {tab==='dm'&&<DMView
+        brand={brand}
+        isManager={isManager}
+        onSaveTemplates={list=>updateBrand(bId,b=>({...b,dmTemplates:list}))}
+      />}
       {tab==='review'&&<ReviewView
         brand={brand}
         rows={brand.reviewRows||[]}
