@@ -362,6 +362,309 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<!-- ─── 계약서 양식(.docx) 채우기 엔진 — 업로드한 양식 그대로 두고 값만 넣는다 ─── -->
+<script>
+/* ==CONTRACT_TPL_ENGINE_START==
+   업로드한 계약서(.docx) 양식에 값만 채워 넣는 엔진.
+   본문을 다시 만들지 않고 원본 서식을 그대로 두므로, 계약서가 바뀌면 새 파일만 올리면 된다.
+   - 값 자리 찾는 법: ①{{이름}} 같은 표시자 ②원본 양식의 빈칸 모양(000(이하 ‘모델’), ____원정, 년 월 일)
+     ③서명표에서 '모델' 칸 아래의 연락처·주민등록번호·주소·이름 빈 칸
+   - 브라우저 내장 압축(DecompressionStream)만 사용 — 외부 라이브러리 없음. */
+(function(){
+  var W = (typeof window!=='undefined') ? window : globalThis;
+
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function u16(n){ return [n&0xFF,(n>>>8)&0xFF]; }
+  function u32(n){ return [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF]; }
+  function crc32(bytes){
+    var t=crc32._t;
+    if(!t){ t=crc32._t=[]; for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++) c=c&1?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } }
+    var crc=0xFFFFFFFF; for(var i=0;i<bytes.length;i++) crc=(crc>>>8)^t[(crc^bytes[i])&0xFF];
+    return (crc^0xFFFFFFFF)>>>0;
+  }
+  async function streamBytes(bytes, mode, algo){
+    var S = mode==='inflate' ? W.DecompressionStream : W.CompressionStream;
+    if(!S) throw new Error('이 브라우저는 압축 해제를 지원하지 않습니다(크롬·엣지 최신 버전을 쓰세요).');
+    var s = new S(algo);
+    var w = s.writable.getWriter(); w.write(bytes); w.close();
+    var chunks=[], rd=s.readable.getReader(), total=0;
+    for(;;){ var r=await rd.read(); if(r.done) break; chunks.push(r.value); total+=r.value.length; }
+    var out=new Uint8Array(total), p=0; chunks.forEach(function(c){ out.set(c,p); p+=c.length; });
+    return out;
+  }
+
+  /* ── ZIP 읽기: 중앙 디렉터리 기준. 손대지 않는 항목은 압축된 원본 바이트를 그대로 재사용한다 ── */
+  async function unzip(u8){
+    var dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength), eo=-1;
+    for(var i=u8.length-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){ eo=i; break; } }
+    if(eo<0) throw new Error('올바른 워드(.docx) 파일이 아닙니다.');
+    var n=dv.getUint16(eo+10,true), off=dv.getUint32(eo+16,true), p=off, list=[], dec=new TextDecoder();
+    for(var k=0;k<n;k++){
+      if(dv.getUint32(p,true)!==0x02014b50) throw new Error('압축 파일 구조를 읽지 못했습니다.');
+      var flag=dv.getUint16(p+8,true), method=dv.getUint16(p+10,true), crc=dv.getUint32(p+16,true);
+      var csize=dv.getUint32(p+20,true), usize=dv.getUint32(p+24,true);
+      var nl=dv.getUint16(p+28,true), el=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true);
+      var lho=dv.getUint32(p+42,true);
+      var name=dec.decode(u8.subarray(p+46,p+46+nl));
+      var lnl=dv.getUint16(lho+26,true), lel=dv.getUint16(lho+28,true), ds=lho+30+lnl+lel;
+      list.push({ name:name, method:method, crc:crc, csize:csize, usize:usize, flag:flag, comp:u8.subarray(ds,ds+csize) });
+      p+=46+nl+el+cl;
+    }
+    return list;
+  }
+  async function entryText(e){
+    var raw = e.method===8 ? await streamBytes(e.comp,'inflate','deflate-raw') : e.comp;
+    return new TextDecoder('utf-8').decode(raw);
+  }
+  async function zip(list){
+    var enc=new TextEncoder(), chunks=[], central=[], offset=0;
+    for(var i=0;i<list.length;i++){
+      var e=list[i], nameB=enc.encode(e.name);
+      var local=[0x50,0x4b,0x03,0x04].concat(u16(20),u16(e.flag&~0x08),u16(e.method),u16(0),u16(0),u32(e.crc),u32(e.comp.length),u32(e.usize),u16(nameB.length),u16(0));
+      chunks.push(new Uint8Array(local), nameB, e.comp);
+      var cen=[0x50,0x4b,0x01,0x02].concat(u16(20),u16(20),u16(e.flag&~0x08),u16(e.method),u16(0),u16(0),u32(e.crc),u32(e.comp.length),u32(e.usize),u16(nameB.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset));
+      central.push(new Uint8Array(cen), nameB);
+      offset+=local.length+nameB.length+e.comp.length;
+    }
+    var cs=central.reduce(function(a,b){return a+b.length;},0);
+    var eocd=[0x50,0x4b,0x05,0x06].concat(u16(0),u16(0),u16(list.length),u16(list.length),u32(cs),u32(offset),u16(0));
+    var all=chunks.concat(central,[new Uint8Array(eocd)]);
+    var total=all.reduce(function(a,b){return a+b.length;},0), out=new Uint8Array(total), pos=0;
+    all.forEach(function(b){ out.set(b,pos); pos+=b.length; });
+    return out;
+  }
+  async function putEntry(e, text){
+    var raw=new TextEncoder().encode(text);
+    var comp=raw, method=0;
+    try{ if(W.CompressionStream){ comp=await streamBytes(raw,'deflate','deflate-raw'); method=8; } }catch(x){ comp=raw; method=0; }
+    return { name:e.name, method:method, crc:crc32(raw), csize:comp.length, usize:raw.length, flag:0, comp:comp };
+  }
+
+  /* ── XML 태그 덩어리 스캔(같은 태그 중첩 대응) ── */
+  function blocks(xml, tag){
+    var out=[], open=new RegExp('<'+tag+'(?=[\\s/>])','g'), close='</'+tag+'>', m;
+    while((m=open.exec(xml))){
+      var s=m.index, j=s, depth=0, end=-1;
+      while(j<xml.length){
+        var lt=xml.indexOf('<', j); if(lt<0) break;
+        var gt=xml.indexOf('>', lt); if(gt<0) break;
+        var t=xml.slice(lt,gt+1), self=t.slice(-2)==='/>';
+        if(t===close){ depth--; if(depth<=0){ end=gt+1; break; } }
+        else if(new RegExp('^<'+tag+'[\\s/>]').test(t)){
+          if(self){ if(lt===s){ end=gt+1; break; } }   // <w:p .../> 자기닫힘
+          else depth++;
+        }
+        j=gt+1;
+      }
+      if(end<0) end=xml.length;
+      out.push({ start:s, end:end, xml:xml.slice(s,end) });
+      open.lastIndex=end;
+    }
+    return out;
+  }
+  var T_RE=/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
+  function unesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
+  function textOf(xml){ var r='',m; T_RE.lastIndex=0; while((m=T_RE.exec(xml))) r+=unesc(m[1]); return r; }
+
+  /* 문단 안의 글자는 여러 <w:t>로 쪼개져 있다(워드가 맞춤법·서식 단위로 나눔).
+     → 문단 전체 글자를 이어붙여 찾고, 바꾼 결과를 원래 조각에 되돌려 넣는다(서식 보존). */
+  function editParagraph(pXml, finder){
+    var nodes=[], m; T_RE.lastIndex=0;
+    while((m=T_RE.exec(pXml))){
+      var inner=m[1], at=m.index+m[0].length-inner.length-'</w:t>'.length;
+      nodes.push({ at:at, len:inner.length, text:unesc(inner) });
+    }
+    if(!nodes.length) return null;
+    var flat='', map=[];
+    nodes.forEach(function(n,i){ map.push({ i:i, s:flat.length, e:flat.length+n.text.length }); flat+=n.text; });
+    var edits=finder(flat);
+    if(!edits || !edits.length) return null;
+    edits.sort(function(a,b){ return b.start-a.start; });
+    var texts=nodes.map(function(n){ return n.text; });
+    edits.forEach(function(ed){
+      var placed=false;
+      for(var i=0;i<nodes.length;i++){
+        var s=map[i].s, e=map[i].e;
+        if(ed.end<=s || ed.start>=e) continue;
+        var from=Math.max(0, ed.start-s), to=Math.min(texts[i].length, ed.end-s);
+        // 이미 앞선 편집으로 길이가 달라졌을 수 있어 안전 범위로 자른다
+        from=Math.min(from, texts[i].length); to=Math.min(Math.max(to,from), texts[i].length);
+        texts[i]=texts[i].slice(0,from)+(placed?'':ed.text)+texts[i].slice(to);
+        placed=true;
+      }
+    });
+    var out='', prev=0, changed=false;
+    nodes.forEach(function(n,i){
+      out+=pXml.slice(prev, n.at)+esc(texts[i]);
+      prev=n.at+n.len;
+      if(texts[i]!==n.text) changed=true;
+    });
+    out+=pXml.slice(prev);
+    if(!changed) return null;
+    // 값이 들어간 조각은 공백이 살아 있어야 한다
+    out=out.replace(/<w:t>/g, '<w:t xml:space="preserve">');
+    return out;
+  }
+
+  /* ── 값 자리 찾기 ── */
+  var ALIAS={
+    name:['이름','모델이름','모델명','성명','model','name'],
+    fee:['모델료','금액','출연료','비용','fee'],
+    date:['계약일자','계약일','날짜','일자','date'],
+    phone:['연락처','전화번호','휴대폰','전화','phone'],
+    rrn:['주민등록번호','주민번호','생년월일','rrn'],
+    addr:['주소','거주지','address','addr']
+  };
+  function keyOf(token){
+    var t=String(token).replace(/\s+/g,'').toLowerCase();
+    for(var k in ALIAS) for(var i=0;i<ALIAS[k].length;i++) if(ALIAS[k][i].toLowerCase()===t) return k;
+    return null;
+  }
+  var LABELS=[
+    {k:'phone', re:/^\s*(연락처|전화번호|휴대폰|전화|핸드폰)\s*:?\s*$/},
+    {k:'rrn',   re:/^\s*(주민등록번호|주민번호)\s*:?\s*$/},
+    {k:'addr',  re:/^\s*(주소)\s*:?\s*$/},
+    {k:'name',  re:/^\s*(이름|성명)\s*:?\s*$/}
+  ];
+
+  /* 본문 치환: {{표시자}} + 원본 양식의 빈칸 모양 */
+  function fillBody(xml, v, diag){
+    var paras=blocks(xml,'w:p');
+    for(var i=paras.length-1;i>=0;i--){
+      var p=paras[i];
+      var np=editParagraph(p.xml, function(flat){
+        var edits=[], m, re;
+        // ① {{이름}} 같은 표시자
+        re=/\{\{\s*([^{}]{1,20}?)\s*\}\}/g;
+        while((m=re.exec(flat))){
+          var k=keyOf(m[1]);
+          if(!k){ diag.unknown.push(m[1]); continue; }
+          diag.hit[k]=(diag.hit[k]||0)+1; diag.via[k]='표시자';
+          edits.push({ start:m.index, end:m.index+m[0].length, text:v[k]||'' });
+        }
+        // ② 이름 자리: 000(이하 ‘모델’)
+        re=/(000|○○○|OOO|XXX|[_＿]{3,})(?=\s*[(（]\s*이하)/g;
+        while((m=re.exec(flat))){
+          if(!/모델/.test(flat.slice(m.index, m.index+40))) continue;
+          diag.hit.name=(diag.hit.name||0)+1; diag.via.name=diag.via.name||'양식 빈칸';
+          if(v.name) edits.push({ start:m.index, end:m.index+m[0].length, text:v.name });
+        }
+        // ③ 모델료 자리: ______원정 / ______ 원
+        re=/[_＿]{3,}(?=\s*원)/g;
+        while((m=re.exec(flat))){
+          diag.hit.fee=(diag.hit.fee||0)+1; diag.via.fee=diag.via.fee||'양식 빈칸';
+          if(v.fee) edits.push({ start:m.index, end:m.index+m[0].length, text:v.fee });
+        }
+        // ④ 계약일자 자리: '년   월   일' (숫자 없이 빈칸)
+        re=/[_＿\s]*년[_＿\s]*월[_＿\s]*일/g;
+        while((m=re.exec(flat))){
+          if(/\d/.test(m[0])) continue;
+          diag.hit.date=(diag.hit.date||0)+1; diag.via.date=diag.via.date||'양식 빈칸';
+          if(v.date) edits.push({ start:m.index, end:m.index+m[0].length, text:' '+v.date });
+        }
+        return edits;
+      });
+      if(np) xml = xml.slice(0,p.start)+np+xml.slice(p.end);
+    }
+    return xml;
+  }
+
+  /* 서명표: '모델' 칸 아래 연락처·주민등록번호·주소·이름의 빈 칸을 채운다 */
+  function cellIsEmpty(t){ return !String(t).replace(/[\s()（）인]/g,'').length; }
+  function firstRpr(cellXml){ var m=cellXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/); return m?m[0]:''; }
+  function injectCell(cellXml, value, rPr){
+    var runXml='<w:r>'+(rPr||'')+'<w:t xml:space="preserve">'+esc(value)+'</w:t></w:r>';
+    var ps=blocks(cellXml,'w:p');
+    if(!ps.length) return null;
+    var p=ps[0], px=p.xml, np;
+    if(/\/>\s*$/.test(px)){                       // <w:p .../> — 완전히 빈 문단
+      np=px.replace(/\/>\s*$/,'>')+runXml+'</w:p>';
+    } else {
+      var pr=px.match(/<w:pPr>[\s\S]*?<\/w:pPr>/);
+      var cut = pr ? px.indexOf(pr[0])+pr[0].length : px.indexOf('>')+1;
+      np=px.slice(0,cut)+runXml+px.slice(cut);    // 기존 '(인)' 앞에 값 삽입
+    }
+    return cellXml.slice(0,p.start)+np+cellXml.slice(p.end);
+  }
+  function gridSpan(cellXml){ var m=cellXml.match(/<w:gridSpan\s+w:val="(\d+)"/); return m?parseInt(m[1],10):1; }
+  function fillSignTable(xml, v, diag){
+    var tbls=blocks(xml,'w:tbl');
+    for(var ti=tbls.length-1;ti>=0;ti--){
+      var tbl=tbls[ti], tx=tbl.xml;
+      var rows=blocks(tx,'w:tr');
+      if(rows.length<2) continue;
+      // '모델' 칸이 시작하는 열 — 광고주 칸을 건드리지 않기 위해
+      var modelCol=null, gi=0;
+      blocks(rows[0].xml,'w:tc').forEach(function(c){
+        if(modelCol===null && /모델/.test(textOf(c.xml))) modelCol=gi;
+        gi+=gridSpan(c.xml);
+      });
+      var touched=false;
+      for(var ri=rows.length-1;ri>=1;ri--){
+        var rx=rows[ri].xml, cells=blocks(rx,'w:tc');
+        var starts=[], g=0;
+        cells.forEach(function(c){ starts.push(g); g+=gridSpan(c.xml); });
+        for(var ci=cells.length-2;ci>=0;ci--){
+          var lab=textOf(cells[ci].xml), tgt=cells[ci+1];
+          if(modelCol!==null && starts[ci+1]<modelCol) continue;   // 광고주 쪽은 건너뜀
+          for(var li=0;li<LABELS.length;li++){
+            if(!LABELS[li].re.test(lab)) continue;
+            var k=LABELS[li].k, tgtText=textOf(tgt.xml);
+            if(!cellIsEmpty(tgtText)) break;                        // 이미 값이 있으면 손대지 않음
+            diag.hit[k]=(diag.hit[k]||0)+1; diag.via[k]=diag.via[k]||'서명표';
+            if(!v[k]) break;
+            var nc=injectCell(tgt.xml, v[k], firstRpr(cells[ci].xml));
+            if(nc){ rx=rx.slice(0,tgt.start)+nc+rx.slice(tgt.end); touched=true; }
+            break;
+          }
+        }
+        if(touched) tx=tx.slice(0,rows[ri].start)+rx+tx.slice(rows[ri].end);
+      }
+      if(touched) xml=xml.slice(0,tbl.start)+tx+xml.slice(tbl.end);
+    }
+    return xml;
+  }
+
+  var PARTS=/^word\/(document|header\d*|footer\d*)\.xml$/;
+  async function apply(bytes, values){
+    var v={
+      name:String(values.name||''), fee:String(values.fee||''), date:String(values.date||''),
+      phone:String(values.phone||''), rrn:String(values.rrn||''), addr:String(values.addr||'')
+    };
+    var diag={ hit:{}, via:{}, unknown:[] };
+    var list=await unzip(bytes), out=[], found=false;
+    for(var i=0;i<list.length;i++){
+      var e=list[i];
+      if(!PARTS.test(e.name)){ out.push(e); continue; }
+      found=true;
+      var xml=await entryText(e);
+      xml=fillBody(xml, v, diag);
+      if(e.name==='word/document.xml') xml=fillSignTable(xml, v, diag);
+      out.push(await putEntry(e, xml));
+    }
+    if(!found) throw new Error('워드 문서 본문(word/document.xml)을 찾지 못했습니다.');
+    return { bytes: await zip(out), diag: diag };
+  }
+
+  W.CONTRACT_TPL = {
+    /* 값 채운 .docx 바이트 반환 */
+    fill: async function(bytes, values){ return (await apply(bytes, values)).bytes; },
+    /* 어떤 자리를 찾았는지 점검(업로드 직후 표시용) */
+    analyze: async function(bytes){
+      var r=await apply(bytes, { name:'홍길동', fee:'800,000', date:'2026년 01월 01일', phone:'010-0000-0000', rrn:'000000-0000000', addr:'서울시' });
+      var d=r.diag;
+      return { slots:{ name:!!d.hit.name, fee:!!d.hit.fee, date:!!d.hit.date, phone:!!d.hit.phone, rrn:!!d.hit.rrn, addr:!!d.hit.addr },
+               via:d.via, unknown:d.unknown, bytes:r.bytes };
+    },
+    text: async function(bytes){
+      var list=await unzip(bytes);
+      for(var i=0;i<list.length;i++) if(list[i].name==='word/document.xml') return textOf(await entryText(list[i]));
+      return '';
+    }
+  };
+})();
+/* ==CONTRACT_TPL_ENGINE_END== */
+</script>
 <!-- ─── 광고모델 계약서 생성 모듈 (브랜드별 광고주 자동 + 본문 이미지잠금 + 입력칸) ─── -->
 <script>
 (function(){
@@ -600,13 +903,52 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
     a.download='광고모델계약서_'+(name||'모델')+'_'+fmtDate(date).replace(/ /g,'')+'.docx';
     a.click();
   };
+
+  /* ─── 업로드한 양식(.docx)으로 생성 — 본문은 손대지 않고 값만 채운다 ───
+     계약서 문구가 바뀌면 코드를 고치는 대신 새 양식 파일을 올리면 된다. */
+  window.generateContractFromTemplate = async function(tplBytes, name, fee, date, model){
+    model = model || {};
+    var out = await window.CONTRACT_TPL.fill(tplBytes, {
+      name: name||'', fee: fmtFeeNum(fee), date: fmtDate(date),
+      phone: model.phone||'', rrn: model.rrn||'', addr: model.addr||''
+    });
+    var blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='광고모델계약서_'+(name||'모델')+'_'+fmtDate(date).replace(/ /g,'')+'.docx';
+    a.click();
+  };
+  // 양식의 빈칸(________원정)에는 '원정' 없이 숫자만 넣는다
+  function fmtFeeNum(v){ var s=String(v||'').replace(/[^0-9]/g,''); return s ? Number(s).toLocaleString() : ''; }
 })();
 </script>
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-/* ─── 계약서 생성 모달 (모델명·모델료·계약일자 입력 → 잠금 PDF 다운로드) ─── */
-function ContractGenModal({ brandId, brandName, onClose }){
+/* ─── 계약서 양식 캐시 — 업로드된 .docx 를 한 번만 받아 재사용 ─── */
+const CT_TPL_CACHE = new Map();
+async function loadContractTemplate(t){
+  if(!t || !t.url) return null;
+  if(CT_TPL_CACHE.has(t.url)) return CT_TPL_CACHE.get(t.url);
+  let dataUrl = t.url;
+  const id = pfileId(t.url);
+  if(id){
+    const j = await callApi('pfileGet',{id});
+    dataUrl = (j && j.dataUrl) || '';
+  }
+  if(!/^data:/.test(dataUrl)) throw new Error('저장된 계약서 양식을 불러오지 못했습니다.');
+  const bin = atob(dataUrl.split(',')[1]||'');
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  CT_TPL_CACHE.set(t.url, bytes);
+  return bytes;
+}
+const CT_SLOT_LABEL = { name:'모델 이름', fee:'모델료', date:'계약일자', phone:'연락처', rrn:'주민등록번호', addr:'주소' };
+
+/* ─── 계약서 생성 모달 (모델명·모델료·계약일자 입력 → 워드 다운로드)
+   양식은 브랜드별로 업로드해 쓴다 — 계약서 문구가 바뀌면 새 파일만 올리면 되고 코드는 안 고친다.
+   업로드한 양식이 없으면 앱에 내장된 기본 양식으로 만든다(종전과 동일). ─── */
+function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUploadTemplate, onRemoveTemplate }){
   const today = (()=>{ const d=new Date(); const z=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; })();
   const [name,setName]=useState('');
   const [phone,setPhone]=useState('');
@@ -616,16 +958,43 @@ function ContractGenModal({ brandId, brandName, onClose }){
   const [date,setDate]=useState(today);
   const [busy,setBusy]=useState(false);
   const [err,setErr]=useState('');
+  const [tplMsg,setTplMsg]=useState('');
+  const tplRef=useRef(null);
   const hasCfg = !!(window.CONTRACT_BRANDS && window.CONTRACT_BRANDS[brandId]);
+  const slots = template?.slots || null;
+  const missing = slots ? Object.keys(CT_SLOT_LABEL).filter(k=>!slots[k]) : [];
   const go=async()=>{
     if(!name.trim()){ setErr('모델 이름을 입력하세요.'); return; }
-    if(!hasCfg){ setErr('이 브랜드는 계약서 설정이 없습니다.'); return; }
+    if(!template && !hasCfg){ setErr('이 브랜드는 기본 양식이 없습니다. 계약서 파일을 올려주세요.'); return; }
     setBusy(true); setErr('');
+    const model={ name:name.trim(), phone:phone.trim(), addr:addr.trim(), rrn:rrn.trim() };
     try{
-      window.generateContractDocx(brandId, name.trim(), fee.trim(), date, { name:name.trim(), phone:phone.trim(), addr:addr.trim(), rrn:rrn.trim() });
+      if(template){
+        const bytes=await loadContractTemplate(template);
+        await window.generateContractFromTemplate(bytes, name.trim(), fee.trim(), date, model);
+      } else {
+        window.generateContractDocx(brandId, name.trim(), fee.trim(), date, model);
+      }
       onClose();
     }
     catch(e){ setErr('생성 실패: '+(e&&e.message||e)); }
+    finally{ setBusy(false); }
+  };
+  const pickTemplate=async(e)=>{
+    const file=e.target.files?.[0]; e.target.value=''; if(!file) return;
+    setBusy(true); setErr(''); setTplMsg('양식 확인 중…');
+    try{
+      const an=await onUploadTemplate(file);
+      const miss=Object.keys(CT_SLOT_LABEL).filter(k=>!an.slots[k]);
+      setTplMsg(miss.length ? `저장됨 — 다만 ${miss.map(k=>CT_SLOT_LABEL[k]).join('·')} 자리를 못 찾았습니다.` : '저장됨 — 값 넣을 자리를 모두 찾았습니다.');
+    }catch(e2){ setTplMsg(''); setErr('양식 저장 실패: '+(e2&&e2.message||e2)); }
+    finally{ setBusy(false); }
+  };
+  const dropTemplate=async()=>{
+    if(!confirm('올린 계약서 양식을 지우고 앱 기본 양식으로 되돌릴까요?')) return;
+    setBusy(true);
+    try{ await onRemoveTemplate(); setTplMsg('기본 양식으로 되돌렸습니다.'); }
+    catch(e2){ setErr('삭제 실패: '+(e2&&e2.message||e2)); }
     finally{ setBusy(false); }
   };
   const L={display:'block',fontSize:12,fontWeight:700,margin:'12px 0 4px',color:'var(--text)'};
@@ -633,7 +1002,33 @@ function ContractGenModal({ brandId, brandName, onClose }){
   return <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.55)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center'}}>
     <div onClick={e=>e.stopPropagation()} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:22,width:340,maxWidth:'90vw'}}>
       <div style={{fontSize:15,fontWeight:800}}>📝 계약서 생성 (워드)</div>
-      <div style={{fontSize:12,color:'var(--muted)',marginTop:3}}>{brandName} · {hasCfg?(window.CONTRACT_BRANDS[brandId].company):'설정 없음'}</div>
+      <div style={{fontSize:12,color:'var(--muted)',marginTop:3}}>{brandName} · {template?(template.company||'올린 양식 사용'):(hasCfg?window.CONTRACT_BRANDS[brandId].company:'설정 없음')}</div>
+
+      {/* 쓰는 양식 — 계약서가 바뀌면 여기서 새 파일만 올리면 된다 */}
+      <div style={{marginTop:10,padding:'9px 10px',border:'1px solid var(--border)',borderRadius:8,background:'var(--surface2)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{flex:1,minWidth:0,fontSize:12,lineHeight:1.45}}>
+            <div style={{color:'var(--muted)'}}>사용 양식</div>
+            <div style={{fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={template?.name||''}>
+              {template ? template.name : '앱 기본 양식'}
+            </div>
+            {template?.at&&<div style={{color:'var(--muted)',fontSize:11}}>{template.at} 업로드{template.by?` · ${template.by}`:''}</div>}
+          </div>
+          {canEdit&&<div style={{display:'flex',flexDirection:'column',gap:4}}>
+            <button onClick={()=>tplRef.current?.click()} disabled={busy} style={{padding:'6px 9px',fontSize:11,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',cursor:'pointer',whiteSpace:'nowrap'}}>
+              {template?'양식 바꾸기':'양식 올리기'}
+            </button>
+            {template&&<button onClick={dropTemplate} disabled={busy} style={{padding:'6px 9px',fontSize:11,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',whiteSpace:'nowrap'}}>기본으로</button>}
+          </div>}
+        </div>
+        <input ref={tplRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickTemplate}/>
+        {template&&missing.length>0&&<div style={{fontSize:11,color:'var(--orange,#c2410c)',marginTop:6,lineHeight:1.5}}>
+          ⚠ {missing.map(k=>CT_SLOT_LABEL[k]).join('·')} 자리를 못 찾아 그 칸은 비워둡니다. 워드에서 그 자리에 {'{{'}{CT_SLOT_LABEL[missing[0]]==='모델 이름'?'이름':CT_SLOT_LABEL[missing[0]]}{'}}'} 처럼 적고 다시 올리면 채워집니다.
+        </div>}
+        {tplMsg&&<div style={{fontSize:11,color:'var(--muted)',marginTop:6}}>{tplMsg}</div>}
+        {canEdit&&!template&&<div style={{fontSize:11,color:'var(--muted)',marginTop:6,lineHeight:1.5}}>바뀐 계약서(.docx)를 올리면 그 양식 그대로 쓰고, 이름·모델료·계약일자·연락처·주민등록번호·주소만 채워 내려받습니다.</div>}
+      </div>
+
       <label style={L}>모델 이름</label>
       <input style={I} value={name} onChange={e=>setName(e.target.value)} placeholder="홍길동" autoFocus onKeyDown={e=>e.key==='Enter'&&go()}/>
       <label style={L}>전화번호</label>
@@ -4123,6 +4518,7 @@ function GuideView({ brand }) {
           <div className="guide-step"><div className="guide-step-num">5</div><div className="guide-step-text">PA 총괄(이은영)이 업로드된 파일을 최종 확인 후 STEP2 계약서 상태를 <strong>✅ 완료</strong>로 변경합니다.</div></div>
         </div>
         <div className="guide-warn">⚠️ 계약서는 인플루언서가 먼저 요청하지 않는 이상, <strong>최종 영상 업로드 완료 후</strong>에 작성을 진행합니다. 영상 게시 전 계약서 진행 시 반드시 이은영 확인 필요.</div>
+        <div className="guide-warn" style={{marginTop:6}}>📄 <strong>계약서 양식이 바뀌면</strong> 상단 <strong>📄 계약서 생성</strong> → <strong>양식 바꾸기</strong>에서 새 .docx 파일을 올리면 됩니다(관리자만). 올린 양식 그대로 쓰면서 이름·모델료·계약일자·연락처·주민등록번호·주소 자리만 채워집니다. 값 자리를 못 찾는다고 나오면, 워드에서 그 자리에 <code>{'{{이름}}'}</code>·<code>{'{{모델료}}'}</code>·<code>{'{{계약일자}}'}</code>처럼 적고 다시 올리세요.</div>
       </div>
       <div className="guide-card" style={{marginTop:8}}>
         <div className="guide-card-title">📌 계약서 필수 포함 항목</div>
@@ -5335,28 +5731,33 @@ function AppMain({ authInfo, onLogout }) {
     }
   }
 
-  // ── 브랜드별 계약서 양식 업로드 ──────────────────────────────
-  const contractTplRef = useRef(null);
-  async function uploadContractTemplate(e) {
-    const file = e.target.files?.[0]; if(!file) return;
-    e.target.value='';
-    // Render 디스크는 휘발성 → 파일을 데이터(Supabase)에 base64로 저장해 영구 보존
-    if(file.size > 2*1024*1024){ setMsg('❌ 파일이 너무 큽니다 (2MB 이하로 올려주세요)'); return; }
-    setMsg('📄 계약서 양식 저장 중…');
-    const reader=new FileReader();
-    reader.onload=ev=>{
-      updateBrand(bId, b=>({...b, contractTemplate:{name:file.name,url:ev.target.result,type:file.type}}));
-      immediateRef.current=true;
-      setMsg(`✅ 계약서 양식 저장됨 (${file.name})`);
-    };
-    reader.onerror=()=>setMsg('❌ 파일 읽기 실패');
-    reader.readAsDataURL(file);
+  // ── 브랜드별 계약서 양식(.docx) 업로드 ────────────────────────
+  //  계약서 문구가 바뀌면 코드를 고치는 대신 바뀐 파일을 올린다. 올린 양식은 그대로 두고
+  //  이름·모델료·계약일자·연락처·주민등록번호·주소 자리에만 값을 채워 내려받는다.
+  //  파일 자체는 첨부 저장소(pfile)에 두고 본문엔 참조만 남긴다 — 저장 페이로드가 커지지 않게.
+  async function uploadContractTemplate(file) {
+    if(!/\.docx$/i.test(file.name)) throw new Error('워드 파일(.docx)만 올릴 수 있습니다. PDF·한글(hwp)은 안 됩니다.');
+    if(file.size > 2*1024*1024) throw new Error('파일이 너무 큽니다(2MB 이하).');
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const an = await window.CONTRACT_TPL.analyze(buf);   // 워드 파일 확인 + 값 넣을 자리 점검
+    const dataUrl = await readAsDataUrl(file);
+    let url='';
+    try{
+      const d = await callApi('pfileSave',{data:dataUrl,name:file.name,type:file.type||'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+      if(d&&d.ok&&d.url) url=d.url;
+    }catch(e){}
+    if(!url) url=dataUrl;   // 첨부 저장소가 안 되면 본문에 보관(양식은 30KB 안팎이라 부담 없음)
+    updateBrand(bId, b=>({...b, contractTemplate:{
+      name:file.name, url, size:file.size, at:today(), by:authInfo?.username||'', slots:an.slots
+    }}));
+    immediateRef.current=true;
+    setMsg(`✅ 계약서 양식 저장됨 (${file.name})`);
+    return an;
   }
   function removeContractTemplate(){
-    if(!confirm('이 브랜드의 계약서 양식을 삭제할까요?')) return;
     updateBrand(bId, b=>({...b, contractTemplate:null}));
     immediateRef.current=true;
-    setMsg('🗑 계약서 양식 삭제됨');
+    setMsg('🗑 계약서 양식 삭제됨 — 앱 기본 양식 사용');
   }
 
   const csvFileRef = useRef(null);
@@ -5448,7 +5849,9 @@ function AppMain({ authInfo, onLogout }) {
       <div className="hdr-right">
         {/* 계약서 생성 — 모델 정보 입력 후 잠금 PDF 다운로드 (브랜드별 광고주 자동) */}
         <button className="contract-link" style={{cursor:'pointer'}} onClick={()=>setCtGenOpen(true)} title="모델명·모델료·계약일자 입력 후 계약서 PDF 생성">📄 계약서 생성</button>
-        {ctGenOpen&&<ContractGenModal brandId={bId} brandName={brand?.name} onClose={()=>setCtGenOpen(false)}/>}
+        {ctGenOpen&&<ContractGenModal brandId={bId} brandName={brand?.name} onClose={()=>setCtGenOpen(false)}
+          template={brand?.contractTemplate} canEdit={isManager}
+          onUploadTemplate={uploadContractTemplate} onRemoveTemplate={removeContractTemplate}/>}
         {/* 자주 쓰는 것만 노출 */}
         {BRAND_DRIVE[bId]&&<a href={BRAND_DRIVE[bId]} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
         {isManager&&<button className="btn btn-ghost" style={{fontSize:11}} onClick={importFromSheet} disabled={syncing}>
