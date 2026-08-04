@@ -151,23 +151,38 @@ function writeData(obj, bumpMeta) {
   var str = JSON.stringify(obj);
   var sh = sheet(SHEET_APPDATA);
   // 청크 분할 — 이모지(서로게이트 페어)가 경계에서 잘리지 않게 조정.
+  // 🔴 2026-08-04 사고: 경계가 URL 쿼리(...?utm_source | =ig_web_copy_link) 사이에 떨어져
+  //    청크가 '=' 로 시작 → 시트가 수식으로 해석해 그 칸이 #ERROR! 가 되고 45,000자가 통째로 소실.
+  //    (앱 전체가 '데이터 파싱 실패'로 읽기 불가. 결손 구간을 백업에서 떼어 이어붙여 복구함)
+  //    → 청크가 수식 트리거 문자(= + - @)로 시작하지 않게 경계를 앞으로 당긴다.
   var rows = [];
   for (var i = 0; i < str.length; ) {
     var end = Math.min(i + CHUNK, str.length);
     if (end < str.length) {
       var c = str.charCodeAt(end - 1);
       if (c >= 0xD800 && c <= 0xDBFF) end--; // 마지막이 상위 서로게이트면 한 칸 물러남
+      var guard = 0;
+      while (end > i + 1 && guard++ < 10 && '=+-@'.indexOf(str.charAt(end)) >= 0) end--; // 다음 청크 첫 글자가 수식 트리거면 회피
     }
     rows.push([str.substring(i, end)]);
     i = end;
   }
   if (!rows.length) rows.push(['']);
   sh.clearContents();
+  sh.getRange(1, 1, rows.length, 1).setNumberFormat('@'); // 서식을 텍스트로 고정(수식 해석 2중 차단)
   sh.getRange(1, 1, rows.length, 1).setValues(rows);
   SpreadsheetApp.flush(); // 쓰기 즉시 확정(부분쓰기·절단 방지)
   // 검증: 방금 쓴 걸 다시 읽어 JSON 파싱되는지 확인. 실패면 rev 안 올리고 오류(클라가 재시도).
   var back = '', v2 = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
-  for (var j = 0; j < v2.length; j++) back += v2[j][0];
+  for (var j = 0; j < v2.length; j++) {
+    var cell = String(v2[j][0]);
+    // 수식 오인으로 셀이 에러값이 된 경우 — JSON.parse 전에 명시적으로 잡는다(위 사고의 직접 신호).
+    if (cell.charAt(0) === '#' && cell.indexOf('!') > 0 && cell.length < 20) {
+      snapshot('write-verify-fail', { at: new Date().toISOString(), len: str.length, cell: cell, row: j + 1 }, { reason: 'chunk-error-value' });
+      throw new Error('저장 검증 실패 — 청크 ' + (j + 1) + '이 시트 에러값(' + cell + ')이 됨. 재시도합니다.');
+    }
+    back += cell;
+  }
   try { JSON.parse(back); } catch (e) {
     snapshot('write-verify-fail', { at: new Date().toISOString(), len: str.length }, { reason: 'write-verify-fail' });
     throw new Error('저장 검증 실패(자동 재시도됩니다): ' + e.message);
