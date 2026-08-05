@@ -2693,11 +2693,11 @@ function AddPrivacyModal({onConfirm,onCancel,prefill,brandId}){
         <div className="modal-full"><div className="modal-lbl">주소</div><input className="modal-inp" value={f.address} onChange={u('address')}/></div>
         <div className="modal-full">
           <div className="modal-lbl">통장사본 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
-          <FileUpload label="통장사본 첨부" value={f.bankFile} onChange={v=>setF(p=>({...p,bankFile:v}))}/>
+          <FileUpload label="통장사본 첨부" value={f.bankFile} onChange={v=>setF(p=>({...p,bankFile:v}))} archive={{brand:brandId,kind:'bank',channelName:f.channelName,realName:f.realName}}/>
         </div>
         <div className="modal-full">
           <div className="modal-lbl">신분증사본 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
-          <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))}/>
+          <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))} archive={{brand:brandId,kind:'id',channelName:f.channelName,realName:f.realName}}/>
         </div>
         <div className="modal-full">
           <div className="modal-lbl">계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF · 올리면 브랜드 드라이브에 자동 보관)</span></div>

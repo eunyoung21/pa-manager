@@ -369,6 +369,9 @@ function handle(e, body) {
       case 'pfileSave':return pfileSave(need(), body);
       case 'pfileGet': return pfileGet(need(), body, p);
       case 'contractArchive': return contractArchive(need(), body);
+      case 'archivePending': return archivePending(mgr(), body);
+      case 'archiveFile': return archiveFile(mgr(), body);
+      case 'archiveComplete': return archiveComplete(mgr(), body);
       case 'contractMail': return contractMail(need(), body);
       case 'users':    return usersList(mgr());
       case 'userCreate':return userCreate(mgr(), body);
@@ -483,11 +486,16 @@ var BRAND_DRIVE_FOLDER = {
   basetune: '1naWNt2xs9biAipjDZWEWVVU1nrOC8sXv',
   granny:   '1ubvCkIzuspkDtTvbDBvMFF5tV6jsxJp_'
 };
+/* 파일명 규칙(노션 자동기입이 이 이름을 그대로 파싱한다 — 바꾸면 파서도 같이 바꿀 것)
+     계약서   : 채널명_본명_계약날짜(YYMMDD)
+     신분증사본: 신분증사본_채널명_본명
+     통장사본  : 통장사본_채널명_본명                                        */
 var ARCHIVE_KIND = {
-  contract: { label: '계약서',   slot: 'contract', sub: '계약서파일',   legacySub: '계약서' },
-  id:       { label: '신분증사본', slot: 'privacy',  sub: '개인정보파일', legacySub: null },
-  bank:     { label: '통장사본',  slot: 'privacy',  sub: '개인정보파일', legacySub: null }
+  contract: { label: '계약서',   slot: 'contract', sub: '계약서파일',   legacySub: '계약서', dated: true },
+  id:       { label: '신분증사본', slot: 'privacy',  sub: '개인정보파일', legacySub: null,   dated: false },
+  bank:     { label: '통장사본',  slot: 'privacy',  sub: '개인정보파일', legacySub: null,   dated: false }
 };
+var ARCHIVE_DONE_FOLDER = '완료';   // 노션 기입까지 끝난 파일을 옮겨두는 하위폴더
 function archiveFolder(brand, kind) {
   var cfg = (BRAND_ARCHIVE_FOLDER[brand] || {});
   var fid = cfg[kind.slot];
@@ -500,11 +508,12 @@ function archiveFolder(brand, kind) {
   return it.hasNext() ? it.next() : parent.createFolder(kind.legacySub);
 }
 // 같은 서류를 두 번 올리지 않도록: 파일 설명에 출처(pfile id)를 남기고, 같은 출처가 이미 있으면 건너뜀.
-function findArchived(folder, prefix, srcTag) {
+function reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function findArchived(folder, re, srcTag) {
   var it = folder.getFiles(), same = null, count = 0;
   while (it.hasNext()) {
     var f = it.next();
-    if (f.getName().indexOf(prefix) !== 0) continue;
+    if (!re.test(f.getName())) continue;
     count++;
     var desc = '';
     try { desc = f.getDescription() || ''; } catch (e) {}
@@ -519,18 +528,21 @@ function contractArchive(sess, body) {
   var sub = archiveFolder(brand, kind);
   if (!sub) return json({ error: '드라이브 폴더 미지정 (' + brand + '/' + kind.sub + ')' });
 
-  var base = String(((body.channelName || '') + (body.realName ? ('_' + body.realName) : ''))).replace(/[\\\/:*?"<>|]/g, '').trim() || kind.label;
-  var prefix = base + '_' + kind.label + '_';
+  var who = String(((body.channelName || '') + (body.realName ? ('_' + body.realName) : ''))).replace(/[\\\/:*?"<>|]/g, '').trim() || '미상';
   var stamp = todayDisp().replace(/[^0-9]/g, '');
+  // 계약서 = 채널명_본명_계약날짜 / 신분증·통장 = 종류_채널명_본명
+  var stem = kind.dated ? (who + '_' + stamp) : (kind.label + '_' + who);
   var nm = String(body.name || ''); var dot = nm.lastIndexOf('.'); var ext = dot >= 0 ? nm.slice(dot) : '';
   var m = String((body && body.pfileUrl) || '').match(/[?&]id=(\d+)/);
   var srcTag = m ? ('pfile:' + m[1]) : '';
 
   // 이미 올린 그 파일이면 다시 올리지 않는다(중복 방지). 다른 파일로 바꿔 올린 거면 새로 보관한다.
-  var prev = findArchived(sub, prefix, srcTag);
+  // 계약서는 날짜가 달라도(다음날 재업로드) 같은 사람의 같은 서류로 본다.
+  var re = new RegExp('^' + reEsc(kind.dated ? who + '_' : kind.label + '_' + who) + (kind.dated ? '\\d{6}' : '') + '(_\\d+)?\\.');
+  var prev = findArchived(sub, re, srcTag);
   if (prev.same) return json({ ok: true, url: prev.same.getUrl(), name: prev.same.getName(), dup: true });
   // 같은 사람의 같은 서류를 '다른 파일'로 다시 올린 경우 — 덮어쓰지 않고 번호를 붙여 남긴다.
-  var fname = prefix + stamp + (prev.count ? '_' + (prev.count + 1) : '') + ext;
+  var fname = stem + (prev.count ? '_' + (prev.count + 1) : '') + ext;
 
   var saved = null;
   // 1순위: 이미 올라온 pfile 을 서버 내에서 복사(바이트 재전송 없음)
@@ -608,6 +620,87 @@ function contractMail(sess, body) {
   }
   logAction('contractMail:' + to, sess, null);
   return json({ ok: true, to: to, from: from || me || TEAM_EMAIL, cc: opts.cc || '' });
+}
+
+/* 노션 자동기입용 — 아직 처리 안 된(=완료 폴더로 안 옮긴) 계약서 건 목록.
+   계약서 1장 = 정산 1건. 같은 사람의 신분증·통장이 개인정보파일에 있는지도 함께 알려준다. */
+function parseArchiveName(name, kind) {
+  var stem = String(name).replace(/\.[^.]+$/, '').replace(/_\d+$/, '');   // 확장자·중복번호 제거
+  if (kind.dated) {                                                        // 채널명_본명_YYMMDD
+    var m = stem.match(/^(.*)_(\d{6})$/); if (!m) return null;
+    var who = m[1], i = who.lastIndexOf('_');
+    return { channelName: i > 0 ? who.slice(0, i) : who, realName: i > 0 ? who.slice(i + 1) : '', date: m[2], who: who };
+  }
+  var p = kind.label + '_';                                                // 종류_채널명_본명
+  if (stem.indexOf(p) !== 0) return null;
+  var w = stem.slice(p.length), j = w.lastIndexOf('_');
+  return { channelName: j > 0 ? w.slice(0, j) : w, realName: j > 0 ? w.slice(j + 1) : '', date: '', who: w };
+}
+function doneFolder(folder) {
+  var it = folder.getFoldersByName(ARCHIVE_DONE_FOLDER);
+  return it.hasNext() ? it.next() : folder.createFolder(ARCHIVE_DONE_FOLDER);
+}
+function archivePending(sess, body) {
+  var brands = Object.keys(BRAND_ARCHIVE_FOLDER), out = [];
+  for (var i = 0; i < brands.length; i++) {
+    var brand = brands[i];
+    var cf = archiveFolder(brand, ARCHIVE_KIND.contract);
+    var pf = archiveFolder(brand, ARCHIVE_KIND.id);
+    if (!cf) continue;
+    // 개인정보파일 폴더의 파일명을 미리 모아 사람별로 붙여준다(완료 폴더 제외).
+    var priv = {};
+    if (pf) {
+      var pit = pf.getFiles();
+      while (pit.hasNext()) {
+        var pfl = pit.next(), pn = pfl.getName();
+        var k = pn.indexOf(ARCHIVE_KIND.id.label + '_') === 0 ? 'idFile' : (pn.indexOf(ARCHIVE_KIND.bank.label + '_') === 0 ? 'bankFile' : null);
+        if (!k) continue;
+        var pp = parseArchiveName(pn, k === 'idFile' ? ARCHIVE_KIND.id : ARCHIVE_KIND.bank);
+        if (!pp) continue;
+        (priv[pp.who] = priv[pp.who] || {})[k] = { id: pfl.getId(), name: pn, url: pfl.getUrl() };
+      }
+    }
+    var cit = cf.getFiles();
+    while (cit.hasNext()) {
+      var f = cit.next(), n = f.getName();
+      var p = parseArchiveName(n, ARCHIVE_KIND.contract);
+      if (!p) continue;                                                    // 규칙과 다른 이름은 건드리지 않음
+      var extra = priv[p.who] || {};
+      out.push({ brand: brand, channelName: p.channelName, realName: p.realName, date: p.date,
+        contractFile: { id: f.getId(), name: n, url: f.getUrl() },
+        idFile: extra.idFile || null, bankFile: extra.bankFile || null });
+    }
+  }
+  return json({ ok: true, items: out });
+}
+/* 보관된 서류 1개를 내려받기 (정산 대시보드가 쓸 로컬 사본용) */
+function archiveFile(sess, body) {
+  var id = String((body && body.id) || '');
+  if (!id) return json({ error: 'id 필요' });
+  var f = DriveApp.getFileById(id);
+  var blob = f.getBlob();
+  return json({ ok: true, id: id, name: f.getName(), type: blob.getContentType(),
+    dataUrl: 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes()) });
+}
+
+/* 노션 기입까지 끝난 건의 파일을 각 폴더의 '완료' 하위로 이동 */
+function archiveComplete(sess, body) {
+  var ids = (body && body.fileIds) || [];
+  if (!Array.isArray(ids) || !ids.length) return json({ error: 'fileIds 필요' });
+  var moved = 0, errs = [];
+  for (var i = 0; i < ids.length; i++) {
+    try {
+      var f = DriveApp.getFileById(String(ids[i]));
+      var parents = f.getParents();
+      if (!parents.hasNext()) { errs.push(ids[i] + ': 부모 폴더 없음'); continue; }
+      var cur = parents.next();
+      if (cur.getName() === ARCHIVE_DONE_FOLDER) { moved++; continue; }    // 이미 완료 — 다시 옮기지 않음
+      f.moveTo(doneFolder(cur));
+      moved++;
+    } catch (e) { errs.push(String(ids[i]) + ': ' + (e.message || e)); }
+  }
+  logAction('archiveComplete:' + moved, sess, null);
+  return json({ ok: errs.length === 0, moved: moved, errors: errs });
 }
 
 /* 구글 시트 CSV 프록시 (앱의 '시트에서 불러오기' 기능용) */
