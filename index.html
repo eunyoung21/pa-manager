@@ -1073,6 +1073,8 @@ function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUp
         to:email.trim(), subject:(subject.trim()||d.subject), body:(body.trim()||d.body),
         filename:built.filename, data:dataUrl, brand:brandId, senderName:(company||brandName||''),
       });
+      // 백엔드(Apps Script)가 아직 메일 발송 버전이 아니면 알아듣게 알려준다
+      if(j && /unknown action/.test(j.error||'')) throw new Error('백엔드에 메일 발송 기능이 아직 적용되지 않았습니다(관리자: Apps Script 재배포 필요).');
       if(!j || j.error) throw new Error((j&&j.error)||'발송 실패');
       setSent(`${email.trim()} 님에게 보냈습니다${j.from?` (발신 ${j.from})`:''}.`);
     }catch(e){
@@ -2699,7 +2701,7 @@ function AddPrivacyModal({onConfirm,onCancel,prefill,brandId}){
         </div>
         <div className="modal-full">
           <div className="modal-lbl">계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF · 올리면 브랜드 드라이브에 자동 보관)</span></div>
-          <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))} archive={{brand:brandId,channelName:f.channelName,realName:f.realName}}/>
+          <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))} archive={{brand:brandId,kind:'contract',channelName:f.channelName,realName:f.realName}}/>
         </div>
         <div className="modal-full"><div className="modal-lbl">비고</div><input className="modal-inp" value={f.notes} onChange={u('notes')}/></div>
       </div>
@@ -3814,20 +3816,20 @@ function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, o
         <div><div className="modal-lbl">성명</div><input className="modal-inp" value={f.realName} onChange={u('realName')}/></div>
         <div><div className="modal-lbl">연락처</div><input className="modal-inp" value={f.phone} onChange={u('phone')} placeholder="010-0000-0000"/></div>
         <div className="modal-full"><div className="modal-lbl">주소</div><input className="modal-inp" value={f.address} onChange={u('address')}/></div>
-        <div className="modal-full"><div className="modal-lbl">💳 통장사본 <span style={{color:'var(--dim)',fontSize:10}}>(올리면 예금주·은행·계좌 자동인식)</span></div>
-          <FileUpload label="통장사본 첨부" value={f.bankFile} onChange={v=>setF(p=>({...p,bankFile:v}))} onPick={onBankPick}/>
+        <div className="modal-full"><div className="modal-lbl">💳 통장사본 <span style={{color:'var(--dim)',fontSize:10}}>(올리면 예금주·은행·계좌 자동인식 · 브랜드 드라이브 개인정보파일에 자동 보관)</span></div>
+          <FileUpload label="통장사본 첨부" value={f.bankFile} onChange={v=>setF(p=>({...p,bankFile:v}))} onPick={onBankPick} archive={{brand:brandId,kind:'bank',channelName:f.channelName,realName:f.realName}}/>
         </div>
         <div><div className="modal-lbl">은행</div><input className="modal-inp" value={f.bankName} onChange={u('bankName')} placeholder="예: 국민"/></div>
         <div><div className="modal-lbl">예금주</div><input className="modal-inp" value={f.bankHolder} onChange={u('bankHolder')}/></div>
         <div className="modal-full"><div className="modal-lbl">계좌번호</div>
           <div style={{display:'flex',gap:6}}><input className="modal-inp" style={{flex:1}} value={f.bankAccount} onChange={u('bankAccount')}/><CopyBtn value={f.bankAccount} digits/></div></div>
-        <div className="modal-full"><div className="modal-lbl">🪪 신분증사본 <span style={{color:'var(--dim)',fontSize:10}}>(올리면 주민번호 자동인식)</span></div>
-          <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))} onPick={onIdPick}/>
+        <div className="modal-full"><div className="modal-lbl">🪪 신분증사본 <span style={{color:'var(--dim)',fontSize:10}}>(올리면 주민번호 자동인식 · 브랜드 드라이브 개인정보파일에 자동 보관)</span></div>
+          <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))} onPick={onIdPick} archive={{brand:brandId,kind:'id',channelName:f.channelName,realName:f.realName}}/>
         </div>
         <div className="modal-full"><div className="modal-lbl">주민등록번호</div>
           <div style={{display:'flex',gap:6}}><input className="modal-inp" style={{flex:1}} value={f.rrn} onChange={u('rrn')} placeholder="000000-0000000"/><CopyBtn value={f.rrn}/></div></div>
         <div className="modal-full"><div className="modal-lbl">📄 계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF · 올리면 브랜드 드라이브에 자동 보관)</span></div>
-          <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))} archive={{brand:brandId,channelName:f.channelName,realName:f.realName}}/>
+          <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))} archive={{brand:brandId,kind:'contract',channelName:f.channelName,realName:f.realName}}/>
         </div>
       </div>
       {ocrMsg&&<div style={{fontSize:12,color:'var(--accent)',marginTop:8}}>{ocrMsg}</div>}
