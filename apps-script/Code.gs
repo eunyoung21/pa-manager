@@ -523,8 +523,8 @@ function pfileGet(sess, body, p) {
    pfile 은 정산 3일 후 자동폐기되지만, 이 보관본은 폐기 대상이 아니라 회계/증빙용으로 남는다.
    대상: 브랜드 드라이브 > PA 협업 > 개인정보파일(신분증·통장) / 계약서파일(계약서) */
 var BRAND_ARCHIVE_FOLDER = {
-  basetune: { privacy: '', contract: '' },   // ← '개인정보파일' / '계약서파일' 폴더 ID
-  granny:   { privacy: '', contract: '' }
+  basetune: { privacy: '1-nqYhZjNhbJPtLiqLx3OjUeyqX8F7pjp', contract: '1SOULiiEG2U_BZ9S3erQK368LVzBn_r-K' },
+  granny:   { privacy: '1X6zSLsUyAWw8Yesd6TzJmjhfF2hZ39zH', contract: '19W5eF5pZxlpeDvL3aS-_kWoy-bQ7kXu7' }
 };
 // 위 ID 가 비어 있을 때만 쓰는 구버전 폴백: 브랜드 폴더 아래 하위폴더를 찾아/만들어 씀.
 var BRAND_DRIVE_FOLDER = {
