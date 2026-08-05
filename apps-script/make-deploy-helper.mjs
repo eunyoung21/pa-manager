@@ -79,7 +79,25 @@ const html = `<!doctype html>
       <li>아래 <b>실행 로그</b>에 <code>setup 완료</code> 가 뜨면 성공입니다.</li>
     </ol>
     <p class="d note">※ 드롭다운이 안 보이면 창이 좁아 접힌 것입니다 — 브라우저 창을 넓히거나 최대화하세요.<br>
-    ※ <code>setup</code> 은 여러 번 실행해도 데이터가 지워지지 않습니다(없는 것만 만듭니다). 안심하고 눌러도 됩니다.</p>
+    ※ <code>setup</code> 은 여러 번 실행해도 데이터가 지워지지 않습니다(없는 것만 만듭니다). 안심하고 눌러도 됩니다.<br>
+    ※ 권한 창에서 <b>취소를 눌렀어도 망가지는 건 없습니다</b> — 그냥 다시 ▷ 실행 하면 됩니다.</p>
+  </div>
+
+  <div class="step">
+    <span class="n">4-1</span><span class="t">권한이 진짜 들어갔는지 확인 (권한 창이 안 뜬 경우 꼭)</span>
+    <p class="d">권한 창 없이 바로 <b>"실행이 완료됨"</b> 이 떴다면, 3단계(<code>appsscript.json</code>)가 저장되지 않아
+    <b>옛 권한 목록 그대로</b>일 수 있습니다. 아래로 확인하세요.</p>
+    <ol class="d list">
+      <li>함수 드롭다운에서 <code>checkMail</code> 선택 → <b>▷ 실행</b></li>
+      <li>화면 아래 <b>실행 로그</b>를 봅니다.
+        <br>· <b>✅ 메일 발송 권한 OK</b> → 통과. 5단계로 가세요.
+        <br>· <b>❌ 메일 발송 권한이 없습니다</b> → 3단계를 다시 하세요:
+        <b>⚙ 프로젝트 설정 → "appsscript.json 매니페스트 파일 표시" 체크</b> → 편집기 왼쪽에 생긴
+        <code>appsscript.json</code> 클릭 → Ctrl+A → 위 3단계 복사 버튼으로 붙여넣기 → Ctrl+S → 다시 <code>setup</code> 실행
+      </li>
+      <li>로그에 <b>발신 주소</b>가 어디로 나가는지도 같이 찍힙니다. 확인해 두세요.</li>
+    </ol>
+    <p class="d note">※ 진짜 메일이 나가는지까지 보려면 <code>sendTestMail</code> 을 실행하세요 — 본인 메일로 테스트 한 통이 옵니다.</p>
   </div>
 
   <div class="step">

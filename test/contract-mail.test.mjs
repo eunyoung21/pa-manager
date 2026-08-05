@@ -11,11 +11,13 @@ let fail = 0;
 const chk = (c, m) => { console.log((c ? '  PASS ' : '  FAIL ') + m); if (!c) fail++; };
 
 /* ── 구글 전역 가짜 구현 ── */
-function makeEnv({ deployer = 'cheddar@dayzcorp.kr', aliases = [], sendThrows = null, quota = 100 } = {}) {
+function makeEnv({ deployer = 'cheddar@dayzcorp.kr', aliases = [], sendThrows = null, quota = 100, quotaThrows = null } = {}) {
   const sentAll = [];
+  const printed = [];
   const env = {
     sent: sentAll,
     logs: [],
+    printed,
     Session: { getEffectiveUser: () => ({ getEmail: () => deployer }) },
     GmailApp: {
       getAliases: () => aliases,
@@ -24,7 +26,7 @@ function makeEnv({ deployer = 'cheddar@dayzcorp.kr', aliases = [], sendThrows = 
         sentAll.push({ to, subject, body, opts });
       },
     },
-    MailApp: { getRemainingDailyQuota: () => quota },
+    MailApp: { getRemainingDailyQuota: () => { if (quotaThrows) throw new Error(quotaThrows); return quota; } },
     Utilities: {
       base64Decode: (b64) => Buffer.from(b64, 'base64'),
       newBlob: (bytes, type, name) => ({ bytes, type, name }),
@@ -36,7 +38,7 @@ function makeEnv({ deployer = 'cheddar@dayzcorp.kr', aliases = [], sendThrows = 
     PropertiesService: { getScriptProperties: () => ({ getProperty: () => 'x', setProperty: () => {} }) },
     SpreadsheetApp: { openById: () => null, getActiveSpreadsheet: () => null },
     DriveApp: {}, LockService: {}, ContentService: { createTextOutput: () => ({ setMimeType: () => {} }), MimeType: {} },
-    Logger: { log: () => {} },
+    Logger: { log: (s) => printed.push(String(s)) },
     console,
   };
   const names = Object.keys(env);
@@ -44,7 +46,7 @@ function makeEnv({ deployer = 'cheddar@dayzcorp.kr', aliases = [], sendThrows = 
   const factory = new Function(...names, CODE + `
     ;json = function(o){ return o; };
     logAction = function(a){ logs.push(a); };
-    return { contractMail: contractMail, teamAlias: teamAlias };
+    return { contractMail: contractMail, teamAlias: teamAlias, checkMail: checkMail, sendTestMail: sendTestMail };
   `);
   return { env, api: factory(...names.map(n => env[n])) };
 }
@@ -123,6 +125,45 @@ console.log('6) 발송 한도·실패 처리');
   const f = makeEnv({ sendThrows: 'Invalid from address' });
   const r = f.api.contractMail(SESS, BODY);
   chk(/메일 발송 실패/.test(r.error || ''), '구글 오류를 그대로 터뜨리지 않고 메시지로 반환');
+}
+
+console.log('7) 편집기 점검 함수 checkMail — 권한이 없을 때');
+{
+  const { env, api } = makeEnv({ quotaThrows: 'You do not have permission to call MailApp.getRemainingDailyQuota' });
+  api.checkMail();
+  const out = env.printed.join('\n');
+  chk(/메일 발송 권한이 없습니다/.test(out), '권한 없음을 분명히 알림');
+  chk(/appsscript\.json/.test(out), '원인(매니페스트 미교체)을 짚어줌');
+  chk(!/여기까지 나왔으면/.test(out) && !/권한 OK/.test(out), '권한 없는데 다음 단계로 넘기지 않음');
+}
+
+console.log('8) checkMail — 권한이 있을 때 발신 주소를 알려준다');
+{
+  const a = makeEnv({ deployer: 'cheddar@dayzcorp.kr' });
+  a.api.checkMail();
+  chk(/권한 OK/.test(a.env.printed.join('\n')), '권한 OK 표시');
+  chk(/배포 계정이 팀 메일/.test(a.env.printed.join('\n')), '배포계정=팀메일이면 그대로 발송한다고 안내');
+
+  const b = makeEnv({ deployer: 'someone@gmail.com', aliases: ['cheddar@dayzcorp.kr'] });
+  b.api.checkMail();
+  chk(/별칭으로 발송/.test(b.env.printed.join('\n')), '별칭이 있으면 팀 메일로 나간다고 안내');
+
+  const c = makeEnv({ deployer: 'someone@gmail.com', aliases: [] });
+  c.api.checkMail();
+  chk(/사본\(cc\)/.test(c.env.printed.join('\n')), '별칭이 없으면 사본 발송이라고 안내');
+  chk(/다른 주소에서 메일 보내기/.test(c.env.printed.join('\n')), '팀 메일로 보내는 방법까지 안내');
+}
+
+console.log('9) sendTestMail — 본인에게 한 통 보내 확인');
+{
+  const { env, api } = makeEnv({ deployer: 'cheddar@dayzcorp.kr' });
+  api.sendTestMail();
+  chk(env.sent.length === 1 && env.sent[0].to === 'cheddar@dayzcorp.kr', '배포 계정 본인에게 발송');
+  chk(/테스트 메일을 보냈습니다/.test(env.printed.join('\n')), '성공 로그');
+
+  const f = makeEnv({ sendThrows: 'no permission' });
+  f.api.sendTestMail();
+  chk(f.env.sent.length === 0 && /발송 실패/.test(f.env.printed.join('\n')), '실패 시 이유와 다음 조치 안내');
 }
 
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ contractMail 전부 통과'));

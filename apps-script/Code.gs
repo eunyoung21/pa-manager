@@ -62,6 +62,50 @@ function setup() {
   Logger.log('TOKEN_SECRET set: ' + !!props.getProperty('TOKEN_SECRET'));
 }
 
+/* ── 계약서 메일 권한 점검 (편집기에서 실행) ───────────────────
+   setup 을 실행해도 권한 창이 안 뜨면 이 함수를 실행해 본다.
+   무엇이 되고 안 되는지, 메일이 어느 주소로 나가는지 실행 로그에 찍어준다. */
+function checkMail() {
+  var me = deployerEmail();
+  Logger.log('배포 계정: ' + (me || '(확인 실패)'));
+  var quota;
+  try {
+    quota = MailApp.getRemainingDailyQuota();
+  } catch (e) {
+    Logger.log('❌ 메일 발송 권한이 없습니다.');
+    Logger.log('   → appsscript.json 을 새 것으로 바꾸고 저장했는지 확인하세요.');
+    Logger.log('   → (⚙ 프로젝트 설정 → "appsscript.json 매니페스트 파일 표시" 체크 후 편집기에서 교체)');
+    Logger.log('   상세: ' + (e && e.message || e));
+    return;
+  }
+  Logger.log('✅ 메일 발송 권한 OK — 오늘 남은 발송 가능 수: ' + quota);
+  var from = teamAlias();
+  if (me && me.toLowerCase() === TEAM_EMAIL.toLowerCase())
+    Logger.log('발신 주소: ' + TEAM_EMAIL + ' (배포 계정이 팀 메일)');
+  else if (from)
+    Logger.log('발신 주소: ' + TEAM_EMAIL + ' (등록된 별칭으로 발송)');
+  else
+    Logger.log('발신 주소: ' + me + ' — ' + TEAM_EMAIL + ' 로 사본(cc)이 갑니다. '
+             + '팀 메일 이름으로 보내려면 Gmail 설정 → 계정 → "다른 주소에서 메일 보내기" 에 ' + TEAM_EMAIL + ' 등록.');
+  Logger.log('여기까지 나왔으면 배포(새 버전)만 하면 끝입니다.');
+}
+
+/* 실제로 한 통 보내 본다 — 배포 계정 본인에게 테스트 메일 발송 */
+function sendTestMail() {
+  var me = deployerEmail();
+  if (!me) { Logger.log('❌ 계정 확인 실패'); return; }
+  try {
+    var opts = { replyTo: TEAM_EMAIL, name: 'PA Manager' };
+    var from = teamAlias();
+    if (from) opts.from = from;
+    GmailApp.sendEmail(me, '[PA Manager] 계약서 메일 발송 테스트', '이 메일이 도착했다면 발송 준비가 끝났습니다.', opts);
+    Logger.log('✅ ' + me + ' 로 테스트 메일을 보냈습니다. 받은편지함을 확인하세요.');
+  } catch (e) {
+    Logger.log('❌ 발송 실패: ' + (e && e.message || e));
+    Logger.log('   → checkMail 을 먼저 실행해 권한부터 확인하세요.');
+  }
+}
+
 /* ── 암호화 헬퍼 ───────────────────────────────────────────── */
 function toHex(bytes) {
   var s = '';
