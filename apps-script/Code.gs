@@ -67,7 +67,7 @@ function setup() {
    무엇이 되고 안 되는지, 메일이 어느 주소로 나가는지 실행 로그에 찍어준다. */
 function checkMail() {
   var me = deployerEmail();
-  Logger.log('배포 계정: ' + (me || '(확인 실패)'));
+  Logger.log('배포 계정: ' + (me || '(주소를 못 읽음 — 권한 목록에 userinfo.email 이 없는 경우. 발송에는 지장 없음)'));
   var quota;
   try {
     quota = MailApp.getRemainingDailyQuota();
@@ -93,13 +93,14 @@ function checkMail() {
 /* 실제로 한 통 보내 본다 — 배포 계정 본인에게 테스트 메일 발송 */
 function sendTestMail() {
   var me = deployerEmail();
-  if (!me) { Logger.log('❌ 계정 확인 실패'); return; }
+  var to = me || TEAM_EMAIL;   // 주소를 못 읽어도 팀 메일로는 보내 본다
+  if (!me) Logger.log('계정 주소를 못 읽어 팀 메일(' + TEAM_EMAIL + ')로 보냅니다.');
   try {
     var opts = { replyTo: TEAM_EMAIL, name: 'PA Manager' };
     var from = teamAlias();
     if (from) opts.from = from;
-    GmailApp.sendEmail(me, '[PA Manager] 계약서 메일 발송 테스트', '이 메일이 도착했다면 발송 준비가 끝났습니다.', opts);
-    Logger.log('✅ ' + me + ' 로 테스트 메일을 보냈습니다. 받은편지함을 확인하세요.');
+    GmailApp.sendEmail(to, '[PA Manager] 계약서 메일 발송 테스트', '이 메일이 도착했다면 발송 준비가 끝났습니다.', opts);
+    Logger.log('✅ ' + to + ' 로 테스트 메일을 보냈습니다. 받은편지함을 확인하세요.');
   } catch (e) {
     Logger.log('❌ 발송 실패: ' + (e && e.message || e));
     Logger.log('   → checkMail 을 먼저 실행해 권한부터 확인하세요.');
@@ -612,8 +613,12 @@ function contractArchive(sess, body) {
            아니면 배포 계정으로 나가되 회신주소는 항상 팀 메일. */
 var TEAM_EMAIL = 'cheddar@dayzcorp.kr';
 
+/* 배포 계정 주소. 권한 목록에 userinfo.email 이 없으면 빈 문자열이 나온다(발송 자체엔 지장 없음). */
 function deployerEmail() {
-  try { return Session.getEffectiveUser().getEmail() || ''; } catch (e) { return ''; }
+  var e = '';
+  try { e = Session.getEffectiveUser().getEmail() || ''; } catch (err) {}
+  if (!e) { try { e = Session.getActiveUser().getEmail() || ''; } catch (err) {} }
+  return e;
 }
 /* 팀 메일로 보낼 수 있으면 그 주소를 돌려준다(별칭일 때만 from 지정이 먹힌다) */
 function teamAlias() {
@@ -653,9 +658,10 @@ function contractMail(sess, body) {
   };
   if (senderName) opts.name = senderName;
   if (from) opts.from = from;
-  // 발신이 팀 메일이 아니면 팀 메일에도 사본을 남긴다(보낸 기록 확인용)
+  // 발신이 팀 메일이 아니면 팀 메일에도 사본을 남긴다(보낸 기록 확인용).
+  // 주소를 못 읽는 경우(userinfo.email 없음)엔 자기 자신에게 cc 하는 꼴이 될 수 있어 생략한다.
   var me = deployerEmail();
-  if (!from && me.toLowerCase() !== TEAM_EMAIL.toLowerCase()) opts.cc = TEAM_EMAIL;
+  if (!from && me && me.toLowerCase() !== TEAM_EMAIL.toLowerCase()) opts.cc = TEAM_EMAIL;
 
   try {
     GmailApp.sendEmail(to, subject, text, opts);

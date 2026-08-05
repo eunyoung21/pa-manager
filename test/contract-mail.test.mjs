@@ -18,7 +18,10 @@ function makeEnv({ deployer = 'cheddar@dayzcorp.kr', aliases = [], sendThrows = 
     sent: sentAll,
     logs: [],
     printed,
-    Session: { getEffectiveUser: () => ({ getEmail: () => deployer }) },
+    Session: {
+      getEffectiveUser: () => ({ getEmail: () => deployer }),
+      getActiveUser: () => ({ getEmail: () => deployer }),
+    },
     GmailApp: {
       getAliases: () => aliases,
       sendEmail: (to, subject, body, opts) => {
@@ -164,6 +167,25 @@ console.log('9) sendTestMail — 본인에게 한 통 보내 확인');
   const f = makeEnv({ sendThrows: 'no permission' });
   f.api.sendTestMail();
   chk(f.env.sent.length === 0 && /발송 실패/.test(f.env.printed.join('\n')), '실패 시 이유와 다음 조치 안내');
+}
+
+console.log('10) 계정 주소를 못 읽는 경우(userinfo.email 권한 없음)에도 동작해야');
+{
+  const { env, api } = makeEnv({ deployer: '' });
+  const r = api.contractMail(SESS, BODY);
+  chk(r.ok === true, '주소를 몰라도 발송은 된다');
+  chk(!env.sent[0].opts.cc, '자기 자신에게 사본 보내는 꼴은 피한다');
+  chk(env.sent[0].opts.replyTo === 'cheddar@dayzcorp.kr', '회신주소는 그대로 팀 메일');
+
+  const t = makeEnv({ deployer: '' });
+  t.api.sendTestMail();
+  chk(t.env.sent.length === 1 && t.env.sent[0].to === 'cheddar@dayzcorp.kr', '테스트 메일은 팀 메일로라도 보낸다');
+  chk(!/계정 확인 실패/.test(t.env.printed.join('\n')), '주소를 못 읽어도 그냥 멈추지 않는다');
+
+  const c = makeEnv({ deployer: '' });
+  c.api.checkMail();
+  chk(/userinfo\.email/.test(c.env.printed.join('\n')), '주소를 못 읽는 이유를 로그로 설명');
+  chk(/권한 OK/.test(c.env.printed.join('\n')), '주소와 무관하게 메일 권한 점검은 진행');
 }
 
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ contractMail 전부 통과'));
