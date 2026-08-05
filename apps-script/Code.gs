@@ -369,6 +369,7 @@ function handle(e, body) {
       case 'pfileSave':return pfileSave(need(), body);
       case 'pfileGet': return pfileGet(need(), body, p);
       case 'contractArchive': return contractArchive(need(), body);
+      case 'contractMail': return contractMail(need(), body);
       case 'users':    return usersList(mgr());
       case 'userCreate':return userCreate(mgr(), body);
       case 'userDelete':return userDelete(mgr(), body);
@@ -470,40 +471,143 @@ function pfileGet(sess, body, p) {
   return json({ ok: true, id: id, dataUrl: dataUrl, type: blob.getContentType() });
 }
 
-/* 계약서 영구보관 — 개인정보로 올라온 계약서를 브랜드 드라이브 폴더(계약서 하위)에 복사.
-   pfile 은 정산 3일 후 자동폐기되지만, 이 보관본은 폐기 대상이 아니라 회계/증빙용으로 남는다. */
+/* 서류 영구보관 — 개인정보로 올라온 계약서·신분증사본·통장사본을 브랜드 드라이브에 복사.
+   pfile 은 정산 3일 후 자동폐기되지만, 이 보관본은 폐기 대상이 아니라 회계/증빙용으로 남는다.
+   대상: 브랜드 드라이브 > PA 협업 > 개인정보파일(신분증·통장) / 계약서파일(계약서) */
+var BRAND_ARCHIVE_FOLDER = {
+  basetune: { privacy: '', contract: '' },   // ← '개인정보파일' / '계약서파일' 폴더 ID
+  granny:   { privacy: '', contract: '' }
+};
+// 위 ID 가 비어 있을 때만 쓰는 구버전 폴백: 브랜드 폴더 아래 하위폴더를 찾아/만들어 씀.
 var BRAND_DRIVE_FOLDER = {
   basetune: '1naWNt2xs9biAipjDZWEWVVU1nrOC8sXv',
   granny:   '1ubvCkIzuspkDtTvbDBvMFF5tV6jsxJp_'
 };
+var ARCHIVE_KIND = {
+  contract: { label: '계약서',   slot: 'contract', sub: '계약서파일',   legacySub: '계약서' },
+  id:       { label: '신분증사본', slot: 'privacy',  sub: '개인정보파일', legacySub: null },
+  bank:     { label: '통장사본',  slot: 'privacy',  sub: '개인정보파일', legacySub: null }
+};
+function archiveFolder(brand, kind) {
+  var cfg = (BRAND_ARCHIVE_FOLDER[brand] || {});
+  var fid = cfg[kind.slot];
+  if (fid) return DriveApp.getFolderById(fid);           // 지정된 폴더로 정확히
+  if (!kind.legacySub) return null;                      // 미지정이면 엉뚱한 곳에 만들지 않고 실패
+  var bid = BRAND_DRIVE_FOLDER[brand];
+  if (!bid) return null;
+  var parent = DriveApp.getFolderById(bid);
+  var it = parent.getFoldersByName(kind.legacySub);
+  return it.hasNext() ? it.next() : parent.createFolder(kind.legacySub);
+}
+// 같은 서류를 두 번 올리지 않도록: 파일 설명에 출처(pfile id)를 남기고, 같은 출처가 이미 있으면 건너뜀.
+function findArchived(folder, prefix, srcTag) {
+  var it = folder.getFiles(), same = null, count = 0;
+  while (it.hasNext()) {
+    var f = it.next();
+    if (f.getName().indexOf(prefix) !== 0) continue;
+    count++;
+    var desc = '';
+    try { desc = f.getDescription() || ''; } catch (e) {}
+    if (srcTag && !same && desc === srcTag) same = f;
+  }
+  return { same: same, count: count };
+}
 function contractArchive(sess, body) {
-  var fid = BRAND_DRIVE_FOLDER[String((body && body.brand) || '')];
-  if (!fid) return json({ error: 'no brand folder' });
-  var parent = DriveApp.getFolderById(fid);
-  var subIt = parent.getFoldersByName('계약서');
-  var sub = subIt.hasNext() ? subIt.next() : parent.createFolder('계약서');
-  var base = String(((body.channelName || '') + (body.realName ? ('_' + body.realName) : ''))).replace(/[\\\/:*?"<>|]/g, '').trim() || '계약서';
+  var brand = String((body && body.brand) || '');
+  var kind = ARCHIVE_KIND[String((body && body.kind) || 'contract')];
+  if (!kind) return json({ error: 'bad kind' });
+  var sub = archiveFolder(brand, kind);
+  if (!sub) return json({ error: '드라이브 폴더 미지정 (' + brand + '/' + kind.sub + ')' });
+
+  var base = String(((body.channelName || '') + (body.realName ? ('_' + body.realName) : ''))).replace(/[\\\/:*?"<>|]/g, '').trim() || kind.label;
+  var prefix = base + '_' + kind.label + '_';
   var stamp = todayDisp().replace(/[^0-9]/g, '');
   var nm = String(body.name || ''); var dot = nm.lastIndexOf('.'); var ext = dot >= 0 ? nm.slice(dot) : '';
-  var fname = base + '_계약서_' + stamp + ext;
-  // 1순위: 이미 올라온 pfile 을 서버 내에서 복사(바이트 재전송 없음)
   var m = String((body && body.pfileUrl) || '').match(/[?&]id=(\d+)/);
+  var srcTag = m ? ('pfile:' + m[1]) : '';
+
+  // 이미 올린 그 파일이면 다시 올리지 않는다(중복 방지). 다른 파일로 바꿔 올린 거면 새로 보관한다.
+  var prev = findArchived(sub, prefix, srcTag);
+  if (prev.same) return json({ ok: true, url: prev.same.getUrl(), name: prev.same.getName(), dup: true });
+  // 같은 사람의 같은 서류를 '다른 파일'로 다시 올린 경우 — 덮어쓰지 않고 번호를 붙여 남긴다.
+  var fname = prefix + stamp + (prev.count ? '_' + (prev.count + 1) : '') + ext;
+
+  var saved = null;
+  // 1순위: 이미 올라온 pfile 을 서버 내에서 복사(바이트 재전송 없음)
   if (m) {
     var it = pfileFolder().getFilesByName(m[1]);
-    if (it.hasNext()) {
-      var copy = it.next().makeCopy(fname, sub);
-      return json({ ok: true, url: copy.getUrl(), name: fname });
-    }
+    if (it.hasNext()) saved = it.next().makeCopy(fname, sub);
   }
   // 2순위: pfile 을 못 찾으면 data(base64) 로 직접 저장
-  if (body.data) {
+  if (!saved && body.data) {
     var mm = String(body.data).match(/^data:([^;]+);base64,(.*)$/);
     if (!mm) return json({ error: 'bad data' });
-    var blob = Utilities.newBlob(Utilities.base64Decode(mm[2]), mm[1], fname);
-    var f = sub.createFile(blob);
-    return json({ ok: true, url: f.getUrl(), name: fname });
+    saved = sub.createFile(Utilities.newBlob(Utilities.base64Decode(mm[2]), mm[1], fname));
   }
-  return json({ error: 'no source' });
+  if (!saved) return json({ error: 'no source' });
+  if (srcTag) { try { saved.setDescription(srcTag); } catch (e) {} }
+  return json({ ok: true, url: saved.getUrl(), name: fname });
+}
+
+/* ── 계약서 메일 발송 ────────────────────────────────────────
+   앱이 만든 .docx(base64)를 그대로 첨부해 모델에게 보낸다.
+   브라우저는 메일에 파일을 자동첨부할 수 없어서 발송만 여기서 한다.
+   발신자: 배포 계정이 팀 메일이거나 팀 메일이 Gmail 별칭이면 팀 메일로,
+           아니면 배포 계정으로 나가되 회신주소는 항상 팀 메일. */
+var TEAM_EMAIL = 'cheddar@dayzcorp.kr';
+
+function deployerEmail() {
+  try { return Session.getEffectiveUser().getEmail() || ''; } catch (e) { return ''; }
+}
+/* 팀 메일로 보낼 수 있으면 그 주소를 돌려준다(별칭일 때만 from 지정이 먹힌다) */
+function teamAlias() {
+  var me = deployerEmail();
+  if (me && me.toLowerCase() === TEAM_EMAIL.toLowerCase()) return '';  // 기본 발신자가 이미 팀 메일
+  try {
+    var al = GmailApp.getAliases() || [];
+    for (var i = 0; i < al.length; i++) if (String(al[i]).toLowerCase() === TEAM_EMAIL.toLowerCase()) return al[i];
+  } catch (e) {}
+  return '';
+}
+
+function contractMail(sess, body) {
+  var to = String((body && body.to) || '').trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return json({ error: '받는 사람 이메일이 올바르지 않습니다.' });
+
+  var m = String((body && body.data) || '').match(/^data:([^;]+);base64,(.*)$/);
+  if (!m) return json({ error: '첨부할 계약서 파일이 없습니다.' });
+
+  var fname = String((body && body.filename) || '').replace(/[\\\/:*?"<>|\r\n]/g, '').trim() || '광고모델계약서.docx';
+  if (fname.slice(-5).toLowerCase() !== '.docx') fname += '.docx';
+  var blob = Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], fname);
+
+  var subject = String((body && body.subject) || '').replace(/[\r\n]+/g, ' ').trim() || '광고모델 계약서';
+  var text = String((body && body.body) || '');
+
+  var quota = 0;
+  try { quota = MailApp.getRemainingDailyQuota(); } catch (e) {}
+  if (quota === 0) return json({ error: '오늘 메일 발송 한도를 다 썼습니다. 내일 다시 시도하세요.' });
+
+  var from = teamAlias();
+  var senderName = String((body && body.senderName) || '').replace(/[\r\n]+/g, ' ').trim();
+  var opts = {
+    attachments: [blob],
+    replyTo: TEAM_EMAIL,
+    htmlBody: text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+  };
+  if (senderName) opts.name = senderName;
+  if (from) opts.from = from;
+  // 발신이 팀 메일이 아니면 팀 메일에도 사본을 남긴다(보낸 기록 확인용)
+  var me = deployerEmail();
+  if (!from && me.toLowerCase() !== TEAM_EMAIL.toLowerCase()) opts.cc = TEAM_EMAIL;
+
+  try {
+    GmailApp.sendEmail(to, subject, text, opts);
+  } catch (err) {
+    return json({ error: '메일 발송 실패: ' + String(err && err.message || err) });
+  }
+  logAction('contractMail:' + to, sess, null);
+  return json({ ok: true, to: to, from: from || me || TEAM_EMAIL, cc: opts.cc || '' });
 }
 
 /* 구글 시트 CSV 프록시 (앱의 '시트에서 불러오기' 기능용) */

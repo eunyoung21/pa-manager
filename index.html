@@ -887,7 +887,19 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
     all.forEach(function(b){ outb.set(b,pos); pos+=b.length; });
     return outb;
   }
-  window.generateContractDocx = function(brandId, name, fee, date, model){
+  var DOCX_MIME='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  function contractFileName(name,date){ return '광고모델계약서_'+(name||'모델')+'_'+fmtDate(date).replace(/ /g,'')+'.docx'; }
+  // 만든 파일을 내려받는다. 메일 발송은 같은 바이트를 그대로 첨부하므로 다운로드와 내용이 동일하다.
+  function downloadDocx(built){
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([built.bytes],{type:DOCX_MIME}));
+    a.download=built.filename;
+    a.click();
+  }
+  window.CONTRACT_DOCX_MIME=DOCX_MIME;
+
+  // 앱 기본 양식으로 .docx 바이트 생성 (다운로드하지 않음)
+  window.buildContractDocx = function(brandId, name, fee, date, model){
     var cfg=CB[brandId];
     if(!cfg) throw new Error('이 브랜드는 계약서 설정이 없습니다: '+brandId);
     model = model || { name:name, phone:'', addr:'' };
@@ -897,26 +909,24 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
       {name:'_rels/.rels', data:enc.encode(DX_RELS)},
       {name:'word/document.xml', data:enc.encode(buildDocXml(cfg,name,fee,date,model))},
     ]);
-    var blob=new Blob([zip],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-    var a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='광고모델계약서_'+(name||'모델')+'_'+fmtDate(date).replace(/ /g,'')+'.docx';
-    a.click();
+    return { bytes:zip, filename:contractFileName(name,date), type:DOCX_MIME };
+  };
+  window.generateContractDocx = function(brandId, name, fee, date, model){
+    downloadDocx(window.buildContractDocx(brandId,name,fee,date,model));
   };
 
   /* ─── 업로드한 양식(.docx)으로 생성 — 본문은 손대지 않고 값만 채운다 ───
      계약서 문구가 바뀌면 코드를 고치는 대신 새 양식 파일을 올리면 된다. */
-  window.generateContractFromTemplate = async function(tplBytes, name, fee, date, model){
+  window.buildContractFromTemplate = async function(tplBytes, name, fee, date, model){
     model = model || {};
     var out = await window.CONTRACT_TPL.fill(tplBytes, {
       name: name||'', fee: fmtFeeNum(fee), date: fmtDate(date),
       phone: model.phone||'', rrn: model.rrn||'', addr: model.addr||''
     });
-    var blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-    var a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='광고모델계약서_'+(name||'모델')+'_'+fmtDate(date).replace(/ /g,'')+'.docx';
-    a.click();
+    return { bytes:out, filename:contractFileName(name,date), type:DOCX_MIME };
+  };
+  window.generateContractFromTemplate = async function(tplBytes, name, fee, date, model){
+    downloadDocx(await window.buildContractFromTemplate(tplBytes,name,fee,date,model));
   };
   // 양식의 빈칸(________원정)에는 '원정' 없이 숫자만 넣는다
   function fmtFeeNum(v){ var s=String(v||'').replace(/[^0-9]/g,''); return s ? Number(s).toLocaleString() : ''; }
@@ -945,6 +955,63 @@ async function loadContractTemplate(t){
 }
 const CT_SLOT_LABEL = { name:'모델 이름', fee:'모델료', date:'계약일자', phone:'연락처', rrn:'주민등록번호', addr:'주소' };
 
+/* ─── 계약서 메일 발송 ───────────────────────────────────────
+   생성한 .docx 바이트를 그대로 백엔드(Apps Script)로 넘겨 첨부해 보낸다.
+   브라우저는 메일에 파일을 자동첨부할 수 없어서(리셀러 통지 도구의 한계) 발송은 서버가 한다. */
+const TEAM_EMAIL = 'cheddar@dayzcorp.kr';
+function bytesToDataUrl(bytes, type){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>res(String(fr.result||''));
+    fr.onerror=()=>rej(new Error('첨부 파일 변환 실패'));
+    fr.readAsDataURL(new Blob([bytes],{type:type||'application/octet-stream'}));
+  });
+}
+const isEmail = s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(s||'').trim());
+function downloadBuiltDocx(built){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([built.bytes],{type:built.type||window.CONTRACT_DOCX_MIME}));
+  a.download=built.filename;
+  a.click();
+}
+function contractFeeText(fee){
+  const n=String(fee||'').replace(/[^0-9]/g,'');
+  return n ? Number(n).toLocaleString()+'원' : '';
+}
+function contractDateText(d){
+  const a=String(d||'').split('-');
+  return a.length===3 ? `${a[0]}년 ${a[1]}월 ${a[2]}일` : String(d||'');
+}
+// 모델이 직접 채워야 하는 칸 — 알바가 비워둔 항목만 안내한다.
+function contractMailDefaults({ brandName, company, name, fee, date, phone, rrn, addr }){
+  const blanks=[];
+  if(!phone) blanks.push('연락처');
+  if(!rrn)   blanks.push('주민등록번호');
+  if(!addr)  blanks.push('주소');
+  blanks.push('이름(서명 갈음)');
+  const lines=[
+    `${name}님, 안녕하세요.`,
+    `${company||brandName||''} 광고모델 계약 건으로 계약서를 보내드립니다.`,
+    '',
+    '■ 계약 내용',
+    `- 계약일자: ${contractDateText(date)}`,
+  ];
+  if(contractFeeText(fee)) lines.push(`- 모델료: ${contractFeeText(fee)} (소득세 3.3% 모델 부담)`);
+  lines.push(
+    '',
+    '■ 진행 방법',
+    `1) 첨부된 워드 파일을 열어 '모델'란의 ${blanks.join('·')}을(를) 채워주세요.`,
+    '2) 내용 확인 후 이 메일에 그대로 회신해 주시면 계약이 완료됩니다.',
+    '',
+    '문의사항은 이 메일로 회신 주시면 됩니다.',
+    '감사합니다.',
+  );
+  return {
+    subject: `[${brandName||company||'광고'}] 광고모델 계약서 - ${name}님`,
+    body: lines.join('\n'),
+  };
+}
+
 /* ─── 계약서 생성 모달 (모델명·모델료·계약일자 입력 → 워드 다운로드)
    양식은 브랜드별로 업로드해 쓴다 — 계약서 문구가 바뀌면 새 파일만 올리면 되고 코드는 안 고친다.
    업로드한 양식이 없으면 앱에 내장된 기본 양식으로 만든다(종전과 동일). ─── */
@@ -956,29 +1023,83 @@ function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUp
   const [rrn,setRrn]=useState('');
   const [fee,setFee]=useState('');
   const [date,setDate]=useState(today);
+  const [email,setEmail]=useState('');
   const [busy,setBusy]=useState(false);
   const [err,setErr]=useState('');
   const [tplMsg,setTplMsg]=useState('');
+  const [sent,setSent]=useState('');       // 발송 완료 안내
+  const [failed,setFailed]=useState(false); // 발송 실패 → 수동 발송 폴백 노출
+  const [showMail,setShowMail]=useState(false);
+  const [subject,setSubject]=useState('');  // 비우면 기본 문구 사용
+  const [body,setBody]=useState('');
   const tplRef=useRef(null);
   const hasCfg = !!(window.CONTRACT_BRANDS && window.CONTRACT_BRANDS[brandId]);
+  const company = window.CONTRACT_BRANDS?.[brandId]?.company || '';
   const slots = template?.slots || null;
   const missing = slots ? Object.keys(CT_SLOT_LABEL).filter(k=>!slots[k]) : [];
-  const go=async()=>{
-    if(!name.trim()){ setErr('모델 이름을 입력하세요.'); return; }
-    if(!template && !hasCfg){ setErr('이 브랜드는 기본 양식이 없습니다. 계약서 파일을 올려주세요.'); return; }
-    setBusy(true); setErr('');
+  const mailBase = ()=>contractMailDefaults({ brandName, company, name:name.trim()||'모델',
+    fee:fee.trim(), date, phone:phone.trim(), rrn:rrn.trim(), addr:addr.trim() });
+  // 계약서 .docx 를 만들어 바이트로 돌려준다(다운로드·메일첨부 공용)
+  const buildDocx=async()=>{
     const model={ name:name.trim(), phone:phone.trim(), addr:addr.trim(), rrn:rrn.trim() };
-    try{
-      if(template){
-        const bytes=await loadContractTemplate(template);
-        await window.generateContractFromTemplate(bytes, name.trim(), fee.trim(), date, model);
-      } else {
-        window.generateContractDocx(brandId, name.trim(), fee.trim(), date, model);
-      }
-      onClose();
+    if(template){
+      const bytes=await loadContractTemplate(template);
+      return await window.buildContractFromTemplate(bytes, name.trim(), fee.trim(), date, model);
     }
+    return window.buildContractDocx(brandId, name.trim(), fee.trim(), date, model);
+  };
+  const check=()=>{
+    if(!name.trim()){ setErr('모델 이름을 입력하세요.'); return false; }
+    if(!template && !hasCfg){ setErr('이 브랜드는 기본 양식이 없습니다. 계약서 파일을 올려주세요.'); return false; }
+    return true;
+  };
+  const go=async()=>{
+    if(!check()) return;
+    setBusy(true); setErr('');
+    try{ const built=await buildDocx(); downloadBuiltDocx(built); onClose(); }
     catch(e){ setErr('생성 실패: '+(e&&e.message||e)); }
     finally{ setBusy(false); }
+  };
+  // 계약서 생성 → 백엔드가 첨부해서 메일 발송 (원클릭)
+  const sendMail=async()=>{
+    if(!check()) return;
+    if(!isEmail(email)){ setErr('받는 사람 이메일을 정확히 입력하세요.'); return; }
+    setBusy(true); setErr(''); setSent(''); setFailed(false);
+    try{
+      const built=await buildDocx();
+      const dataUrl=await bytesToDataUrl(built.bytes, built.type);
+      const d=mailBase();
+      const j=await callApi('contractMail',{
+        to:email.trim(), subject:(subject.trim()||d.subject), body:(body.trim()||d.body),
+        filename:built.filename, data:dataUrl, brand:brandId, senderName:(company||brandName||''),
+      });
+      if(!j || j.error) throw new Error((j&&j.error)||'발송 실패');
+      setSent(`${email.trim()} 님에게 보냈습니다${j.from?` (발신 ${j.from})`:''}.`);
+    }catch(e){
+      setErr('메일 발송 실패: '+(e&&e.message||e));
+      setFailed(true);
+    }
+    finally{ setBusy(false); }
+  };
+  // 발송이 막혔을 때의 수동 경로 — 파일을 내려받고 Gmail 작성창을 띄운다(첨부만 직접).
+  const manualMail=async()=>{
+    setBusy(true); setErr('');
+    try{
+      const built=await buildDocx();
+      downloadBuiltDocx(built);
+      const d=mailBase();
+      window.open('https://mail.google.com/mail/u/0/?view=cm&fs=1'
+        +'&authuser='+encodeURIComponent(TEAM_EMAIL)
+        +'&to='+encodeURIComponent(email.trim())
+        +'&su='+encodeURIComponent(subject.trim()||d.subject)
+        +'&body='+encodeURIComponent(body.trim()||d.body), '_blank');
+      setSent('계약서를 내려받고 Gmail 작성창을 열었습니다 — 내려받은 파일을 첨부해 보내세요.');
+    }catch(e){ setErr('생성 실패: '+(e&&e.message||e)); }
+    finally{ setBusy(false); }
+  };
+  const openMailEdit=()=>{
+    if(!showMail){ const d=mailBase(); if(!subject.trim()) setSubject(d.subject); if(!body.trim()) setBody(d.body); }
+    setShowMail(!showMail);
   };
   const pickTemplate=async(e)=>{
     const file=e.target.files?.[0]; e.target.value=''; if(!file) return;
@@ -1041,11 +1162,28 @@ function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUp
       <input style={I} value={fee} onChange={e=>setFee(e.target.value)} placeholder="800000" inputMode="numeric" onKeyDown={e=>e.key==='Enter'&&go()}/>
       <label style={L}>계약일자</label>
       <input style={I} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
-      {err&&<div style={{color:'var(--red)',fontSize:12,marginTop:10}}>{err}</div>}
-      <div style={{marginTop:18}}>
-        <button onClick={go} disabled={busy} style={{width:'100%',padding:'11px',border:0,borderRadius:8,background:busy?'#6b7280':'var(--blue)',color:'#fff',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer'}} title="워드 문서 — 이름·전화번호·주소 자동 반영">{busy?'생성 중…':'📝 워드 생성'}</button>
+      <label style={L}>받는 사람 이메일 <span style={{color:'var(--muted)',fontWeight:400}}>(메일 발송용)</span></label>
+      <input style={I} value={email} onChange={e=>{setEmail(e.target.value);setSent('');setFailed(false);}} placeholder="model@example.com" inputMode="email" onKeyDown={e=>e.key==='Enter'&&sendMail()}/>
+
+      {/* 메일 문구 — 기본 문구로 바로 보낼 수 있고, 필요하면 열어서 고친다 */}
+      <div style={{marginTop:10}}>
+        <button onClick={openMailEdit} style={{padding:0,border:0,background:'transparent',color:'var(--muted)',fontSize:11,cursor:'pointer',textDecoration:'underline'}}>
+          {showMail?'메일 문구 접기':'메일 문구 보기·수정'}
+        </button>
       </div>
-      <div style={{fontSize:11,color:'var(--muted)',marginTop:8,lineHeight:1.5}}>이름·전화번호·주소가 모델란에 자동 반영됩니다. 주민등록번호·서명은 모델이 워드에서 직접 채웁니다.</div>
+      {showMail&&<div style={{marginTop:6}}>
+        <input style={{...I,fontSize:12}} value={subject} onChange={e=>setSubject(e.target.value)} placeholder="제목"/>
+        <textarea style={{...I,fontSize:12,marginTop:6,height:150,resize:'vertical',fontFamily:'inherit',lineHeight:1.5}} value={body} onChange={e=>setBody(e.target.value)} placeholder="본문"/>
+      </div>}
+
+      {err&&<div style={{color:'var(--red)',fontSize:12,marginTop:10}}>{err}</div>}
+      {sent&&<div style={{color:'var(--green,#15803d)',fontSize:12,marginTop:10}}>✅ {sent}</div>}
+      {failed&&<button onClick={manualMail} disabled={busy} style={{width:'100%',marginTop:8,padding:'9px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',fontSize:12,cursor:'pointer'}}>대신 Gmail 작성창 열기 (파일은 직접 첨부)</button>}
+      <div style={{marginTop:18,display:'flex',gap:8}}>
+        <button onClick={sendMail} disabled={busy} style={{flex:1,padding:'11px',border:0,borderRadius:8,background:busy?'#6b7280':'var(--blue)',color:'#fff',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer'}} title="계약서를 만들어 입력한 주소로 첨부 발송합니다">{busy?'처리 중…':'📧 메일 보내기'}</button>
+        <button onClick={go} disabled={busy} style={{flex:'none',padding:'11px 14px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',fontSize:13,fontWeight:700,cursor:busy?'default':'pointer'}} title="메일 없이 워드 파일만 내려받기">📝 내려받기</button>
+      </div>
+      <div style={{fontSize:11,color:'var(--muted)',marginTop:8,lineHeight:1.5}}>이름·전화번호·주소가 모델란에 자동 반영됩니다. 주민등록번호·서명은 모델이 워드에서 직접 채웁니다. 메일은 {TEAM_EMAIL} 로 발송되며 계약서 파일이 첨부됩니다.</div>
       <button onClick={onClose} style={{width:'100%',marginTop:10,padding:'9px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',cursor:'pointer'}}>닫기</button>
     </div>
   </div>;
@@ -2483,10 +2621,10 @@ function FileUpload({label,value,onChange,onPick,archive}){
       const d=await callApi('pfileSave',{data:dataUrl,name:file.name,type});
       if(d&&d.ok&&d.url){
         onChange({name:file.name,url:d.url,type});
-        // 계약서 등 보관 대상은 브랜드 드라이브에 영구 복사(정산 3일 후 폐기와 무관) — 실패해도 첨부는 유지하되 사유는 드러낸다.
+        // 보관 대상(계약서·신분증·통장)은 브랜드 드라이브에 영구 복사(정산 3일 후 폐기와 무관) — 실패해도 첨부는 유지하되 사유는 드러낸다.
         // data 도 함께 보냄: 백엔드가 pfile 복사본을 못 찾으면 base64 로 직접 저장(2순위)하므로 'no source' 로 조용히 실패하지 않는다.
         if(archive&&archive.brand){
-          const a=await callApi('contractArchive',{brand:archive.brand,channelName:archive.channelName||'',realName:archive.realName||'',pfileUrl:d.url,data:dataUrl,name:file.name});
+          const a=await callApi('contractArchive',{brand:archive.brand,kind:archive.kind||'contract',channelName:archive.channelName||'',realName:archive.realName||'',pfileUrl:d.url,data:dataUrl,name:file.name});
           setArchErr(a&&a.ok?'':('드라이브 보관 실패 — '+((a&&a.error)||'응답 없음')));
         }
       }
@@ -4512,7 +4650,7 @@ function GuideView({ brand }) {
         <div className="guide-card-title">📋 계약서 작성 프로세스</div>
         <div className="guide-steps">
           <div className="guide-step"><div className="guide-step-num">1</div><div className="guide-step-text">PA 총괄(이은영)이 <strong>계약서 양식(.docx)</strong>을 PA 컨택 담당자에게 전달합니다.</div></div>
-          <div className="guide-step"><div className="guide-step-num">2</div><div className="guide-step-text">PA 컨택 담당자가 계약자 이름·단가를 기입 후 인플루언서에게 전달합니다.</div></div>
+          <div className="guide-step"><div className="guide-step-num">2</div><div className="guide-step-text">PA 컨택 담당자가 계약자 이름·단가를 기입 후 인플루언서에게 전달합니다. 상단 <strong>📄 계약서 생성</strong>에서 <strong>받는 사람 이메일</strong>을 넣고 <strong>📧 메일 보내기</strong>를 누르면 계약서가 첨부되어 바로 발송됩니다(발신 cheddar@dayzcorp.kr).</div></div>
           <div className="guide-step"><div className="guide-step-num">3</div><div className="guide-step-text">인플루언서가 개인정보(성함·주민번호·연락처·주소) 및 서명을 직접 기입합니다.</div></div>
           <div className="guide-step"><div className="guide-step-num">4</div><div className="guide-step-text">서명 완료된 파일을 수령 후 <strong>PDF로 변환</strong>하여 구글 드라이브 지정 폴더에 업로드합니다.</div></div>
           <div className="guide-step"><div className="guide-step-num">5</div><div className="guide-step-text">PA 총괄(이은영)이 업로드된 파일을 최종 확인 후 STEP2 계약서 상태를 <strong>✅ 완료</strong>로 변경합니다.</div></div>

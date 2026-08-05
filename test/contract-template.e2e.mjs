@@ -132,7 +132,7 @@ await evalJs(`(()=>{
   set(document.querySelector('input[type=date]'),'2026-08-03');
   return 1;
 })()`);
-await evalJs(`[...document.querySelectorAll('button')].find(b=>b.textContent.includes('워드 생성')).click(), 1`);
+await evalJs(`[...document.querySelectorAll('button')].find(b=>b.textContent.includes('내려받기')).click(), 1`);
 
 // 4) 내려받은 파일 확인
 let file=null;
@@ -182,7 +182,7 @@ await evalJs(`(()=>{
   set(ins.find(i=>(i.placeholder||'').includes('800000')),'1200000');
   return 1;
 })()`);
-await evalJs(`[...document.querySelectorAll('button')].find(b=>b.textContent.includes('워드 생성')).click(), 1`);
+await evalJs(`[...document.querySelectorAll('button')].find(b=>b.textContent.includes('내려받기')).click(), 1`);
 let file2=null;
 for(let i=0;i<60;i++){ const f=fs.readdirSync(DL).filter(n=>n.endsWith('.docx')); if(f.length){ file2=path.join(DL,f[0]); break; } await new Promise(r=>setTimeout(r,300)); }
 chk(!!file2, '재접속 생성 다운로드');
