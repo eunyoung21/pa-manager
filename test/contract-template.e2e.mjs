@@ -104,6 +104,10 @@ console.log('앱 로딩 완료');
 // 1) 계약서 생성 모달 열기
 await evalJs(`document.querySelector('.contract-link').click(), 1`);
 await waitFor(`[...document.querySelectorAll('div')].some(d=>d.textContent.trim()==='📝 계약서 생성 (워드)')`, '모달');
+// 양식 교체는 ⚙ 아이콘 안에 접혀 있다 — 열어서 확인
+chk(!await evalJs(`document.body.innerText.includes('사용 양식')`), '평소엔 양식 패널이 접혀 있음');
+await evalJs(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='⚙').click(), 1`);
+await waitFor(`document.body.innerText.includes('사용 양식')`, '양식 패널 열림');
 chk(await evalJs(`document.body.innerText.includes('앱 기본 양식')`), '처음엔 앱 기본 양식 표시');
 chk(await evalJs(`!!document.querySelector('input[type=file][accept=".docx"]')`), '양식 올리기 입력칸 존재');
 
