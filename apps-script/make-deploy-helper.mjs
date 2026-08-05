@@ -27,6 +27,12 @@ const html = `<!doctype html>
   .d{color:#555;font-size:13.5px;margin:8px 0 0;padding-left:30px}
   .d b{color:#111}
   .d code{background:#f4f4f4;padding:1px 5px;border-radius:3px;font-size:12.5px}
+  .bar{margin:12px 0 4px 30px;padding:9px 14px;border:1px solid #e5e5e5;border-radius:6px;background:#fafafa;
+       color:#555;font-size:13px;white-space:nowrap;overflow-x:auto}
+  .pick{border:1px solid #999;border-radius:4px;padding:2px 8px;background:#fff;color:#111;font-weight:700}
+  .list{padding-left:52px;margin:10px 0 0}
+  .list li{margin:5px 0}
+  .note{color:#888;font-size:12.5px;margin-top:12px}
   .btn{margin:14px 0 0 30px;padding:11px 20px;border:1px solid #111;background:#111;color:#fff;border-radius:6px;
        font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit}
   .btn:hover{opacity:.85}
@@ -61,8 +67,19 @@ const html = `<!doctype html>
 
   <div class="step">
     <span class="n">4</span><span class="t">저장 후 권한 승인</span>
-    <p class="d"><b>Ctrl+S</b>로 저장 → 상단 함수 드롭다운에서 <code>setup</code> 선택 → <b>실행 ▶</b><br>
-    권한 요청 창이 뜨면 본인 계정 선택 → "안전하지 않음" 경고는 <b>고급 → 이동</b> → <b>Gmail에서 메일 보내기</b>까지 <b>허용</b></p>
+    <p class="d"><b>Ctrl+S</b>로 저장합니다. 그러면 코드 편집창 <b>바로 위 회색 줄(툴바)</b>에 이런 버튼들이 있습니다:</p>
+    <div class="bar">↶&nbsp;&nbsp;↷&nbsp;&nbsp;│&nbsp;&nbsp;▷ 실행&nbsp;&nbsp;&nbsp;🐞 디버그&nbsp;&nbsp;&nbsp;<span class="pick">SS ▾</span>&nbsp;&nbsp;&nbsp;실행 로그</div>
+    <ol class="d list">
+      <li><b>SS ▾</b> 처럼 함수 이름이 적힌 <b>드롭다운</b>을 클릭합니다. (지금 뭐가 적혀 있든 상관없습니다 — 그게 함수 선택 칸입니다)</li>
+      <li>목록이 쭉 뜨면 그중 <code>setup</code> 을 클릭합니다. 목록이 길면 스크롤하세요.</li>
+      <li>드롭다운이 <b>setup ▾</b> 로 바뀐 걸 확인하고, 왼쪽 <b>▷ 실행</b>을 누릅니다.</li>
+      <li><b>"승인 필요"</b> 창 → <b>권한 검토</b> → 본인 구글 계정 선택</li>
+      <li><b>"Google에서 확인하지 않은 앱"</b> 경고가 뜨면 왼쪽 아래 <b>고급</b> → 맨 아래 <b>PA Manager(안전하지 않음)으로 이동</b></li>
+      <li>권한 목록에서 <b>Gmail에서 이메일 보내기</b> 항목까지 확인 → 맨 아래 <b>허용</b></li>
+      <li>아래 <b>실행 로그</b>에 <code>setup 완료</code> 가 뜨면 성공입니다.</li>
+    </ol>
+    <p class="d note">※ 드롭다운이 안 보이면 창이 좁아 접힌 것입니다 — 브라우저 창을 넓히거나 최대화하세요.<br>
+    ※ <code>setup</code> 은 여러 번 실행해도 데이터가 지워지지 않습니다(없는 것만 만듭니다). 안심하고 눌러도 됩니다.</p>
   </div>
 
   <div class="step">
