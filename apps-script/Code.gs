@@ -541,6 +541,29 @@ var ARCHIVE_KIND = {
   bank:     { label: '통장사본',  slot: 'privacy',  sub: '개인정보파일', legacySub: null,   dated: false }
 };
 var ARCHIVE_DONE_FOLDER = '완료';   // 노션 기입까지 끝난 파일을 옮겨두는 하위폴더
+/* 보관 폴더 점검 (편집기에서 실행) — '폴더 미지정' 이 뜰 때 원인을 가른다.
+   이 함수가 함수 목록에 안 보이면 = 붙여넣기가 저장되지 않은 것.
+   보이고 로그가 다 OK 인데 앱에서 여전히 실패하면 = 저장은 됐지만 '새 버전' 배포를 안 한 것. */
+function checkArchive() {
+  var brands = Object.keys(BRAND_ARCHIVE_FOLDER);
+  for (var i = 0; i < brands.length; i++) {
+    var b = brands[i], cfg = BRAND_ARCHIVE_FOLDER[b];
+    var slots = ['privacy', 'contract'];
+    for (var s = 0; s < slots.length; s++) {
+      var id = cfg[slots[s]];
+      if (!id) { Logger.log('❌ ' + b + '.' + slots[s] + ' — 폴더 ID 가 비어 있음(옛 코드)'); continue; }
+      try {
+        var f = DriveApp.getFolderById(id);
+        Logger.log('✅ ' + b + '.' + slots[s] + ' → ' + f.getName());
+      } catch (e) {
+        Logger.log('❌ ' + b + '.' + slots[s] + ' (' + id + ') — 열 수 없음: ' + (e.message || e)
+                 + ' → 배포 계정에 이 폴더 권한이 있는지 확인');
+      }
+    }
+  }
+  Logger.log('여기까지 전부 ✅ 인데 앱에서 실패하면 → 배포 관리에서 "버전: 새 버전" 으로 다시 배포하세요.');
+}
+
 function archiveFolder(brand, kind) {
   var cfg = (BRAND_ARCHIVE_FOLDER[brand] || {});
   var fid = cfg[kind.slot];
