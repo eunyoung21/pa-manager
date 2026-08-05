@@ -1,0 +1,102 @@
+/* 배포도우미.html 생성 — Code.gs·appsscript.json 최신 내용을 그대로 박아 넣는다.
+   코드가 바뀌면 다시 실행: node apps-script/make-deploy-helper.mjs */
+import fs from 'fs';
+import path from 'path';
+
+const DIR = path.dirname(new URL(import.meta.url).pathname.replace(/^\//, ''));
+const code = fs.readFileSync(path.join(DIR, 'Code.gs'), 'utf8');
+const manifest = fs.readFileSync(path.join(DIR, 'appsscript.json'), 'utf8');
+const SHEET = 'https://docs.google.com/spreadsheets/d/1mtsbnaa_M991Zc-b0FE4cSiMcBEu5L-IUSdmvC5tcQc/edit';
+const stamp = new Date().toISOString().slice(0, 10);
+
+const html = `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>PA 매니저 백엔드 업데이트</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:#111;font-family:"Malgun Gothic",system-ui,sans-serif;line-height:1.6}
+  .wrap{max-width:720px;margin:0 auto;padding:48px 24px 96px}
+  h1{font-size:20px;font-weight:800;margin:0 0 6px}
+  .sub{color:#777;font-size:13px;margin:0 0 40px}
+  .step{border-top:1px solid #e5e5e5;padding:24px 0}
+  .step:last-of-type{border-bottom:1px solid #e5e5e5}
+  .n{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border:1px solid #111;border-radius:50%;font-size:12px;font-weight:700;margin-right:8px}
+  .t{font-size:15px;font-weight:700;display:inline}
+  .d{color:#555;font-size:13.5px;margin:8px 0 0;padding-left:30px}
+  .d b{color:#111}
+  .d code{background:#f4f4f4;padding:1px 5px;border-radius:3px;font-size:12.5px}
+  .btn{margin:14px 0 0 30px;padding:11px 20px;border:1px solid #111;background:#111;color:#fff;border-radius:6px;
+       font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit}
+  .btn:hover{opacity:.85}
+  .btn.done{background:#fff;color:#111}
+  a{color:#111}
+  .warn{margin-top:36px;padding:14px 16px;border:1px solid #e5e5e5;border-radius:6px;color:#555;font-size:13px}
+  .foot{margin-top:28px;color:#999;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>PA 매니저 백엔드 업데이트</h1>
+  <p class="sub">계약서 메일 발송을 켜려면 아래 순서대로. 복사 버튼만 누르면 됩니다. (기준 ${stamp})</p>
+
+  <div class="step">
+    <span class="n">1</span><span class="t">Apps Script 편집기 열기</span>
+    <p class="d"><a href="${SHEET}" target="_blank">PA Manager 데이터 시트 열기</a> → 상단 <b>확장 프로그램 → Apps Script</b></p>
+  </div>
+
+  <div class="step">
+    <span class="n">2</span><span class="t">Code.gs 교체</span>
+    <p class="d">왼쪽에서 <code>Code.gs</code> 클릭 → 편집창 안을 클릭하고 <b>Ctrl+A</b>로 전체 선택 → <b>Ctrl+V</b>로 붙여넣기</p>
+    <button class="btn" data-k="code">Code.gs 복사</button>
+  </div>
+
+  <div class="step">
+    <span class="n">3</span><span class="t">appsscript.json 교체</span>
+    <p class="d">왼쪽 <b>⚙ 프로젝트 설정 → "appsscript.json 매니페스트 파일 표시" 체크</b> → 편집기로 돌아와 <code>appsscript.json</code> 클릭 → <b>Ctrl+A</b> → <b>Ctrl+V</b><br>
+    (메일 보낼 권한이 여기 적혀 있어서 이 파일도 꼭 바꿔야 합니다)</p>
+    <button class="btn" data-k="manifest">appsscript.json 복사</button>
+  </div>
+
+  <div class="step">
+    <span class="n">4</span><span class="t">저장 후 권한 승인</span>
+    <p class="d"><b>Ctrl+S</b>로 저장 → 상단 함수 드롭다운에서 <code>setup</code> 선택 → <b>실행 ▶</b><br>
+    권한 요청 창이 뜨면 본인 계정 선택 → "안전하지 않음" 경고는 <b>고급 → 이동</b> → <b>Gmail에서 메일 보내기</b>까지 <b>허용</b></p>
+  </div>
+
+  <div class="step">
+    <span class="n">5</span><span class="t">재배포</span>
+    <p class="d">우상단 <b>배포 → 배포 관리 → 편집(연필) → 버전: 새 버전 → 배포</b><br>주소는 그대로 유지됩니다. 이걸 안 하면 앱에는 옛 버전이 계속 물려 있습니다.</p>
+  </div>
+
+  <div class="warn">
+    끝나면 PA 매니저에서 <b>📄 계약서 생성 → 받는 사람 이메일 입력 → 📧 메일 보내기</b>로 본인 메일에 한 번 테스트해 보세요.<br>
+    "백엔드에 메일 발송 기능이 아직 적용되지 않았습니다"가 뜨면 5단계(재배포)가 안 된 것입니다.
+  </div>
+  <p class="foot">이 파일은 <code>node apps-script/make-deploy-helper.mjs</code> 로 다시 만들 수 있습니다(코드 바뀔 때마다).</p>
+</div>
+
+<script>
+const PAYLOAD = ${JSON.stringify({ code, manifest }).replace(/</g, '\\u003c')};
+document.querySelectorAll('.btn').forEach(b=>{
+  b.addEventListener('click', async ()=>{
+    const text = PAYLOAD[b.dataset.k];
+    try{ await navigator.clipboard.writeText(text); }
+    catch(e){
+      const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy'); ta.remove();
+    }
+    const old=b.textContent;
+    b.textContent='복사됨 — 편집기에서 Ctrl+A 후 Ctrl+V';
+    b.classList.add('done');
+    setTimeout(()=>{ b.textContent=old; b.classList.remove('done'); }, 4000);
+  });
+});
+</script>
+</body>
+</html>`;
+
+const out = path.join(DIR, '배포도우미.html');
+fs.writeFileSync(out, html, 'utf8');
+console.log('생성: ' + out + '  (Code.gs ' + code.length + '자, appsscript.json ' + manifest.length + '자)');
