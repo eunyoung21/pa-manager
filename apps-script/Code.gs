@@ -185,12 +185,25 @@ function countRows(d) {
       n += ((brands[i][keys[k]]) || []).length;
   return n;
 }
+// 브랜드별 배열 행수를 {brandId: {key: N, ...}} 형태로 요약 — _meta 에 캐싱해 preSaveGuard 가 전체 데이터를 안 읽어도 되게.
+function brandCounts(d) {
+  var GKEYS = ['step1Rows', 'step2Rows', 'claudeStep1Rows', 'claudeStep2Rows', 'shippingRows', 'reviewRows', 'privacyRows'];
+  var out = {};
+  for (var bi = 0; bi < (d && d.brands ? d.brands : []).length; bi++) {
+    var b = d.brands[bi], bc = {};
+    for (var ki = 0; ki < GKEYS.length; ki++) bc[GKEYS[ki]] = ((b[GKEYS[ki]]) || []).length;
+    out[b.id] = bc;
+  }
+  return out;
+}
 function metaGet() {
-  var v = sheet(SHEET_META).getRange(1, 1, 4, 1).getValues();
-  return { rev: Number(v[0][0]) || 0, count: Number(v[1][0]) || 0, updatedAt: v[2][0] || '', pbucket: Number(v[3][0]) || -1 };
+  var v = sheet(SHEET_META).getRange(1, 1, 5, 1).getValues();
+  var bc = {};
+  try { if (v[4][0]) bc = JSON.parse(String(v[4][0])); } catch (e) {}
+  return { rev: Number(v[0][0]) || 0, count: Number(v[1][0]) || 0, updatedAt: v[2][0] || '', pbucket: Number(v[3][0]) || -1, brandCounts: bc };
 }
 function metaSet(m) {
-  sheet(SHEET_META).getRange(1, 1, 4, 1).setValues([[m.rev], [m.count], [m.updatedAt], [m.pbucket]]);
+  sheet(SHEET_META).getRange(1, 1, 5, 1).setValues([[m.rev], [m.count], [m.updatedAt], [m.pbucket != null ? m.pbucket : -1], [JSON.stringify(m.brandCounts || {})]]);
 }
 function writeData(obj, bumpMeta) {
   var str = JSON.stringify(obj);
@@ -217,26 +230,21 @@ function writeData(obj, bumpMeta) {
   sh.getRange(1, 1, rows.length, 1).setNumberFormat('@'); // 서식을 텍스트로 고정(수식 해석 2중 차단)
   sh.getRange(1, 1, rows.length, 1).setValues(rows);
   SpreadsheetApp.flush(); // 쓰기 즉시 확정(부분쓰기·절단 방지)
-  // 검증: 방금 쓴 걸 다시 읽어 JSON 파싱되는지 확인. 실패면 rev 안 올리고 오류(클라가 재시도).
-  // setNumberFormat('@') 로 열 서식을 텍스트로 고정했으므로 수식 재계산 타이밍 문제는 없다.
-  var back = '', v2 = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
+  // 검증: #ERROR! 셀만 확인. setNumberFormat('@')으로 수식 해석을 차단했고 JSON.stringify 출력은 항상 유효하므로
+  //       JSON.parse 재검증은 불필요(3MB 재읽기+파싱 제거 → 저장 속도 단축).
+  var v2 = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
   for (var j = 0; j < v2.length; j++) {
     var cell = String(v2[j][0]);
-    // 수식 오인으로 셀이 에러값이 된 경우 — JSON.parse 전에 명시적으로 잡는다(위 사고의 직접 신호).
     if (cell.charAt(0) === '#' && cell.indexOf('!') > 0 && cell.length < 20) {
       snapshot('write-verify-fail', { at: new Date().toISOString(), len: str.length, cell: cell, row: j + 1 }, { reason: 'chunk-error-value' });
       throw new Error('저장 검증 실패 — 청크 ' + (j + 1) + '이 시트 에러값(' + cell + ')이 됨. 재시도합니다.');
     }
-    back += cell;
-  }
-  try { JSON.parse(back); } catch (e) {
-    snapshot('write-verify-fail', { at: new Date().toISOString(), len: str.length }, { reason: 'write-verify-fail' });
-    throw new Error('저장 검증 실패(자동 재시도됩니다): ' + e.message);
   }
   var m = metaGet();
   m.rev = (m.rev || 0) + 1;
   m.count = countRows(obj);
   m.updatedAt = new Date().toISOString();
+  m.brandCounts = brandCounts(obj);
   if (bumpMeta && bumpMeta.pbucket !== undefined) m.pbucket = bumpMeta.pbucket;
   metaSet(m);
   return m.rev;
@@ -268,41 +276,37 @@ function trimBackups(prefix, keep) {
 }
 
 /* ── 저장 안전장치 (server.js preSaveGuard 포팅) ───────────── */
+// ★ 성능 최적화: 저장마다 3MB 전체 데이터를 읽는 대신, _meta 에 캐싱된 행수(brandCounts)를 사용.
+//   차단이 필요한 경우(드문 케이스)에만 실제 데이터를 읽는다.
 function preSaveGuard(incoming, force) {
   var C = countRows(incoming);
-  var cur = readDataSafe();
-  // ★ 현재 저장본이 손상돼 읽을 수 없으면 급감 비교 불가 → 들어온 정상 데이터로 덮어써 복구.
-  if (cur === null) {
-    snapshot('corrupt-recover', { at: new Date().toISOString(), newCount: C }, { reason: 'corrupt-recover' });
-    return { block: false };
-  }
-  var curCount = countRows(cur);
-  // ① 급감(40%+) → 직전본 스냅샷 후 저장 차단
+  var m = metaGet(); // 빠른 읽기: _meta 5개 셀만
+  var curCount = m.count || 0;
+  var curBrand = m.brandCounts || {};
+
+  // ① 급감(40%+) → 차단. 데이터가 없는 초기 상태(curCount=0)는 통과.
   if (!force && curCount >= 50 && C < curCount * 0.6) {
-    snapshot('shrink-blocked', cur, { reason: 'shrink-blocked', prevCount: curCount, newCount: C, at: new Date().toISOString() });
+    var snap1 = readDataSafe(); // 차단 케이스만 전체 읽기 (드묾)
+    snapshot('shrink-blocked', snap1 || incoming, { reason: 'shrink-blocked', prevCount: curCount, newCount: C, at: new Date().toISOString() });
     return { block: true, prevCount: curCount, newCount: C };
   }
-  // ①-b 브랜드별 배열 급감 → 개별 유실 차단. 전체 행수 가드로는 못 잡는 케이스
-  //     (예: 그래니 step2 182→4 는 전체 1400행 중 ~12% 감소라 ① 을 통과해 유실됐음).
-  //     어떤 브랜드의 한 배열이 30행 이상이었는데 절반 미만으로 급감하면 차단.
+  // ①-b 브랜드별 배열 급감 — _meta.brandCounts 캐시로 비교(전체 읽기 불필요)
   if (!force) {
     var GKEYS = ['step1Rows', 'step2Rows', 'claudeStep1Rows', 'claudeStep2Rows', 'shippingRows', 'reviewRows', 'privacyRows'];
-    var curById = {};
-    for (var ci = 0; ci < (cur.brands || []).length; ci++) curById[cur.brands[ci].id] = cur.brands[ci];
     for (var bi = 0; bi < incoming.brands.length; bi++) {
-      var nb = incoming.brands[bi], ob = curById[nb.id];
-      if (!ob) continue;
+      var nb = incoming.brands[bi];
+      var ob = curBrand[nb.id] || {};
       for (var ki = 0; ki < GKEYS.length; ki++) {
-        var oN = ((ob[GKEYS[ki]]) || []).length, nN = ((nb[GKEYS[ki]]) || []).length;
+        var oN = ob[GKEYS[ki]] || 0, nN = ((nb[GKEYS[ki]]) || []).length;
         if (oN >= 30 && nN < oN * 0.5) {
-          snapshot('shrink-blocked-brand', cur, { reason: 'shrink-blocked-brand', brand: nb.id, key: GKEYS[ki], prev: oN, next: nN, at: new Date().toISOString() });
+          var snap2 = readDataSafe(); // 차단 케이스만 전체 읽기 (드묾)
+          snapshot('shrink-blocked-brand', snap2 || incoming, { reason: 'shrink-blocked-brand', brand: nb.id, key: GKEYS[ki], prev: oN, next: nN, at: new Date().toISOString() });
           return { block: true, prevCount: curCount, newCount: C, brand: nb.id, key: GKEYS[ki], prev: oN, next: nN };
         }
       }
     }
   }
-  // ② 6시간 주기 스냅샷
-  var m = metaGet();
+  // ② 6시간 주기 스냅샷 — 현재 쓰려는 데이터를 그대로 저장(전체 읽기 불필요)
   var pbucket = Math.floor(Date.now() / (6 * 3600 * 1000));
   if (pbucket !== m.pbucket) {
     snapshot('periodic', incoming, { reason: 'periodic', count: C, at: new Date().toISOString() });

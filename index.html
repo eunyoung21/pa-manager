@@ -5279,17 +5279,8 @@ function AppMain({ authInfo, onLogout }) {
     setSaveState('saving');
     blockedRef.current=false;
     let payload=s;
-    try{
-      // ★ 저장 전 동시편집 확인: 내가 마지막으로 본 뒤 다른 사람이 저장했으면,
-      //   그 최신본 위에 내 변경분만 얹어서(3-way 병합) 올린다. 통째 덮어쓰기 금지.
-      if(_lastRev!=null && baseRef.current && depth===0){
-        const rj=await callApi('rev');
-        if(rj && rj.rev!=null && rj.rev!==_lastRev){
-          const r=await pullMerge(payload, baseRef.current);
-          if(r){ payload=r.merged; _lastRev=r.rev; baseRef.current=r.theirs; applyMerged(payload, true); }
-        }
-      }
-    }catch(e){ console.warn('[save] 사전 병합 실패(그대로 저장 시도)', e); }
+    // ★ 사전 rev 확인 제거 — 서버가 baseRev 불일치 시 {conflict:true}를 돌려주고
+    //   클라가 pullMerge 후 재시도한다(아래). 충돌은 드물어서 round-trip 1회 절약 효과가 큼.
     return callApi('save',{data:payload, baseRev:_lastRev})
       .then(async j=>{
         console.log('[save] 응답', j);
