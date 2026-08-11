@@ -217,10 +217,8 @@ function writeData(obj, bumpMeta) {
   sh.getRange(1, 1, rows.length, 1).setNumberFormat('@'); // 서식을 텍스트로 고정(수식 해석 2중 차단)
   sh.getRange(1, 1, rows.length, 1).setValues(rows);
   SpreadsheetApp.flush(); // 쓰기 즉시 확정(부분쓰기·절단 방지)
-  // 수식 재계산이 비동기라 flush 직후 읽으면 #ERROR! 가 아직 안 나타날 수 있다.
-  // 500ms 대기 후 재읽기해 타이밍 문제를 줄인다.
-  Utilities.sleep(500);
   // 검증: 방금 쓴 걸 다시 읽어 JSON 파싱되는지 확인. 실패면 rev 안 올리고 오류(클라가 재시도).
+  // setNumberFormat('@') 로 열 서식을 텍스트로 고정했으므로 수식 재계산 타이밍 문제는 없다.
   var back = '', v2 = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
   for (var j = 0; j < v2.length; j++) {
     var cell = String(v2[j][0]);
