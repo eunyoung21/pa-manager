@@ -4046,7 +4046,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                         </span>
                       : <span style={{display:'inline-flex',flexDirection:'column',gap:2,alignItems:'center'}}>
                           <span style={{fontSize:10,color:'#f59e0b',fontWeight:600,whiteSpace:'nowrap'}}>⏳ 미정산</span>
-                          {isManager&&<button onClick={()=>onSettle&&onSettle(r.channelName,true,{pa:r.pa,realName:r.realName})} title="단가 지급 완료 표시 (3일 후 개인정보 자동 폐기)" style={{fontSize:9,padding:'2px 7px',border:0,borderRadius:4,background:'var(--green)',color:'#fff',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>💰 정산완료</button>}
+                          {isManager&&<button onClick={()=>onSettle&&onSettle(r.channelName,true,{pa:r.pa,realName:r.realName})} title="단가 지급 완료 표시 (30일 후 개인정보 자동 폐기)" style={{fontSize:9,padding:'2px 7px',border:0,borderRadius:4,background:'var(--green)',color:'#fff',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>💰 정산완료</button>}
                         </span>}
                 </td>
                 <td data-label="개인정보" style={{textAlign:'center'}}>
@@ -4158,7 +4158,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
     setBulkBusy(false); setBulkMsg(`✅ 완료 — 대상 ${targets.length}명 중 ${filled}명 자동 채움. 빈 칸은 각 행 🔒에서 확인·수정하세요.`);
   }
   return <div className="privacy-page">
-    <div className="privacy-warn">🔒 관리자 전용 페이지입니다. 개인정보가 포함되어 있으니 외부 노출에 주의하세요. · 인플루언서에게 단가를 지급한 뒤 <b>💰 정산 처리</b>를 누르면 <b>3일 후 개인정보가 자동 폐기</b>됩니다.</div>
+    <div className="privacy-warn">🔒 관리자 전용 페이지입니다. 개인정보가 포함되어 있으니 외부 노출에 주의하세요. · 인플루언서에게 단가를 지급한 뒤 <b>💰 정산 처리</b>를 누르면 <b>30일 후 개인정보가 자동 폐기</b>됩니다.</div>
     <div className="toolbar" style={{padding:'8px 16px'}}>
       {[{k:'all',l:`전체 (${cnt.all})`,c:''},{k:'live',l:`🔴 라이브·정산전 (${cnt.live})`,c:'f-deal'},{k:'unpaid',l:`정산 전 (${cnt.unpaid})`,c:'f-rj'},{k:'paid',l:`✅ 정산완료 (${cnt.paid})`,c:'f-deal'},{k:'purged',l:`🗑️ 폐기완료 (${cnt.purged})`,c:'f-wt'}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${pFilter===k?'active':''}`} onClick={()=>setPFilter(k)}>{l}</button>)}
@@ -4184,7 +4184,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
           {shown.map(r=>{
             const st=settleOf(r.channelName);
             const status=statusOf(r);
-            const left=status==='paid'?(()=>{const dd=daysSinceKey(st.infSettledDate);return dd==null?null:3-dd;})():null;
+            const left=status==='paid'?(()=>{const dd=daysSinceKey(st.infSettledDate);return dd==null?null:30-dd;})():null;
             return (
             <tr key={r.id}>
               <td className="del-col"><button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button></td>
@@ -4212,7 +4212,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
               <td><Cell value={r.notes} onChange={v=>onUpdate(r.id,{notes:v})} placeholder="비고"/></td>
               <td style={{textAlign:'center'}}>
                 {status==='purged'
-                  ? <span title={`정산 완료 후 3일 경과 — 개인정보 폐기됨 (${st.privacyPurgedDate||''})`} style={{fontSize:10,color:'var(--dim)',whiteSpace:'nowrap'}}>🗑️ 폐기완료</span>
+                  ? <span title={`정산 완료 후 30일 경과 — 개인정보 폐기됨 (${st.privacyPurgedDate||''})`} style={{fontSize:10,color:'var(--dim)',whiteSpace:'nowrap'}}>🗑️ 폐기완료</span>
                   : status==='paid'
                     ? <div style={{display:'inline-flex',flexDirection:'column',gap:3,alignItems:'center'}}>
                         <span style={{fontSize:10,color:'var(--green)',fontWeight:700,whiteSpace:'nowrap'}}>✅ 정산완료{st.infSettledDate?` ${st.infSettledDate}`:''}</span>
@@ -5624,7 +5624,7 @@ function AppMain({ authInfo, onLogout }) {
     updateBrand(bId,b=>({...b,privacyRows:(b.privacyRows||[]).filter(r=>r.id!==id)}));
   }
   // 인플루언서 정산(단가 지급) 완료 표시 — 채널명으로 컨택현황(step2) 행을 찾아 갱신.
-  // 완료 후 3일 지나면 서버가 개인정보를 자동 폐기(infSettled/infSettledDate가 기준).
+  // 완료 후 30일 지나면 서버가 개인정보를 자동 폐기(infSettled/infSettledDate가 기준).
   function setInfSettledByName(channelName,on,ctx){
     // 채널명 정규화 매칭(공백·대소문자 무시) — 영상검수/개인정보의 상태표시와 동일 기준으로 정산 기록.
     const nz=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');

@@ -217,6 +217,9 @@ function writeData(obj, bumpMeta) {
   sh.getRange(1, 1, rows.length, 1).setNumberFormat('@'); // 서식을 텍스트로 고정(수식 해석 2중 차단)
   sh.getRange(1, 1, rows.length, 1).setValues(rows);
   SpreadsheetApp.flush(); // 쓰기 즉시 확정(부분쓰기·절단 방지)
+  // 수식 재계산이 비동기라 flush 직후 읽으면 #ERROR! 가 아직 안 나타날 수 있다.
+  // 500ms 대기 후 재읽기해 타이밍 문제를 줄인다.
+  Utilities.sleep(500);
   // 검증: 방금 쓴 걸 다시 읽어 JSON 파싱되는지 확인. 실패면 rev 안 올리고 오류(클라가 재시도).
   var back = '', v2 = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
   for (var j = 0; j < v2.length; j++) {
@@ -350,7 +353,7 @@ function purgeExpiredPrivacy(data) {
       var r = s2[si];
       if (r && r.infSettled === 'Y' && r.infSettledDate && !r.privacyPurged) {
         var ds = daysSinceYmd(r.infSettledDate);
-        if (ds != null && ds >= 3) {
+        if (ds != null && ds >= 30) {
           var before = priv.length;
           priv = priv.filter(function (p) {
             if (p && p.channelName === r.name) {
@@ -520,7 +523,7 @@ function pfileGet(sess, body, p) {
 }
 
 /* 서류 영구보관 — 개인정보로 올라온 계약서·신분증사본·통장사본을 브랜드 드라이브에 복사.
-   pfile 은 정산 3일 후 자동폐기되지만, 이 보관본은 폐기 대상이 아니라 회계/증빙용으로 남는다.
+   pfile 은 정산 30일 후 자동폐기되지만, 이 보관본은 폐기 대상이 아니라 회계/증빙용으로 남는다.
    대상: 브랜드 드라이브 > PA 협업 > 개인정보파일(신분증·통장) / 계약서파일(계약서) */
 var BRAND_ARCHIVE_FOLDER = {
   basetune: { privacy: '1-nqYhZjNhbJPtLiqLx3OjUeyqX8F7pjp', contract: '1SOULiiEG2U_BZ9S3erQK368LVzBn_r-K' },
