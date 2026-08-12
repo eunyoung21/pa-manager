@@ -68,7 +68,7 @@ function buildAllTabs(){
   tabs['_meta']=[
     ['PA Manager 데이터 익스포트'],
     ['생성일', TODAY],
-    ['출처', 'https://pa-manager.onrender.com (Supabase id=1 라이브)'],
+    ['출처', 'https://eunyoung21.github.io/pa-manager/ (Apps Script + 구글시트 라이브)'],
     [''],
     ['구조 안내 (나중에 프로그램으로 역-불러오기 가능하도록 설계됨)'],
     ['탭 규칙', '행타입 탭은 첫 열 _brand(=브랜드 id) + id + 각 필드. 값은 원본 그대로(RAW). 객체/배열 필드는 JSON 문자열.'],

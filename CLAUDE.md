@@ -2,25 +2,28 @@
 
 인플루언서 협업을 **리스트업 → 컨택 → 계약 → 출고 → 영상검수 → 업로드**까지 한 곳에서 관리하는 사내 웹앱. 관리자와 PA 알바가 함께 사용한다.
 
+> ⚠️ **2026-08-12 기준 최신.** Render/Supabase/`server.js` 시절 설명이 오래 남아 있었다.
+> 그 백엔드는 **삭제됐다**(`pa-manager.onrender.com` → 404). 아래가 현재 구조다.
+
 ## 아키텍처 (한눈에)
 - **프론트엔드**: `index.html` 단일 파일. React + ReactDOM을 unpkg CDN으로 로드하고, `<script type="text/babel">` 안에 JSX로 전체 앱을 작성 (빌드 단계 없음, 브라우저에서 Babel이 변환).
-- **백엔드**: `server.js` — 의존성 없는 순수 Node `http` 서버 (포트 `3456`, `process.env.PORT` 우선). 정적 파일 서빙 + `/api/*` REST.
-- **데이터 저장소**: **Supabase** (`SUPABASE_URL`, `SUPABASE_ANON_KEY` 환경변수 — Render에만 설정됨). 이게 실데이터의 원본.
-  - `data.json`은 로컬 폴백/백업본. 환경변수 없으면 서버가 이걸 사용.
-- **사용자/인증**: `users.json` (해시 비번). 로그인 시 base64 토큰 발급 → 이후 `Authorization: Bearer <token>`.
-- **구글 시트**: 리스트업/컨택 데이터의 **단일 정답(source of truth)**. '동기화' 버튼 = 시트 → 앱 **완전 교체(mirror)**. 앱이 시트로 거꾸로 쓰지는 않음.
+- **백엔드**: `apps-script/Code.gs` — 구글 시트에 바인딩된 Apps Script 웹앱. `index.html` 의 `API` 상수(1945행)가 그 `/exec` 주소를 부른다. 액션은 `handle()` 의 switch 참고 (`login/get/save/pfile*/contractMail/archive*/users/...`).
+- **데이터 저장소**: 구글 시트 `PA Manager 데이터`(id `1mtsbnaa_M991Zc-b0FE4cSiMcBEu5L-IUSdmvC5tcQc`) 의 `_appdata` 탭에 앱 JSON 을 45k자 청크로 분할 저장. 첨부(신분증·통장 등)는 본문이 아니라 **Drive `PA-Manager-pfiles`** 에 두고 참조 url만 저장한다.
+  - `data.json` 은 옛 로컬 폴백본. **커밋 금지**(gitignore). 낡은 폴백이 화면을 덮어써 편집을 날린 사고가 있었다.
+- **사용자/인증**: 시트 `_users` 탭(해시 비번 + `SALT`). 로그인하면 `TOKEN_SECRET`(Script Properties 의 랜덤값)으로 **HMAC 서명한 토큰**을 발급 → 이후 요청 body 의 `token` 필드로 보낸다. 시크릿이 코드에 없으므로 저장소가 공개여도 위조 불가.
+- **구글 시트(리스트업 원본)**: 리스트업/컨택 데이터의 **단일 정답(source of truth)**. '동기화' 버튼 = 시트 → 앱 **완전 교체(mirror)**. 앱이 시트로 거꾸로 쓰지는 않음.
 
 ## 배포 (중요)
-- 실제 사이트 = **Render 배포본** → https://pa-manager.onrender.com
-- **GitHub `main`에 push하면 Render가 자동 배포** (보통 1~5분). 로컬 수정만으로는 라이브에 반영 안 됨.
-- 배포 확인: `curl`로 라이브 HTML에 방금 추가한 코드 마커가 있는지 grep.
+- 실제 사이트 = **GitHub Pages** → https://eunyoung21.github.io/pa-manager/ (`main` 브랜치 루트)
+- **`main` 에 push 하면 Pages 가 자동 반영** (보통 1분 내). 프론트(`index.html`) 는 이걸로 끝.
+- **백엔드(`Code.gs`) 를 고쳤으면 push 만으로는 반영되지 않는다.** Apps Script 편집기에 붙여넣고 → **배포 → 배포 관리 → 편집(연필) → 버전: 새 버전 → 배포**. 이 과정을 빼먹어 "코드는 맞는데 동작이 옛날"인 경우가 반복됐다. `apps-script/DEPLOY.md` 참고.
+- 배포 확인: 라이브에서 `?action=ping` 을 호출하면 `{"ok":true,"rev":N}`.
+- ⚠️ **저장소는 PUBLIC 이다.** 시크릿·개인정보·실데이터를 커밋하지 말 것(`.gitignore` 확인).
 
 ## 로컬 실행
-```
-node server.js        # 또는 start.bat (Windows)
-# http://localhost:3456
-```
-- 환경변수(SUPABASE_*) 없이 띄우면 실데이터 대신 `data.json` 사용. 실데이터로 보려면 Render의 env 값 필요.
+- 정적 파일이라 `index.html` 을 그대로 열거나 아무 정적 서버로 띄우면 된다. 라이브 백엔드를 그대로 부른다.
+- 백엔드를 건드리지 않고 프론트만 테스트하려면 `window.PA_API` 로 목 서버를 주입한다(`test/` 의 E2E 가 이 방식).
+- `server.js` · `node/` · `start.bat` 은 **폐기된 Render 백엔드 잔재**다. 실행하지 말 것(gitignore 로 빠져 있음).
 
 ## 프론트엔드 구조 (index.html)
 - 메인 컴포넌트: `AppMain`. 탭(`TABS`) 기반.
@@ -44,4 +47,5 @@ node server.js        # 또는 start.bat (Windows)
 - `.main`은 `display:flex; overflow:hidden`이므로, 탭 최상위 div는 `flex:1 1 0; min-width:0; overflow-y:auto`를 줘야 폭을 채우고 스크롤된다.
 
 ## 커밋/푸시
-- 한국어 커밋 메시지 사용. 수정 → 커밋 → `git push origin main` → Render 자동 배포 → 라이브 확인.
+- 한국어 커밋 메시지 사용. 수정 → 커밋 → `git push origin main` → Pages 자동 반영 → 라이브 확인.
+- 백엔드(`Code.gs`)를 고쳤다면 push 와 별개로 **Apps Script 새 버전 배포**까지 해야 반영된다.

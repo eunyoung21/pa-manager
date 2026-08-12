@@ -5,7 +5,7 @@
 
 ---
 0. 접속 & 로그인
-1. 주소: **https://pa-manager.onrender.com**
+1. 주소: **https://eunyoung21.github.io/pa-manager/**
 2. 받은 **아이디 / 비밀번호**로 로그인
 3. 로그인하면 위에 `👷 프리랜서 모드`라고 떠요. (정상이에요)
 
