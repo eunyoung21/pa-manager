@@ -888,14 +888,14 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
     return outb;
   }
   var DOCX_MIME='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-  /* 파일 이름 = 광고주_광고모델_이름_계약일자.docx  (예: 드래프터_광고모델_홍길동_2026년08월06일.docx)
+  /* 파일 이름 = 광고주_광고모델계약서_이름_계약일자.docx  (예: 드래프터_광고모델계약서_홍길동_2026년08월06일.docx)
      맨 앞 광고주명으로 어느 브랜드 계약서인지 알 수 있어야 한다 — 모델이 서명해 회신하면
      계약서 회수기가 이 이름을 보고 베이스튠/그래니 드라이브로 갈라 넣는다.
      ('주식회사' 는 떼고 쓴다. 드래프터=베이스튠, 썸웨어코드=그래니살라)
      계약일자를 뒤에 남기는 이유: 보관 파일명·정산/노션 기입이 이 날짜로 건을 맞춘다. */
   function contractFileName(name,date,brandId){
     var co=(CB[brandId]&&CB[brandId].company||'').replace(/^주식회사\s*/,'').trim();
-    return (co?co+'_':'')+'광고모델_'+(name||'모델')+'_'+fmtDate(date).replace(/ /g,'')+'.docx';
+    return (co?co+'_':'')+'광고모델계약서_'+(name||'모델')+'_'+fmtDate(date).replace(/ /g,'')+'.docx';
   }
   // 만든 파일을 내려받는다. 메일 발송은 같은 바이트를 그대로 첨부하므로 다운로드와 내용이 동일하다.
   function downloadDocx(built){

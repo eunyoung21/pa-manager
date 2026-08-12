@@ -29,13 +29,13 @@ const nameOf = (brandId, name, date) =>
   window.buildContractDocx(brandId, name, '800000', date, { name, phone: '', addr: '', rrn: '' }).filename;
 
 console.log('\n계약서 파일 이름 — 광고주명이 맨 앞에 와야 브랜드가 갈린다');
-eq(nameOf('basetune', '문태양', '2026-08-06'), '드래프터_광고모델_문태양_2026년08월06일.docx',
+eq(nameOf('basetune', '문태양', '2026-08-06'), '드래프터_광고모델계약서_문태양_2026년08월06일.docx',
    '베이스튠 → 드래프터');
-eq(nameOf('granny', '한은민', '2026-08-06'), '썸웨어코드_광고모델_한은민_2026년08월06일.docx',
+eq(nameOf('granny', '한은민', '2026-08-06'), '썸웨어코드_광고모델계약서_한은민_2026년08월06일.docx',
    '그래니살라 → 썸웨어코드');
-eq(nameOf('basetune', '', '2026-08-06'), '드래프터_광고모델_모델_2026년08월06일.docx',
+eq(nameOf('basetune', '', '2026-08-06'), '드래프터_광고모델계약서_모델_2026년08월06일.docx',
    '이름 비면 "모델"');
-eq(nameOf('granny', '한은민', ''), '썸웨어코드_광고모델_한은민_____년__월__일.docx',
+eq(nameOf('granny', '한은민', ''), '썸웨어코드_광고모델계약서_한은민_____년__월__일.docx',
    '계약일자 비면 빈칸 유지');
 
 console.log('\n회수기가 이 이름을 되읽을 수 있어야 한다 (contract-collector/Code.gs 와 같은 규칙)');
