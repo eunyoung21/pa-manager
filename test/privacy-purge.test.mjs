@@ -1,6 +1,6 @@
 /* 개인정보 자동폐기 검증 — Code.gs 를 그대로 읽어 구글 전역만 가짜로 끼워 실행한다.
-   규칙(2026-08-12): 정산완료 30일 뒤, 폐기하는 것은 신분증사본·통장사본 두 가지뿐.
-   이름·연락처·주소·계좌·주민번호·계약서는 회계 증빙으로 남긴다.
+   규칙(2026-08-12): 정산완료 30일 뒤, 폐기하는 것은 신분증사본·통장사본·주민등록번호.
+   이름·연락처·주소·계좌·계약서는 회계 증빙으로 남긴다.
    실행: node test/privacy-purge.test.mjs */
 import fs from 'fs';
 import path from 'path';
@@ -66,7 +66,7 @@ const data = (settledDate) => ({
   }],
 });
 
-console.log('\n정산완료 30일 경과 — 신분증·통장만 폐기');
+console.log('\n정산완료 30일 경과 — 신분증·통장·주민번호만 폐기');
 {
   const d = data(OLD_DATE);
   const { changed, trashed } = run(d, { pfileNames: ['700101', '700102', '700103'] });
@@ -81,7 +81,7 @@ console.log('\n정산완료 30일 경과 — 신분증·통장만 폐기');
   chk(p.realName === '김하늘', '실명 남음');
   chk(p.address === '서울시 강남구', '주소 남음');
   chk(p.bankAccount === '123-456-789', '계좌번호 남음');
-  chk(p.rrn === '900101-2345678', '주민등록번호 남음');
+  chk(p.rrn === '', '주민등록번호는 비운다 (보관 근거 없음)');
   chk(s2.phone === '010-1234-5678', '컨택현황 연락처도 남음');
   chk(s2.privacyPurged === true && !!s2.privacyPurgedDate, '폐기 표시·날짜 기록');
 }
@@ -102,6 +102,7 @@ console.log('\n아직 30일이 안 됐으면 아무것도 안 한다');
   const p = d.brands[0].privacyRows[0];
   chk(changed === false, '변경 없음');
   chk(!!p.idFile && !!p.bankFile, '신분증·통장 그대로');
+  chk(p.rrn === '900101-2345678', '주민등록번호도 그대로');
   chk(trashed.length === 0, '파일도 그대로');
 }
 

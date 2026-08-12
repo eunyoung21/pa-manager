@@ -315,7 +315,7 @@ function preSaveGuard(incoming, force) {
   return { block: false };
 }
 
-/* ── 개인정보 자동폐기 — 정산완료 30일 뒤, 신분증사본·통장사본만 ── */
+/* ── 개인정보 자동폐기 — 정산완료 30일 뒤, 신분증사본·통장사본·주민번호 ── */
 function ymdKey(s) {
   if (!s) return null;
   var str = String(s).trim(), m;
@@ -356,15 +356,17 @@ function purgeExpiredPrivacy(data) {
       if (r && r.infSettled === 'Y' && r.infSettledDate && !r.privacyPurged) {
         var ds = daysSinceYmd(r.infSettledDate);
         if (ds != null && ds >= 30) {
-          /* 폐기 대상은 신분증사본·통장사본 두 가지뿐이다(2026-08-12 변경).
+          /* 폐기 대상은 신분증사본·통장사본·주민등록번호(2026-08-12 변경).
              예전엔 개인정보 행을 통째로 지우고 연락처·계약서 파일까지 날렸는데,
-             정산 끝난 사람의 이름·연락처·계좌·계약서는 회계 증빙으로 계속 필요하다.
-             → 행은 남기고 idFile·bankFile 만 떼어내고 실제 파일도 휴지통으로. */
+             정산 끝난 사람의 이름·연락처·주소·계좌·계약서는 회계 증빙으로 계속 필요하다.
+             주민등록번호는 반대로 보관할 근거가 없어 값까지 비운다.
+             → 행은 남기고 idFile·bankFile 을 떼어(실제 파일도 휴지통) rrn 을 비운다. */
           for (var pi = 0; pi < priv.length; pi++) {
             var p = priv[pi];
             if (!p || p.channelName !== r.name) continue;
             if (p.idFile)   { deletePfileByUrl(p.idFile.url);   p.idFile = null;   changed = true; }
             if (p.bankFile) { deletePfileByUrl(p.bankFile.url); p.bankFile = null; changed = true; }
+            if (p.rrn)      { p.rrn = '';                                          changed = true; }
           }
           r.privacyPurged = true; r.privacyPurgedDate = todayDisp();
           changed = true;
