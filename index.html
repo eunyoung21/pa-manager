@@ -1917,7 +1917,7 @@ function parseDateKey(s){
   return null;
 }
 function parseYM(d){const dk=parseDateKey(d);return dk?dk.slice(0,7):null;}
-// 정산완료일(YY.MM.DD 등)로부터 경과한 일수. 개인정보 폐기(완료 후 3일) 카운트다운에 사용.
+// 정산완료일(YY.MM.DD 등)로부터 경과한 일수. 사본 폐기(완료 후 30일) 카운트다운에 사용.
 function daysSinceKey(s){const k=parseDateKey(s);if(!k)return null;const[y,m,d]=k.split('-').map(Number);const then=new Date(y,m-1,d);const now=new Date();const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());return Math.floor((t0-then)/86400000);}
 // 날짜(YY.MM.DD 등)에 n일 더해 YY.MM.DD로 반환 — 출고일+7일 같은 예상일 계산용. 못 읽으면 ''.
 function addDaysToDate(s,n){const k=parseDateKey(s);if(!k)return '';const[y,m,d]=k.split('-').map(Number);const dt=new Date(y,m-1,d+n);const yy=String(dt.getFullYear()).slice(2),mm=String(dt.getMonth()+1).padStart(2,'0'),dd=String(dt.getDate()).padStart(2,'0');return `${yy}.${mm}.${dd}`;}
@@ -2563,7 +2563,7 @@ async function resolveFileSrc(file){
    ①모바일에서 저장 실패(매 저장마다 수 MB 업로드) ②앱스스크립트 락 경합·실행시간 초과
    ③localStorage 5MB 초과로 로컬 백업이 조용히 실패(저장 실패 시 편집분 소실)를 일으킨다.
    → 첨부는 항상 첨부 저장소(pfile)에 분리 저장하고, 본문엔 참조 url만 둔다.
-   (정산 3일 후 개인정보 자동폐기는 백엔드가 pfile 을 함께 삭제하므로 그대로 유지된다) */
+   (정산 30일 후 자동폐기는 백엔드가 신분증·통장 pfile 을 함께 삭제하므로 그대로 유지된다) */
 const PFILE_KEYS=['idFile','bankFile','contractFile'];
 const isInlineFile=f=>!!(f&&typeof f==='object'&&/^data:/.test(f.url||''));
 function countInlineFiles(d){
@@ -2639,11 +2639,11 @@ function FileUpload({label,value,onChange,onPick,archive}){
       const type=shrunk?'image/jpeg':file.type;
       // ★ 첨부는 본문과 분리해 저장(pfileSave) — 통장·신분증도 포함. 본문에 base64를 박으면
       //   저장 페이로드가 수 MB로 부풀어 모바일 저장이 실패한다(실제 사고 원인).
-      //   개인정보 3일 후 자동폐기는 백엔드가 pfile 을 함께 삭제하므로 그대로 지켜진다.
+      //   정산 30일 후 자동폐기는 백엔드가 신분증·통장 pfile 을 함께 삭제하므로 그대로 지켜진다.
       const d=await callApi('pfileSave',{data:dataUrl,name:file.name,type});
       if(d&&d.ok&&d.url){
         onChange({name:file.name,url:d.url,type});
-        // 보관 대상(계약서·신분증·통장)은 브랜드 드라이브에 영구 복사(정산 3일 후 폐기와 무관) — 실패해도 첨부는 유지하되 사유는 드러낸다.
+        // 보관 대상(계약서·신분증·통장)은 브랜드 드라이브에 영구 복사(정산 30일 후 폐기와 무관) — 실패해도 첨부는 유지하되 사유는 드러낸다.
         // data 도 함께 보냄: 백엔드가 pfile 복사본을 못 찾으면 base64 로 직접 저장(2순위)하므로 'no source' 로 조용히 실패하지 않는다.
         if(archive&&archive.brand){
           const a=await callApi('contractArchive',{brand:archive.brand,kind:archive.kind||'contract',channelName:archive.channelName||'',realName:archive.realName||'',pfileUrl:d.url,data:dataUrl,name:file.name});
@@ -3292,8 +3292,8 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
   const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
   function setCol(f,v){setColF(p=>({...p,[f]:v}));}
   const cfVal=(r,f)=>f==='contactStatus'?normStatus(r.contactStatus):s2(r[f]);
-  // '전체'=진행 중만(거절 제외). 개인정보 폐기(privacyPurged)는 연락처만 지운 것이지 목록에서 치운 게 아니므로 진행 중에 그대로 보인다.
-  // (예전엔 폐기된 행도 숨겨서, 정산 3일 뒤 자동폐기되는 최근 건들이 통째로 사라져 보였음 — 2026-07-28 수정)
+  // '전체'=진행 중만(거절 제외). 폐기(privacyPurged)는 신분증·통장 사본만 지운 것이지 목록에서 치운 게 아니므로 진행 중에 그대로 보인다.
+  // (예전엔 폐기된 행도 숨겨서, 자동폐기된 최근 건들이 통째로 사라져 보였음 — 2026-07-28 수정)
   const isRej=r=>normStatus(r.contactStatus)==='거절';
   const isPurged=r=>!!r.privacyPurged;
   const isArchived=r=>isRej(r);
@@ -3365,9 +3365,9 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     </div>
     {(mode==='archive'||mode==='reject')&&<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',padding:'7px 12px',margin:'0 0 2px',background:'var(--surface2)',borderTop:'1px solid var(--border)',borderBottom:'1px solid var(--border)',fontSize:12,color:'var(--muted)'}}>
       {mode==='archive'
-        ? <><span>🗑️ <b style={{color:'var(--orange)'}}>개인정보 폐기</b> — 정산 3일 뒤 연락처·첨부가 자동 폐기된 인플루언서 모음</span>
+        ? <><span>🗑️ <b style={{color:'var(--orange)'}}>사본 폐기</b> — 정산 30일 뒤 <b>신분증사본·통장사본</b>이 자동 폐기된 인플루언서 모음</span>
             <span style={{color:'var(--dim)'}}>·</span>
-            <span>행 자체는 <b>진행 중 목록에도 그대로</b> 있고 데이터·수당 정산도 보존됩니다</span></>
+            <span>이름·연락처·주소·계좌·계약서는 <b>그대로 남습니다</b>(회계 증빙)</span></>
         : <><span>🚫 <b style={{color:'var(--red)'}}>거절</b> 인플루언서 모음</span>
             <span style={{color:'var(--dim)'}}>·</span>
             <span>진행상태를 다른 값으로 바꾸면 <b>컨택현황</b>으로 돌아갑니다</span></>}
@@ -4046,7 +4046,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                 <td data-label="정산" style={{textAlign:'center'}}>
                   {/* 정산 상태 + 관리자 정산완료 버튼(따로). 개인정보 폐기 후엔 폐기완료로 표시. */}
                   {ss==='purged'
-                    ? <span title={`정산 완료 후 개인정보 폐기됨 (${st.privacyPurgedDate||''})`} style={{fontSize:10,color:'var(--dim)',fontWeight:700,whiteSpace:'nowrap'}}>🗑️ 폐기완료</span>
+                    ? <span title={`정산 완료 후 신분증·통장 사본 폐기됨 (${st.privacyPurgedDate||''})`} style={{fontSize:10,color:'var(--dim)',fontWeight:700,whiteSpace:'nowrap'}}>🗑️ 폐기완료</span>
                     : ss==='paid'
                       ? <span style={{display:'inline-flex',flexDirection:'column',gap:2,alignItems:'center'}}>
                           <span style={{fontSize:10,color:'var(--green)',fontWeight:700,whiteSpace:'nowrap'}}>✅ 정산완료{st.infSettledDate?` ${st.infSettledDate}`:''}</span>
@@ -4054,15 +4054,13 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                         </span>
                       : <span style={{display:'inline-flex',flexDirection:'column',gap:2,alignItems:'center'}}>
                           <span style={{fontSize:10,color:'#f59e0b',fontWeight:600,whiteSpace:'nowrap'}}>⏳ 미정산</span>
-                          {isManager&&<button onClick={()=>onSettle&&onSettle(r.channelName,true,{pa:r.pa,realName:r.realName})} title="단가 지급 완료 표시 (30일 후 개인정보 자동 폐기)" style={{fontSize:9,padding:'2px 7px',border:0,borderRadius:4,background:'var(--green)',color:'#fff',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>💰 정산완료</button>}
+                          {isManager&&<button onClick={()=>onSettle&&onSettle(r.channelName,true,{pa:r.pa,realName:r.realName})} title="단가 지급 완료 표시 (30일 후 신분증·통장 사본 자동 폐기)" style={{fontSize:9,padding:'2px 7px',border:0,borderRadius:4,background:'var(--green)',color:'#fff',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>💰 정산완료</button>}
                         </span>}
                 </td>
                 <td data-label="개인정보" style={{textAlign:'center'}}>
                   {!isManager
                     ? <span style={{fontSize:10,color:'var(--dim)'}}>—</span>
-                    : ss==='purged'
-                      ? <span title="개인정보 폐기됨 — 볼 수 없음" style={{fontSize:10,color:'var(--dim)'}}>🗑️ 폐기됨</span>
-                      : <button onClick={()=>setPvRow(r)} title="이 사람 개인정보 보기/입력 (관리자 전용)" style={{fontSize:10,padding:'3px 8px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface2)',color:'var(--text)',cursor:'pointer',whiteSpace:'nowrap'}}>🔒 개인정보</button>}
+                    : <button onClick={()=>setPvRow(r)} title={ss==='purged'?'개인정보 보기 — 신분증·통장 사본은 폐기됐고 나머지는 남아 있습니다':'이 사람 개인정보 보기/입력 (관리자 전용)'} style={{fontSize:10,padding:'3px 8px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface2)',color:'var(--text)',cursor:'pointer',whiteSpace:'nowrap'}}>🔒 개인정보</button>}
                 </td>
               </tr>
             </React.Fragment>;
@@ -4220,7 +4218,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
               <td><Cell value={r.notes} onChange={v=>onUpdate(r.id,{notes:v})} placeholder="비고"/></td>
               <td style={{textAlign:'center'}}>
                 {status==='purged'
-                  ? <span title={`정산 완료 후 30일 경과 — 개인정보 폐기됨 (${st.privacyPurgedDate||''})`} style={{fontSize:10,color:'var(--dim)',whiteSpace:'nowrap'}}>🗑️ 폐기완료</span>
+                  ? <span title={`정산 완료 후 30일 경과 — 신분증·통장 사본 폐기됨 (${st.privacyPurgedDate||''})`} style={{fontSize:10,color:'var(--dim)',whiteSpace:'nowrap'}}>🗑️ 폐기완료</span>
                   : status==='paid'
                     ? <div style={{display:'inline-flex',flexDirection:'column',gap:3,alignItems:'center'}}>
                         <span style={{fontSize:10,color:'var(--green)',fontWeight:700,whiteSpace:'nowrap'}}>✅ 정산완료{st.infSettledDate?` ${st.infSettledDate}`:''}</span>
@@ -4641,7 +4639,7 @@ function GuideView({ brand }) {
           <div className="guide-step"><div className="guide-step-num">3</div><div className="guide-step-text"><strong>개인정보</strong> 페이지에서 통장사본을 확인해 단가를 지급한 뒤, 그 줄의 <strong>💰 정산 처리</strong> 버튼을 누릅니다. (잘못 눌렀으면 <strong>정산 취소</strong>로 되돌림)</div></div>
           <div className="guide-step"><div className="guide-step-num">4</div><div className="guide-step-text">개인정보 페이지 상단 칩(<strong>정산 전 / ✅ 정산완료 / 🗑️ 폐기완료</strong>)으로 누가 정산됐는지 한눈에 확인할 수 있습니다.</div></div>
         </div>
-        <div className="guide-warn">🔒 개인정보 보호: 정산 완료 <strong>3일 후</strong> 해당 인플루언서의 개인정보(성명·연락처·주소·통장/신분증/계약서 파일)가 <strong>자동 폐기</strong>됩니다. 채널명과 정산 기록은 회계용으로만 남습니다. (되돌릴 수 없음)</div>
+        <div className="guide-warn">🔒 개인정보 보호: 정산 완료 <strong>30일 후</strong> 해당 인플루언서의 <strong>신분증사본·통장사본</strong>이 <strong>자동 폐기</strong>됩니다(되돌릴 수 없음). 이름·연락처·주소·계좌·계약서는 회계 증빙으로 그대로 남습니다.</div>
       </div>
       <div className="guide-card" style={{marginTop:8}}>
         <div className="guide-card-title">📦 진행 중 / 거절 — 목록 정리</div>
