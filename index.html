@@ -2636,7 +2636,9 @@ function FileUpload({label,value,onChange,onPick,archive}){
       // 사진은 축소본으로 업로드(폰 원본 2~3MB → 200~400KB). PDF 등은 원본 그대로.
       const shrunk=await shrinkImage(file);
       dataUrl=shrunk||await readAsDataUrl(file);
-      const type=shrunk?'image/jpeg':file.type;
+      const type=shrunk?'image/jpeg':(file.type||'application/octet-stream');
+      // 브라우저가 형식을 모르는 파일(.hwp 등)은 data URL 이 'data:;base64,…' 로 나와 저장소가 'bad data url' 로 거절한다 → 형식을 채워준다.
+      if(/^data:;base64,/.test(dataUrl)) dataUrl='data:'+type+';base64,'+dataUrl.slice('data:;base64,'.length);
       // ★ 첨부는 본문과 분리해 저장(pfileSave) — 통장·신분증도 포함. 본문에 base64를 박으면
       //   저장 페이로드가 수 MB로 부풀어 모바일 저장이 실패한다(실제 사고 원인).
       //   정산 30일 후 자동폐기는 백엔드가 신분증·통장 pfile 을 함께 삭제하므로 그대로 지켜진다.
@@ -2667,7 +2669,8 @@ function FileUpload({label,value,onChange,onPick,archive}){
   const isImg=value?.type?.startsWith('image/');
   const dlName=value?.name||'첨부파일';
   return <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-    <input ref={ref} type="file" accept="image/*,.pdf" onChange={handleFile} style={{display:'none'}}/>
+    {/* accept 를 걸지 않는다 — 계약서가 워드·한글·zip 등 어떤 형태로 와도 첨부돼야 한다(PDF만 되던 문제) */}
+    <input ref={ref} type="file" onChange={handleFile} style={{display:'none'}}/>
     {value
       ?<>
         {isImg
@@ -2712,15 +2715,15 @@ function AddPrivacyModal({onConfirm,onCancel,prefill,brandId}){
         <div><div className="modal-lbl">전화번호</div><input className="modal-inp" value={f.phone} onChange={u('phone')} placeholder="010-0000-0000"/></div>
         <div className="modal-full"><div className="modal-lbl">주소</div><input className="modal-inp" value={f.address} onChange={u('address')}/></div>
         <div className="modal-full">
-          <div className="modal-lbl">통장사본 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
+          <div className="modal-lbl">통장사본 <span style={{color:'var(--dim)',fontSize:10}}>(이미지·PDF·워드 등)</span></div>
           <FileUpload label="통장사본 첨부" value={f.bankFile} onChange={v=>setF(p=>({...p,bankFile:v}))} archive={{brand:brandId,kind:'bank',channelName:f.channelName,realName:f.realName}}/>
         </div>
         <div className="modal-full">
-          <div className="modal-lbl">신분증사본 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF)</span></div>
+          <div className="modal-lbl">신분증사본 <span style={{color:'var(--dim)',fontSize:10}}>(이미지·PDF·워드 등)</span></div>
           <FileUpload label="신분증사본 첨부" value={f.idFile} onChange={v=>setF(p=>({...p,idFile:v}))} archive={{brand:brandId,kind:'id',channelName:f.channelName,realName:f.realName}}/>
         </div>
         <div className="modal-full">
-          <div className="modal-lbl">계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF · 올리면 브랜드 드라이브에 자동 보관)</span></div>
+          <div className="modal-lbl">계약서 <span style={{color:'var(--dim)',fontSize:10}}>(워드·PDF·이미지 등 파일 종류 제한 없음 · 올리면 브랜드 드라이브에 자동 보관)</span></div>
           <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))} archive={{brand:brandId,kind:'contract',channelName:f.channelName,realName:f.realName}}/>
         </div>
         <div className="modal-full"><div className="modal-lbl">비고</div><input className="modal-inp" value={f.notes} onChange={u('notes')}/></div>
@@ -3848,7 +3851,7 @@ function ReviewPrivacyModal({ row, privacyRows, onUpdatePrivacy, onAddPrivacy, o
         </div>
         <div className="modal-full"><div className="modal-lbl">주민등록번호</div>
           <div style={{display:'flex',gap:6}}><input className="modal-inp" style={{flex:1}} value={f.rrn} onChange={u('rrn')} placeholder="000000-0000000"/><CopyBtn value={f.rrn}/></div></div>
-        <div className="modal-full"><div className="modal-lbl">📄 계약서 <span style={{color:'var(--dim)',fontSize:10}}>(이미지 또는 PDF · 올리면 브랜드 드라이브에 자동 보관)</span></div>
+        <div className="modal-full"><div className="modal-lbl">📄 계약서 <span style={{color:'var(--dim)',fontSize:10}}>(워드·PDF·이미지 등 파일 종류 제한 없음 · 올리면 브랜드 드라이브에 자동 보관)</span></div>
           <FileUpload label="계약서 첨부" value={f.contractFile} onChange={v=>setF(p=>({...p,contractFile:v}))} archive={{brand:brandId,kind:'contract',channelName:f.channelName,realName:f.realName}}/>
         </div>
       </div>
