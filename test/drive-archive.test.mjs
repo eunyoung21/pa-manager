@@ -116,7 +116,7 @@ console.log('1) 통장·신분증 → 개인정보파일 / 계약서 → 계약�
   chk(cont.files.length === 1, '계약서파일 폴더에 1개(계약서)');
   chk(priv.files[0].name === '통장.jpg', '올린 파일명 그대로 → ' + priv.files[0].name);
   chk(priv.files[1].name === '신분증.jpg', '올린 파일명 그대로 → ' + priv.files[1].name);
-  chk(cont.files[0].name === 'cooking_j_김하늘_260729.pdf', '올린 파일명 그대로 → ' + cont.files[0].name);
+  chk(cont.files[0].name === '드래프터_광고모델_김하늘_2026년07월29일.pdf', '계약서는 표준형으로 이름 통일 → ' + cont.files[0].name);
   chk(priv.files[0].bytes.toString() === 'bank-img', '내용은 pfile 원본 그대로 복사');
   const memo = JSON.parse(priv.files[0].description);
   chk(memo.s === 'pfile:9001', '출처(pfile id)를 설명 메모에 기록');

@@ -611,18 +611,21 @@ function contractArchive(sess, body) {
   if (!sub) return json({ error: '드라이브 폴더 미지정 (' + brand + '/' + kind.sub + ')' });
 
   var m = String((body && body.pfileUrl) || '').match(/[?&]id=(\d+)/);
-  // 올린 파일 이름을 그대로 쓴다(드라이브에서 못 쓰는 문자만 제거).
+  // 올린 파일 이름에서 드라이브가 못 쓰는 문자만 제거.
   var nm = String(body.name || '').replace(/[\\\/:*?"<>|]/g, '').trim();
   var dot = nm.lastIndexOf('.'), ext = dot > 0 ? nm.slice(dot) : '', base = dot > 0 ? nm.slice(0, dot) : nm;
   if (!base) { base = kind.label; ext = ext || ''; }
-  // 계약날짜: 올린 파일 이름 끝의 6자리(예: …_260805)를 먼저 쓰고, 없으면 오늘.
-  var dm = base.match(/(\d{6})(?!.*\d)/);
+  // 계약날짜: 「2026년08월06일」 → 이름 끝 6자리(…_260805) → 오늘 순으로 읽는다.
   var memo = { s: m ? ('pfile:' + m[1]) : '', b: brand, k: String(body.kind || 'contract'),
     c: String(body.channelName || ''), r: String(body.realName || ''),
-    d: dm ? dm[1] : todayDisp().replace(/[^0-9]/g, '') };
+    d: dateFromName(base) || todayDisp().replace(/[^0-9]/g, '') };
 
   var prev = findArchived(sub, memo);
   if (prev.same) return json({ ok: true, url: prev.same.getUrl(), name: prev.same.getName(), dup: true });
+  // 계약서는 보낸 파일과 같은 표준형으로 이름을 맞춘다: 드래프터_광고모델_홍길동_2026년08월06일.docx
+  // (본명이나 브랜드를 모르면 올린 이름 그대로 — 사람이 알아볼 단서를 지우지 않는다)
+  var std = memo.k === 'contract' ? standardContractName(brand, memo.r, memo.d) : '';
+  if (std) base = std;
   // 같은 이름이 이미 있으면 덮어쓰지 않고 번호를 붙인다.
   var fname = base + ext;
   for (var i = 2; prev.names[fname]; i++) fname = base + '_' + i + ext;
@@ -712,10 +715,36 @@ function contractMail(sess, body) {
 
 /* 노션 자동기입용 — 아직 처리 안 된(=완료 폴더로 안 옮긴) 계약서 건 목록.
    계약서 1장 = 정산 1건. 같은 사람의 신분증·통장이 개인정보파일에 있는지도 함께 알려준다. */
+/* 계약서 파일명 표준형 — 우리가 메일로 보낸 이름과 같게 맞춘다.
+   드래프터_광고모델_홍길동_2026년08월06일   (광고주명이 곧 브랜드) */
+var BRAND_COMPANY_SHORT = { basetune: '드래프터', granny: '썸웨어코드' };
+function stampKo(ymd6) {                                   // 260806 → 2026년08월06일
+  var m = String(ymd6 || '').match(/^(\d{2})(\d{2})(\d{2})$/);
+  return m ? ('20' + m[1] + '년' + m[2] + '월' + m[3] + '일') : '';
+}
+function standardContractName(brand, realName, ymd6) {
+  var co = BRAND_COMPANY_SHORT[brand], ko = stampKo(ymd6), who = String(realName || '').trim();
+  if (!co || !ko || !who) return '';
+  return [co, '광고모델', who, ko].join('_').replace(/[\\\/:*?"<>|]/g, '');
+}
+/* 이름에서 계약날짜(YYMMDD) 뽑기: 「2026년08월06일」 먼저, 없으면 끝의 6자리 */
+function dateFromName(stem) {
+  var k = String(stem || '').match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일/);
+  if (k) return k[1].slice(2) + k[2] + k[3];
+  var d = String(stem || '').match(/(\d{6})(?!.*\d)/);
+  return d ? d[1] : '';
+}
 function parseArchiveName(name, kind) {
   // 확장자와 중복번호(_2, _3)만 떼어낸다. 6자리 계약날짜를 떼면 안 되므로 1~2자리로 제한.
   var stem = String(name).replace(/\.[^.]+$/, '').replace(/_\d{1,2}$/, '');
   if (kind.dated) {                                                        // …_채널명_본명_YYMMDD
+    // 표준형: 광고주_광고모델_본명_2026년08월06일 — 채널명은 없고 본명이 마지막에서 두 번째
+    var ko = stem.match(/^(.+)_(\d{4})년\s*(\d{2})월\s*(\d{2})일$/);
+    if (ko) {
+      var head = ko[1], i2 = head.lastIndexOf('_');
+      var who2 = i2 > 0 ? head.slice(i2 + 1) : head;
+      return { channelName: '', realName: who2, date: ko[2].slice(2) + ko[3] + ko[4], who: who2 };
+    }
     var m = stem.match(/^(.*)_(\d{6})$/); if (!m) return null;
     var who = m[1].replace(/_?계약서_?$/, '');                             // 손으로 넣은 '…_계약서_날짜' 도 받아준다
     var i = who.lastIndexOf('_');
