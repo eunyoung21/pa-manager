@@ -757,6 +757,16 @@ function parseArchiveName(name, kind) {
 }
 /* 파일 하나에서 노션 기입에 쓸 값을 뽑는다. 파일 설명(앱이 심어둔 메모)이 1순위,
    없으면(손으로 넣은 파일) 이름 규칙으로 읽는다. */
+/* 계약서 ↔ 신분증·통장을 이어붙일 열쇠. 본명이 가장 믿을 만하므로 앞에 둔다.
+   (공백·대소문자는 무시 — '김 하늘'과 '김하늘'이 갈라지지 않게) */
+function archiveKeys(p) {
+  var nz = function (v) { return String(v || '').trim().toLowerCase().replace(/\s+/g, ''); };
+  var out = [];
+  if (nz(p.realName))    out.push('r:' + nz(p.realName));
+  if (nz(p.channelName)) out.push('c:' + nz(p.channelName));
+  if (nz(p.who))         out.push('w:' + nz(p.who));
+  return out;
+}
 function archiveInfo(f, kind) {
   var m = archiveMemo(f);
   if (m && m.k === kind.key) {
@@ -788,7 +798,15 @@ function archivePending(sess, body) {
         if (!k) continue;
         var pp = archiveInfo(pfl, k === 'idFile' ? ARCHIVE_KIND.id : ARCHIVE_KIND.bank);
         if (!pp || !pp.who) continue;
-        (priv[pp.who] = priv[pp.who] || {})[k] = { id: pfl.getId(), name: pn, url: pfl.getUrl() };
+        // 계약서와 이어붙일 열쇠를 여러 개 걸어둔다 — 본명·채널명·둘을 합친 이름.
+        // 예전엔 '채널명_본명' 하나로만 맞춰서, 계약서와 신분증의 채널명 표기가 다르거나
+        // (회수기가 저장한 계약서는 채널명이 비어 있다) 통장을 성명 적기 전에 올렸으면
+        // 서류가 멀쩡히 있는데도 '없음'으로 잡혔다.
+        var keys = archiveKeys(pp);
+        for (var kk = 0; kk < keys.length; kk++) {
+          var slot = (priv[keys[kk]] = priv[keys[kk]] || {});
+          if (!slot[k]) slot[k] = { id: pfl.getId(), name: pn, url: pfl.getUrl() };
+        }
       }
     }
     var cit = cf.getFiles();
@@ -796,7 +814,14 @@ function archivePending(sess, body) {
       var f = cit.next(), n = f.getName();
       var p = archiveInfo(f, ARCHIVE_KIND.contract);
       if (!p) continue;                                                    // 정보를 못 읽는 파일은 건드리지 않음
-      var extra = priv[p.who] || {};
+      var ck = archiveKeys(p), extra = {};                                 // 본명 → 채널명 → 합친 이름 순으로 이어본다
+      for (var ci = 0; ci < ck.length; ci++) {
+        var hit = priv[ck[ci]];
+        if (!hit) continue;
+        if (!extra.idFile && hit.idFile) extra.idFile = hit.idFile;
+        if (!extra.bankFile && hit.bankFile) extra.bankFile = hit.bankFile;
+        if (extra.idFile && extra.bankFile) break;
+      }
       out.push({ brand: brand, channelName: p.channelName, realName: p.realName, date: p.date,
         contractFile: { id: f.getId(), name: n, url: f.getUrl() },
         idFile: extra.idFile || null, bankFile: extra.bankFile || null });

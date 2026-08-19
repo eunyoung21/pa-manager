@@ -216,5 +216,30 @@ console.log('8) 손으로 넣은 파일(설명 없음)은 이름 규칙으로 �
   chk(!!(items[0] || {}).idFile && !!(items[0] || {}).bankFile, '같은 사람의 신분증·통장 연결');
 }
 
+console.log('9) 채널명이 어긋나도 본명으로 서류를 이어붙인다 (실제로 정산이 막혔던 경우)');
+{
+  const { api, drive } = makeEnv(CFG_OK);
+  const cont = drive.byId[CFG_OK.basetune.contract], priv = drive.byId[CFG_OK.basetune.privacy];
+  const withMemo = (folder, name, memo) => {
+    const f = drive.file(name, Buffer.from('x'), folder);
+    f.description = JSON.stringify(memo); folder.files.push(f); return f;
+  };
+  // ① 메일 회수본이라 계약서에 채널명이 없다 + 신분증은 앱에서 올려 채널명이 있다 → 본명으로 이어야 한다
+  withMemo(cont, '드래프터_광고모델_정시연_2026년08월12일.docx', { s: '', b: 'basetune', k: 'contract', c: '', r: '정시연', d: '260812' });
+  withMemo(priv, '신분증.jpg', { s: 'pfile:1', b: 'basetune', k: 'id',   c: '시연', r: '정시연', d: '260812' });
+  withMemo(priv, '통장.jpg',   { s: 'pfile:2', b: 'basetune', k: 'bank', c: '시 연', r: '정 시연', d: '260812' });
+  // ② 통장을 성명 적기 전에 올려 본명이 비어 있다 → 채널명으로 이어야 한다
+  withMemo(cont, '드래프터_광고모델_한서린_2026년08월12일.docx', { s: '', b: 'basetune', k: 'contract', c: '서린', r: '한서린', d: '260812' });
+  withMemo(priv, '신분증2.jpg', { s: 'pfile:3', b: 'basetune', k: 'id',   c: '서린', r: '',  d: '260812' });
+  withMemo(priv, '통장2.jpg',   { s: 'pfile:4', b: 'basetune', k: 'bank', c: '서린', r: '',  d: '260812' });
+
+  const items = api.archivePending(SESS, {}).items || [];
+  const a = items.find((x) => x.realName === '정시연') || {};
+  const b = items.find((x) => x.realName === '한서린') || {};
+  chk(!!a.idFile, '계약서에 채널명이 없어도 본명으로 신분증 연결');
+  chk(!!a.bankFile, '공백 표기가 달라도(시 연 / 정 시연) 같은 사람으로 연결');
+  chk(!!b.idFile && !!b.bankFile, '서류에 본명이 없어도 채널명으로 연결');
+}
+
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 서류 자동보관 전부 통과'));
 process.exit(fail ? 1 : 0);
