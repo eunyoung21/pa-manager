@@ -2022,18 +2022,16 @@ function normalizeData(d) {
         // 클로드 발굴 행: 담당 PA를 이은영으로 고정하지 않음 — 협업 성사 시 그 알바가 자기 이름을 직접 선택.
         // 옛 'Claude'/이은영 표기는 '미지정'(빈값)으로 두고, 지정된 알바 이름은 유지(성사수당 귀속).
         const fixPa=rows=>rows.map(r=>(r.pa==='Claude'||r.pa==='이은영')?{...r,pa:''}:r);
-        // 클로드 탭 메모는 사용하지 않음 — 로드할 때마다 항상 비움(요청).
-        const clearMemo=rows=>rows.map(r=>r.memo?{...r,memo:''}:r);
         // 카테고리(낚시·뷰티 등) 자동 채움 — 미지정(category 키 없음) 행만, 키워드 잡힐 때만. 사용자가 비운('') 건 건드리지 않음.
         const fillCat=rows=>rows.map(r=>{ if(r.category!=null) return r; const n=nicheOf([r.name,r.memo].join(' ')); return n?{...r,category:n}:r; });
         const c1=ensureId(b.claudeStep1Rows||[]); const c2=ensureId(b.claudeStep2Rows||[]);
-        if(!c1.length) return {claudeStep1Rows:c1, claudeStep2Rows:clearMemo(fillCat(fixPa(c2)))};
+        if(!c1.length) return {claudeStep1Rows:c1, claudeStep2Rows:fillCat(fixPa(c2))};
         const have=new Set(c2.map(r=>nm(r.name)));
         const add=[];
         for(const r of c1){ if(!r.name||have.has(nm(r.name))) continue; have.add(nm(r.name));
           const cat=r.category||nicheOf([r.name,r.persona,r.feedMemo,r.hypothesis].join(' ')); // 발굴 때 분류된 값 우선, 없으면 텍스트로 추정
           add.push({id:makeId(),step1Id:r.id,date:r.date||'',name:r.name,link:r.link||'',followers:r.followers||'',username:r.username||'',pa:'',category:cat,contactStatus:'컨택 전',dmSent:'N',dealDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''}); }
-        return {claudeStep1Rows:[], claudeStep2Rows:clearMemo(fillCat(fixPa([...c2,...add])))};
+        return {claudeStep1Rows:[], claudeStep2Rows:fillCat(fixPa([...c2,...add]))};
       })(),
       };
     })
