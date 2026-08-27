@@ -51,8 +51,8 @@ async function getToken(){
 
 // ── 컬럼 정의 ──────────────────────────────────────────────────
 const S1 = [['등록일','date'],['채널명','name'],['링크','link'],['팔로워','followers'],['담당PA','pa'],['페르소나','persona'],['피드분석메모','feedMemo'],['가설/특이사항','hypothesis'],['검수상태','reviewStatus'],['반려사유','rejectReason'],['id','id']];
-const S2D = [['날짜','date'],['채널명','name'],['링크','link'],['팔로워','followers'],['담당PA','pa'],['진행상태','contactStatus'],['DM발송','dmSent'],['DM발송일','dmDate'],['협업성사','dealDone'],['성사일','dealDate'],['거절일','rejectDate'],['단가','rate'],['예상게시일','expectedPost'],['출고완료','shippingDone'],['계약서','contractDone'],['메모','memo'],['id','id']];
-const CL = [['날짜','date'],['채널명','name'],['링크','link'],['팔로워','followers'],['카테고리','category'],['담당PA','pa'],['진행상태','contactStatus'],['DM발송','dmSent'],['협업성사','dealDone'],['성사일','dealDate'],['단가','rate'],['예상게시일','expectedPost'],['출고완료','shippingDone'],['계약서','contractDone'],['메모','memo'],['id','id']];
+const S2D = [['날짜','date'],['채널명','name'],['링크','link'],['팔로워','followers'],['담당PA','pa'],['진행상태','contactStatus'],['DM발송','dmSent'],['DM발송일','dmDate'],['협업성사','dealDone'],['성사일','dealDate'],['최종완료','finalDone'],['완료일','finalDate'],['거절일','rejectDate'],['단가','rate'],['예상게시일','expectedPost'],['출고완료','shippingDone'],['계약서','contractDone'],['메모','memo'],['id','id']];
+const CL = [['날짜','date'],['채널명','name'],['링크','link'],['팔로워','followers'],['카테고리','category'],['담당PA','pa'],['진행상태','contactStatus'],['DM발송','dmSent'],['협업성사','dealDone'],['성사일','dealDate'],['최종완료','finalDone'],['완료일','finalDate'],['단가','rate'],['예상게시일','expectedPost'],['출고완료','shippingDone'],['계약서','contractDone'],['메모','memo'],['id','id']];
 const SH = [['출고요청일','requestDate'],['요청자','requester'],['사유','reason'],['채널명','channelName'],['수령자명','recipient'],['연락처','phone'],['배송지주소','address'],['상품명','product'],['수량','qty'],['비고','notes'],['처리상태','status'],['출고일자','shipDate'],['송장번호','tracking'],['id','id']];
 const RV = [['날짜','date'],['채널명','channelName'],['본명','realName'],['담당PA','pa'],['PA코드','paCode'],['게시링크','postLink'],['라이브','live'],['라이브일','liveDate'],['상태','status'],['메모','memo'],['검수체크','checks'],['id','id']];
 const PV = [['채널명','channelName'],['성명','realName'],['전화번호','phone'],['주소','address'],['주민번호','rrn'],['은행','bankName'],['예금주','bankHolder'],['계좌번호','bankAccount'],['통장사본','bankFile'],['신분증사본','idFile'],['비고','notes'],['id','id']];
@@ -82,7 +82,7 @@ function contactData(brandName) {
   return rows;
 }
 
-// 정산내역 명단(값): 창 내 DM/성사 건별
+// 정산내역 명단(값): 창 내 DM/최종완료 건별
 function settleLedger() {
   const out = [['브랜드', '담당PA', '채널명', '유형', '기준일', '금액']];
   const items = [];
@@ -90,10 +90,11 @@ function settleLedger() {
     if (!r.name) continue;
     const pa = sanitizePA(r.pa) || '미지정';
     if (r.dmSent === 'Y') { const d = pdk(r.dmDate) || pdk(r.date); if (inWin(d)) items.push([b.name, pa, r.name, 'DM', d, 2000]); }
-    if (r.dealDone === 'Y') { const d = pdk(r.dealDate) || pdk(r.date); if (inWin(d)) items.push([b.name, pa, r.name, '성사', d, 20000]); }
+    // 수당은 '최종 완료' 기준(협업성사는 진행 표시일 뿐)
+    if (r.finalDone === 'Y') { const d = pdk(r.finalDate) || pdk(r.dealDate) || pdk(r.date); if (inWin(d)) items.push([b.name, pa, r.name, '완료', d, 20000]); }
   }
-  // 정렬: PA → 유형(성사 먼저) → 기준일
-  items.sort((a, b) => a[1].localeCompare(b[1]) || (a[3] === b[3] ? 0 : a[3] === '성사' ? -1 : 1) || String(a[4]).localeCompare(String(b[4])));
+  // 정렬: PA → 유형(완료 먼저) → 기준일
+  items.sort((a, b) => a[1].localeCompare(b[1]) || (a[3] === b[3] ? 0 : a[3] === '완료' ? -1 : 1) || String(a[4]).localeCompare(String(b[4])));
   return out.concat(items);
 }
 
