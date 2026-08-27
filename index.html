@@ -98,10 +98,16 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .08s;}
 tbody tr:nth-child(even){background:var(--zebra);}
 tbody tr:hover{background:var(--row-hover);}
 td{padding:5px 8px;font-size:12px;vertical-align:middle;}
-.del-col{width:28px;text-align:center;}
-.row-del-btn{opacity:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:1px 4px;border-radius:3px;transition:opacity .12s;}
-tbody tr:hover .row-del-btn{opacity:.5;}
+.del-col{width:46px;text-align:center;white-space:nowrap;}
+.row-del-btn{opacity:.35;background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:1px 4px;border-radius:3px;transition:opacity .12s;}
+tbody tr:hover .row-del-btn{opacity:.8;}
 .row-del-btn:hover{opacity:1!important;background:#fee2e2;}
+/* 행 선택 체크박스 + 선택 삭제 바 */
+.sel-box{width:13px;height:13px;margin:0;cursor:pointer;accent-color:var(--accent);vertical-align:middle;flex:0 0 auto;}
+tbody tr.sel-on,tbody tr.sel-on:hover{background:var(--accent-soft)!important;}
+.bulk-bar{display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px;color:var(--muted);flex-shrink:0;flex-wrap:wrap;}
+.bulk-del{background:var(--red);color:#fff;}
+.bulk-del:hover{filter:brightness(1.1);}
 .row-copy-btn{opacity:.3;background:none;border:none;cursor:pointer;font-size:12px;padding:0 2px;border-radius:3px;transition:opacity .12s;flex:0 0 auto;}
 tbody tr:hover .row-copy-btn{opacity:.7;}
 .row-copy-btn:hover{opacity:1!important;background:var(--surface3);}
@@ -277,7 +283,7 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
    ───────────────────────────────────────────── */
 /* 터치 기기: 호버로만 보이던 행 액션 버튼(삭제·복사)을 항상 보이게 */
 @media (hover:none){
-  .row-del-btn{opacity:.5;}
+  .row-del-btn{opacity:.6;}
   .row-copy-btn{opacity:.7;}
 }
 @media (max-width:768px){
@@ -3184,7 +3190,58 @@ function nicheOf(text){
   return out;
 }
 
-function Step1View({ rows, onUpdate, onDelete, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
+
+/* ─── 행 선택 삭제 (모든 탭 공통) ───────────────────────────────────────────
+   표 맨 왼쪽 칸의 체크박스로 여러 행을 고른 뒤 한 번에 지운다.
+   선택 기준은 '지금 화면에 보이는 행'(필터·검색을 적용한 shown) — 머리글 체크박스로
+   전체 선택해도 숨어 있는 행은 절대 포함되지 않는다. 필터를 좁혀 놓고 전체선택하면
+   딱 그 범위만 지워진다(안 보이는 데이터가 몰래 사라지는 사고 방지). */
+function useRowSelect(shown){
+  const [sel,setSel]=useState(()=>new Set());
+  const ids=(shown||[]).map(r=>r.id);
+  const live=ids.filter(id=>sel.has(id));      // 필터가 바뀌어 화면에서 사라진 행은 자동으로 빠진다
+  const allOn=ids.length>0&&live.length===ids.length;
+  return {
+    count:live.length, ids:live, allOn, total:ids.length,
+    has:id=>sel.has(id),
+    toggle:id=>setSel(p=>{const n=new Set(p); if(n.has(id))n.delete(id); else n.add(id); return n;}),
+    toggleAll:()=>setSel(allOn?new Set():new Set(ids)),
+    clear:()=>setSel(new Set()),
+  };
+}
+// 머리글 '전체 선택' 체크박스 — 일부만 골랐으면 중간 상태로 보여준다
+function SelAll({sel}){
+  return <input type="checkbox" className="sel-box" checked={sel.allOn} disabled={!sel.total}
+    ref={el=>{if(el)el.indeterminate=sel.count>0&&!sel.allOn;}}
+    onChange={sel.toggleAll} title={sel.allOn?'전체 선택 해제':'보이는 행 전체 선택'}/>;
+}
+// 행 체크박스
+function SelBox({sel,id}){
+  return <input type="checkbox" className="sel-box" checked={sel.has(id)}
+    onChange={()=>sel.toggle(id)} onClick={e=>e.stopPropagation()} title="선택"/>;
+}
+// 선택 삭제 바 — 고른 행이 있을 때만 뜬다
+function BulkBar({sel,onDeleteMany,unit}){
+  if(!sel.count) return null;
+  const u=unit||'건';
+  return <div className="bulk-bar">
+    <span><b style={{color:'var(--text)'}}>{sel.count}{u}</b> 선택됨</span>
+    <button className="btn btn-ghost" style={{fontSize:11}} onClick={sel.clear}>선택 해제</button>
+    <button className="btn bulk-del" style={{fontSize:11,fontWeight:700}} onClick={()=>{
+      if(!window.confirm('선택한 '+sel.count+u+'을(를) 삭제할까요?\n되돌릴 수 없습니다.')) return;
+      onDeleteMany(sel.ids); sel.clear();
+    }}>🗑 선택 삭제 ({sel.count})</button>
+  </div>;
+}
+// 행 개별 삭제 버튼 — 실수로 지우지 않게 대상 이름을 보여주고 한 번 확인한다
+function RowDelBtn({name,onDelete}){
+  const label=String(name||'').trim();
+  const t=label?"'"+label+"'":'이 행';
+  return <button className="row-del-btn row-del-x" title={t+' 삭제'}
+    onClick={()=>{ if(window.confirm(t+' 을(를) 삭제할까요?\n되돌릴 수 없습니다.')) onDelete(); }}>×</button>;
+}
+
+function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [cat,setCat]=useState(null); // 페르소나 카테고리 필터(키 또는 '__uncat')
@@ -3213,6 +3270,7 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, onPasteImport, filter, set
   const catCnt={}; PERSONA_CATEGORIES.forEach(c=>catCnt[c.key]=0); let uncatN=0;
   named1.forEach(r=>{const cs=rowCatsOf(r); if(cs.length)cs.forEach(k=>{if(catCnt[k]!=null)catCnt[k]++;}); else uncatN++;});
   function up(id,k,v){onUpdate(id,{[k]:v});}
+  const sel=useRowSelect(shown);
   const reviewBadge=(s)=>s==='승인'?'b-ap':s==='반려'?'b-rj':'b-wt';
   return <div className="view-wrap">
     <div className="view-main">
@@ -3241,10 +3299,11 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, onPasteImport, filter, set
       <button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={onAdd}>＋ 인플루언서 추가</button>
       <button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
     </div>
+    <BulkBar sel={sel} onDeleteMany={onDeleteMany} unit="명"/>
     <div className="table-wrap">
       <table>
         <thead><tr>
-          <th className="del-col"></th>
+          <th className="del-col"><SelAll sel={sel}/></th>
           <th style={{width:85}}>등록일</th>
           <th style={{width:'1%',whiteSpace:'nowrap'}}>채널명</th>
           <th style={{width:50}}>링크</th>
@@ -3261,10 +3320,11 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, onPasteImport, filter, set
         </tr>}
         </thead>
         <tbody>
-          {shown.map(r=><tr key={r.id}>
+          {shown.map(r=><tr key={r.id} className={sel.has(r.id)?'sel-on':''}>
             <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:2}}>
+              <SelBox sel={sel} id={r.id}/>
               <span draggable onDragStart={e=>{e.dataTransfer.setData('text/plain',r.id);e.dataTransfer.effectAllowed='move';}} title="끌어다 위 카테고리 칩에 놓으면 분류돼요" style={{cursor:'grab',color:'var(--dim)',fontSize:13,userSelect:'none'}}>⠿</span>
-              <button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button>
+              <RowDelBtn name={r.name} onDelete={()=>onDelete(r.id)}/>
             </span></td>
             <td><Cell value={r.date} onChange={v=>up(r.id,'date',v)} type="date" style={{width:80}}/></td>
             <td style={{fontWeight:500,whiteSpace:'nowrap'}}><Cell value={r.name} onChange={v=>up(r.id,'name',v)} placeholder="채널명" style={{whiteSpace:'nowrap',minWidth:'auto'}}/></td>
@@ -3293,7 +3353,7 @@ function Step1View({ rows, onUpdate, onDelete, onAdd, onPasteImport, filter, set
 }
 
 /* ─── STEP2 VIEW ─── */
-function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy, filter, setFilter, search, setSearch, isClaude }) {
+function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude }) {
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [sortDir,setSortDir]=useState('asc');   // 날짜 정렬: 'asc'=오래된순(기본), 'desc'=최신순
@@ -3339,6 +3399,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
     rep:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length,
     wait:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r)).length,
     apv:named.filter(r=>r.approved==='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length};
+  const sel=useRowSelect(shown);
   function up(id,k,v){onUpdate(id,{[k]:v});}
   // 협업성사/최종완료/DM발송을 Y로 바꾸면 날짜 자동 기록, 다시 N으로 해제하면 날짜도 같이 제거(정산 월 구분 일관성).
   // 협업성사 = 그 인플루언서와 협업이 성사됐다는 표시(수당 아님). 성사를 취소하면 최종완료도 같이 풀린다.
@@ -3363,7 +3424,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
   // 행(Step2Row)에 넘길 핸들러 묶음 — ref 라 신원이 고정돼 memo 가 살아 있고,
   // 내용은 매 렌더마다 최신으로 갱신되므로 클릭 시점엔 항상 최신 함수가 불린다.
   const hRef=useRef({});
-  hRef.current={up,setStatus,setDm,setDeal,setFinal,setReplied,setApproved,onDelete,onUpdate,onAddPrivacy,isRej};
+  hRef.current={up,setStatus,setDm,setDeal,setFinal,setReplied,setApproved,onDelete,onUpdate,onAddPrivacy,isRej,selToggle:sel.toggle};
 
   return <div className="view-wrap">
     <div className="view-main">
@@ -3394,10 +3455,11 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
             <span style={{color:'var(--dim)'}}>·</span>
             <span>진행상태를 다른 값으로 바꾸면 <b>컨택현황</b>으로 돌아갑니다</span></>}
     </div>}
+    <BulkBar sel={sel} onDeleteMany={onDeleteMany} unit="명"/>
     <div className="table-wrap">
       <table className="card-table">
         <thead><tr>
-          <th className="del-col"></th>
+          <th className="del-col"><SelAll sel={sel}/></th>
           <th style={{width:80,cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
           <th style={{width:'1%',whiteSpace:'nowrap'}}>채널명</th>
           <th style={{width:50}}>링크</th>
@@ -3428,7 +3490,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
         <tbody>
           {shown.map(r=>{
             const privSubmitted=(privacyRows||[]).some(p=>p.channelName===r.name);
-            return <Step2Row key={r.id} r={r} isClaude={isClaude} privSubmitted={privSubmitted} paList={PA_LIST} H={hRef}/>;
+            return <Step2Row key={r.id} r={r} isClaude={isClaude} privSubmitted={privSubmitted} paList={PA_LIST} H={hRef} selOn={sel.has(r.id)}/>;
           })}
           {shown.length===0&&<tr><td colSpan={13+(isClaude?3:0)+(!IS_STAFF&&!isClaude?2:0)+((!IS_STAFF||isClaude)?1:0)} className="empty" style={{height:80}}>
             <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'개인정보가 폐기된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'STEP1에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
@@ -3446,16 +3508,17 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onAddPrivacy,
    → 행을 React.memo 로 분리해, 실제로 바뀐 행만 다시 그린다(다른 행은 객체가 그대로라 건너뜀).
    핸들러는 매 렌더마다 새로 만들어지므로 그대로 넘기면 memo 가 무력해진다 → 핸들러 묶음(H)을
    ref 로 넘겨 '항상 최신 함수를 클릭 시점에 읽되, 프로퍼티 신원은 고정'되게 한다. */
-const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList, H }){
+const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList, H, selOn }){
   const isRej=H.current.isRej;         // 렌더 중에만 쓰는 순수 판정(핸들러는 클릭 시점에 H.current 에서 읽는다)
   const pay=calcPay(r);
   const paStyle=paColor(sanitizePA(r.pa));
-  return <tr>
+  return <tr className={selOn?'sel-on':''}>
               <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
+                <input type="checkbox" className="sel-box" checked={!!selOn} onChange={()=>H.current.selToggle(r.id)} title="선택"/>
                 {isClaude&&<button className="row-del-btn" title={isRej(r)?'거절 취소 (컨택 전으로 되돌림)':'맘에 안 들면 거절 — 보관함으로 이동(데이터는 학습용으로 보존)'}
                   style={{color:isRej(r)?'var(--red)':'var(--dim)',borderColor:isRej(r)?'#fca5a5':undefined}}
                   onClick={()=>H.current.setStatus(r,H.current.isRej(r)?'컨택 전':'거절')}>{isRej(r)?'↩':'🚫'}</button>}
-                <button className="row-del-btn" onClick={()=>H.current.onDelete(r.id)}>×</button>
+                <RowDelBtn name={r.name} onDelete={()=>H.current.onDelete(r.id)}/>
               </span></td>
               <td data-label="날짜"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
               <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}><Cell value={r.name} onChange={v=>H.current.up(r.id,'name',v)} style={{whiteSpace:'nowrap',minWidth:'auto'}}/></td>
@@ -3505,7 +3568,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
 });
 
 /* ─── SHIPPING VIEW ─── */
-function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdate, onDelete, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
+function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [reqF,setReqF]=useState(''); // 요청자 필터('' = 전체)
@@ -3553,6 +3616,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
       return true;
     });
   const cnt={all:rows.filter(r=>!isLiveRow(r)).length,done:rows.filter(isLiveRow).length,pend:rows.filter(r=>!isLiveRow(r)&&!r.status?.includes('완료')).length};
+  const sel=useRowSelect(shown);
   function up(id,k,v){onUpdate(id,{[k]:v});}
   function setCol(f,v){setColF(p=>({...p,[f]:v}));}
   return <div className="view-wrap">
@@ -3574,10 +3638,11 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
       </div>
       <span className="cnt">{shown.length}건</span>
     </div>
+    <BulkBar sel={sel} onDeleteMany={onDeleteMany} unit="건"/>
     <div className="table-wrap">
       <table className="card-table">
         <thead><tr>
-          <th className="del-col"></th>
+          <th className="del-col"><SelAll sel={sel}/></th>
           <th style={{width:85}}>출고요청일</th>
           <th style={{width:75}}>요청자</th>
           <th style={{width:90}}>채널명</th>
@@ -3598,8 +3663,11 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
         </tr>}
         </thead>
         <tbody>
-          {shown.map(r=><tr key={r.id}>
-            <td className="del-col"><button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button></td>
+          {shown.map(r=><tr key={r.id} className={sel.has(r.id)?'sel-on':''}>
+            <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
+              <SelBox sel={sel} id={r.id}/>
+              <RowDelBtn name={r.recipient||r.channelName} onDelete={()=>onDelete(r.id)}/>
+            </span></td>
             <td data-label="출고요청일"><Cell value={r.requestDate} onChange={v=>up(r.id,'requestDate',v)} type="date" style={{width:80}}/></td>
             <td data-label="요청자"><Cell value={r.requester||''} onChange={v=>up(r.id,'requester',v)} type="select" chips options={PA_LIST}/></td>
             <td data-label="채널명"><Cell value={r.channelName||''} onChange={v=>up(r.id,'channelName',v)} placeholder={chanOf(r.recipient)||'채널명'} style={{color:'var(--blue)',fontSize:11,width:84}}/></td>
@@ -3940,7 +4008,7 @@ function ReviewChecklist({ brandId, brandName }){
 }
 
 /* ─── REVIEW VIEW ─── */
-function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onAdd, onPasteImport, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, isManager }) {
+function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, isManager }) {
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [openId,setOpenId]=useState(null);
@@ -3976,6 +4044,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
     unpaid:rows.filter(r=>settleState(r)==='unpaid').length,
     purged:rows.filter(r=>settleState(r)==='purged').length,
     live:rows.filter(r=>r.live==='Y').length};
+  const sel=useRowSelect(shown);
   function up(id,k,v){onUpdate(id,{[k]:v});}
   const driveLink=brand?BRAND_DRIVE[brand.id]:null;
   // PA 코드 한번에 복사 — 현재 화면(shown)에 있는 코드들을 줄바꿈으로 모아 복사.
@@ -4003,10 +4072,11 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
       <button className="fchip" onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
       {driveLink&&<a href={driveLink} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
     </div>
+    <BulkBar sel={sel} onDeleteMany={onDeleteMany} unit="건"/>
     <div className="table-wrap">
       <table>
         <thead><tr>
-          <th className="del-col"></th>
+          <th className="del-col"><SelAll sel={sel}/></th>
           <th style={{width:85}}>날짜</th>
           <th style={{minWidth:120}}>채널명</th>
           <th style={{width:90}}>본명</th>
@@ -4029,8 +4099,11 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
             const isOpen=openId===r.id;
             const ss=settleState(r);const st=settleOf(r);
             return <React.Fragment key={r.id}>
-              <tr style={{background:isOpen?'var(--surface2)':''}}>
-                <td className="del-col"><button className="row-del-btn" onClick={()=>onDelete(r.id)}>×</button></td>
+              <tr className={sel.has(r.id)?'sel-on':''} style={{background:isOpen?'var(--surface2)':''}}>
+                <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
+                  <SelBox sel={sel} id={r.id}/>
+                  <RowDelBtn name={r.channelName} onDelete={()=>onDelete(r.id)}/>
+                </span></td>
                 <td><Cell value={r.date} onChange={v=>up(r.id,'date',v)} type="date" style={{width:80}}/></td>
                 <td style={{fontWeight:500}}><Cell value={r.channelName} onChange={v=>up(r.id,'channelName',v)} placeholder="채널명"/></td>
                 <td><Cell value={r.realName||''} onChange={v=>up(r.id,'realName',v)} placeholder={nameOf(r.channelName)||'본명'}/></td>
@@ -5469,6 +5542,11 @@ function AppMain({ authInfo, onLogout }) {
       return{...b,step1Rows:rows};
     });
   }
+  // 여러 행 한 번에 삭제 — 상태를 한 번만 갱신해야 자동저장이 중간 상태를 덮어쓰지 않는다.
+  function deleteRowsMany(key,ids){
+    const s=new Set(ids||[]); if(!s.size)return;
+    updateBrand(bId,b=>({...b,[key]:(b[key]||[]).filter(r=>!s.has(r.id))}));
+  }
   function deleteStep1Row(id){
     updateBrand(bId,b=>({...b,step1Rows:(b.step1Rows||[]).filter(r=>r.id!==id)}));
   }
@@ -6104,6 +6182,7 @@ function AppMain({ authInfo, onLogout }) {
         rows={brand.step1Rows||[]}
         onUpdate={updateStep1Row}
         onDelete={deleteStep1Row}
+        onDeleteMany={ids=>deleteRowsMany('step1Rows',ids)}
         onAdd={()=>setModal('addStep1')}
         onPasteImport={()=>setModal('pasteStep1')}
         filter={filter} setFilter={setFilter}
@@ -6115,6 +6194,7 @@ function AppMain({ authInfo, onLogout }) {
         privacyRows={brand.privacyRows||[]}
         onUpdate={updateStep2Row}
         onDelete={deleteStep2Row}
+        onDeleteMany={ids=>deleteRowsMany('step2Rows',ids)}
         onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:'',phone:r.phone,pa:sanitizePA(r.pa)})}
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}
@@ -6134,6 +6214,7 @@ function AppMain({ authInfo, onLogout }) {
           privacyRows={brand.privacyRows||[]}
           onUpdate={updateClaudeS2Row}
           onDelete={deleteClaudeS2Row}
+          onDeleteMany={ids=>deleteRowsMany('claudeStep2Rows',ids)}
           onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:'',phone:r.phone,pa:sanitizePA(r.pa)})}
           filter={filter} setFilter={setFilter}
           search={search} setSearch={setSearch}
@@ -6147,6 +6228,7 @@ function AppMain({ authInfo, onLogout }) {
         privacyRows={brand.privacyRows||[]}
         onUpdate={updateShipRow}
         onDelete={deleteShipRow}
+        onDeleteMany={ids=>deleteRowsMany('shippingRows',ids)}
         onAdd={()=>setModal('addShip')}
         onPasteImport={()=>setModal('pasteShip')}
         filter={filter} setFilter={setFilter}
@@ -6164,6 +6246,7 @@ function AppMain({ authInfo, onLogout }) {
         step2Rows={brand.step2Rows||[]}
         onUpdate={updateReviewRow}
         onDelete={deleteReviewRow}
+        onDeleteMany={ids=>deleteRowsMany('reviewRows',ids)}
         onAdd={()=>setModal('addReview')}
         onPasteImport={()=>setModal('pasteReview')}
         onUpdatePrivacy={updatePrivacyRow}
