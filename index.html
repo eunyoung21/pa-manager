@@ -4008,6 +4008,39 @@ function ReviewChecklist({ brandId, brandName }){
 }
 
 /* ─── REVIEW VIEW ─── */
+/* ── 계약서 수집 버튼 ──────────────────────────────────────
+   서명해서 회신 온 계약서를 메일함에서 찾아 브랜드 드라이브에 넣는 「계약서 회수기」
+   (Apps Script 웹앱)를 새 창으로 열고, 열리자마자 한 번 돌린다(?run=1).
+   평소엔 매일 12시·18시에 저절로 돌지만 "방금 온 회신"을 바로 받고 싶을 때 쓴다.
+   · 결과(저장 몇 건·확인필요 몇 건)는 그 창에 그대로 나온다 — 여기서는 알 수 없다.
+   · 웹앱 액세스가 '나만'이라 cheddar 계정으로 로그인한 브라우저에서만 열린다.
+   · 주소는 저장소가 공개라 코드에 박지 않고 이 브라우저에만 둔다(Shift+클릭으로 변경). */
+const CC_LS='pa_contract_collector_url';
+function collectorUrl(){ try{ return localStorage.getItem(CC_LS)||''; }catch{ return ''; } }
+function askCollectorUrl(cur){
+  const v=prompt('계약서 회수기 주소를 붙여넣으세요.\n(Apps Script 편집기 → 배포 → 웹 앱 URL · …/exec 로 끝납니다)', cur||'');
+  if(v===null) return '';
+  const u=v.trim();
+  if(u && !/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)){ alert('…/exec 로 끝나는 웹 앱 주소여야 합니다.'); return ''; }
+  try{ if(u) localStorage.setItem(CC_LS,u); else localStorage.removeItem(CC_LS); }catch{}
+  return u;
+}
+function ContractCollectBtn(){
+  const [opened,setOpened]=useState(false);
+  function go(e){
+    let u=collectorUrl();
+    if(!u||e.shiftKey) u=askCollectorUrl(u);
+    if(!u) return;
+    const w=window.open(u+(u.indexOf('?')>=0?'&':'?')+'run=1','pa-contract-collect','width=640,height=780');
+    if(!w){ alert('팝업이 막혔습니다 — 주소창 오른쪽에서 이 사이트의 팝업을 허용해주세요.'); return; }
+    w.focus(); setOpened(true); setTimeout(()=>setOpened(false),5000);
+  }
+  return <button className="btn btn-ghost cc-btn" style={{fontSize:11}} onClick={go}
+    title="메일로 회신 온 계약서를 지금 바로 드라이브에 담습니다 (새 창에서 결과 확인 · Shift+클릭 = 주소 변경)">
+    {opened?'새 창에서 수집 중…':'📥 계약서 수집'}
+  </button>;
+}
+
 function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, isManager }) {
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
@@ -4071,6 +4104,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
       <button className="fchip" onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
       {driveLink&&<a href={driveLink} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
+      <ContractCollectBtn/>
     </div>
     <BulkBar sel={sel} onDeleteMany={onDeleteMany} unit="건"/>
     <div className="table-wrap">
