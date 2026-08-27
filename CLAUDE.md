@@ -33,6 +33,12 @@
   - step2Row: `pa, name, contactStatus(컨택 전/컨택 중/컨택 완료/거절), contractDone(미완료/✅ 완료), shippingDone, dmSent, dealDone, contractUrl, ...`
 - 자동저장: 상태 변경 시 700ms 디바운스로 `POST /api/data`. 서버 최초 로드 전엔 저장 안 함(`serverLoadedRef`).
 
+## 계약서 수집 (영상검수 탭 📥 버튼)
+- 이 앱은 **메일함을 만지지 않는다.** 버튼 → `collectRun` 이 시트 `_collect` 탭 A1 에 요청만 적고, 별도 스크립트 **계약서 회수기**(`D:\claude-work\contract-collector`, cheddar 계정 전용·비공개)가 1분 트리거로 그걸 보고 대신 돈다. 결과는 A2 에 **건수만**(`collectState` 로 폴링).
+- 이유: 이 백엔드는 액세스가 `ANYONE_ANONYMOUS` 라 **Gmail 읽기 권한을 붙이면 안 된다**(토큰 유출 시 메일함 전체가 위험). 그래서 권한은 회수기에 두고 요청만 공유한다. 알바(staff)도 그대로 쓸 수 있는 이유이기도 하다.
+- 소급 수집(`mode:'all'`)은 서버에서 `role==='manager'` 일 때만 통과시킨다(클라이언트만 믿지 않는다).
+- 회수기 쪽 1분 트리거(`pump`)가 없으면 버튼이 "회수기가 응답하지 않습니다" 로 끝난다 → 회수기에서 `setup` 재실행.
+
 ## 접근 모델
 - `authInfo.role`: `manager`(전체) / `staff`(리스트업·컨택·출고만). `?mode=staff`로도 staff UI 강제 가능.
 - `authInfo.brand`: `all` / `basetune` / `granny` — 담당 브랜드만 노출(클라이언트 게이팅).

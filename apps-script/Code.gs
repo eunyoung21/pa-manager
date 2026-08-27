@@ -378,6 +378,50 @@ function purgeExpiredPrivacy(data) {
   return changed;
 }
 
+/* ── 계약서 수집 요청 (알바도 누를 수 있는 버튼) ───────────────
+   메일함을 뒤지는 일은 이 백엔드가 하지 않는다. 여기서는 "지금 수집해줘"를
+   시트 _collect 탭에 적어두기만 하고, 회수기(별도 스크립트·cheddar 계정 전용)가
+   1분마다 그 요청을 보고 대신 돈다.
+
+   왜 이렇게 하나: 이 백엔드는 주소가 공개(액세스=모든 사용자)다. 여기에 Gmail
+   읽기 권한을 붙이면 토큰이 새는 순간 회사 메일함이 통째로 위험해진다. 그래서
+   권한은 회수기 쪽(비공개)에 그대로 두고 '요청함'만 공유한다.
+   토큰이 새더라도 이 주소로 할 수 있는 최대치는 "수집을 한 번 시킨다"뿐이고,
+   메일 내용은 한 글자도 이 백엔드를 지나가지 않는다(결과는 건수만).
+
+   A1 = 요청 {at, by, mode}
+   A2 = 결과 {state:queued|running|done|skipped, at, by, saved, dup, check, threads, error} */
+var SHEET_COLLECT = '_collect';
+var COLLECT_MIN_GAP = 20 * 1000;   // 여럿이 연달아 눌러도 한 번만 돌게
+
+function collectParse(v) { try { return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function collectRead() {
+  var vals = sheet(SHEET_COLLECT).getRange(1, 1, 2, 1).getValues();
+  return { req: collectParse(vals[0][0]), res: collectParse(vals[1][0]) };
+}
+function collectRun(sess, body) {
+  var cur = collectRead();
+  var st = cur.res && cur.res.state;
+  // 아직 안 끝난 요청이 방금 들어와 있으면 그대로 둔다(연타·동시 클릭 방지)
+  if (cur.req && st && st !== 'done' && st !== 'skipped'
+      && Date.now() - Number(cur.req.at || 0) < COLLECT_MIN_GAP)
+    return json({ ok: true, already: true, req: cur.req, res: cur.res });
+
+  // 소급 수집(기간 제한 없이 훑기)은 관리자만. 알바가 보내도 평소 수집으로 깎는다.
+  var mode = (body && body.mode === 'all' && sess.role === 'manager') ? 'all' : 'now';
+  var req = { at: Date.now(), by: sess.username || '', mode: mode };
+  var res = { state: 'queued', at: req.at, by: req.by };
+  var sh = sheet(SHEET_COLLECT);
+  sh.getRange(1, 1).setValue(JSON.stringify(req));
+  sh.getRange(2, 1).setValue(JSON.stringify(res));
+  logAction('collectRun:' + mode, sess, null);
+  return json({ ok: true, req: req, res: res });
+}
+function collectState(sess) {
+  var cur = collectRead();
+  return json({ ok: true, req: cur.req, res: cur.res });
+}
+
 /* ── 로그 ──────────────────────────────────────────────────── */
 function logAction(action, sess, e) {
   try {
@@ -437,6 +481,8 @@ function handle(e, body) {
       case 'backups':  return backupsList(mgr());
       case 'restore':  return restore(mgr(), body);
       case 'sheetProxy':return sheetProxy(need(), body);
+      case 'collectRun':  return collectRun(need(), body);
+      case 'collectState':return collectState(need());
       case 'ping':     return json({ ok: true, rev: metaGet().rev });
       default:         return json({ error: 'unknown action: ' + action });
     }
