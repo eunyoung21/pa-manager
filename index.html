@@ -364,10 +364,25 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
      돌려 표가 클수록 눈에 띄게 느리다. 버전도 핀(옛 Babel 자동 업그레이드 사고 재발 방지). -->
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<!-- 엑셀·PDF 라이브러리(합쳐 1.5MB 남짓)는 첫 화면에 필요 없다.
+     매번 내려받아 파싱하면 그만큼 화면이 늦게 뜨므로, 실제로 쓸 때만 불러온다(loadLib). -->
+<script>
+window.loadLib=function(url,globalName){
+  window._libs=window._libs||{};
+  if(window[globalName]) return Promise.resolve(window[globalName]);
+  if(window._libs[url]) return window._libs[url];
+  return window._libs[url]=new Promise(function(res,rej){
+    var s=document.createElement('script'); s.src=url;
+    s.onload=function(){res(window[globalName]);};
+    s.onerror=function(){ delete window._libs[url]; rej(new Error('라이브러리 로딩 실패: '+url)); };
+    document.head.appendChild(s);
+  });
+};
+window.needXLSX=function(){return loadLib('https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js','XLSX');};
+window.needPDF=function(){return Promise.all([
+  loadLib('https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js','PDFLib'),
+  loadLib('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js','html2canvas')]);};
+</script>
 <!-- ─── 계약서 양식(.docx) 채우기 엔진 — 업로드한 양식 그대로 두고 값만 넣는다 ─── -->
 <script>
 /* ==CONTRACT_TPL_ENGINE_START==
@@ -781,6 +796,7 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
   }
 
   window.generateContractPdf = async function(brandId, name, fee, date){
+    await window.needPDF();          // pdf-lib · html2canvas 를 이 시점에 내려받는다
     var cfg = CB[brandId];
     if(!cfg) throw new Error('이 브랜드는 계약서 설정이 없습니다: '+brandId);
     var host = document.createElement('div');
@@ -946,8 +962,13 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
   function fmtFeeNum(v){ var s=String(v||'').replace(/[^0-9]/g,''); return s ? Number(s).toLocaleString() : ''; }
 })();
 </script>
-<script type="text/babel" data-presets="react">
+<!-- ─── 앱 본체(JSX) ─── 여기 그대로 고치면 된다. 실행은 아래 로더가 맡는다.
+     type 이 text/pa-jsx 라 브라우저는 이 블록을 건드리지 않는다. -->
+<script type="text/pa-jsx" id="pa-app-src">
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
+/* useDeferredValue(React 18) — 검색어를 입력칸에는 즉시, 표에는 한 박자 늦게 반영한다.
+   덕분에 표가 아무리 커도 타자가 밀리지 않는다. 구버전 React 면 그냥 원래대로 동작. */
+const useDeferredValue = React.useDeferredValue || (v=>v);
 
 /* ─── 계약서 양식 캐시 — 업로드된 .docx 를 한 번만 받아 재사용 ─── */
 const CT_TPL_CACHE = new Map();
@@ -3196,6 +3217,36 @@ function nicheOf(text){
    선택 기준은 '지금 화면에 보이는 행'(필터·검색을 적용한 shown) — 머리글 체크박스로
    전체 선택해도 숨어 있는 행은 절대 포함되지 않는다. 필터를 좁혀 놓고 전체선택하면
    딱 그 범위만 지워진다(안 보이는 데이터가 몰래 사라지는 사고 방지). */
+/* ─── 긴 표 점진 렌더 ───
+   행이 800개면 React 가 8천 개 넘는 셀을 한꺼번에 만드느라 탭 전환·검색이 1~2초씩 멈췄다.
+   그래서 처음엔 화면에 들어갈 만큼만 그리고, 아래로 내리면 이어서 그린다.
+   - 필터·검색이 바뀌면 다시 처음부터 (아래 sig 비교)
+   - 표 끝의 감시행(sentinel)이 화면에 들어오면 자동으로 다음 묶음을 붙인다
+   - '보이는 행 전체 선택'·삭제·집계는 전부 원본 배열(shown)로 계산하므로 영향 없다 */
+const PAGE_ROWS=60;
+function useProgressive(shown){
+  const total=shown.length;
+  const [n,setN]=useState(PAGE_ROWS);
+  // 목록 자체가 바뀌면(필터·검색·정렬) 처음 묶음으로 되돌린다
+  const sig=total+'|'+(shown[0]?shown[0].id:'')+'|'+(shown[total-1]?shown[total-1].id:'');
+  const prevSig=useRef(sig);
+  if(prevSig.current!==sig){ prevSig.current=sig; if(n!==PAGE_ROWS) setN(PAGE_ROWS); }
+  const moreRef=useRef(null);
+  const hasMore=n<total;
+  useEffect(()=>{
+    const el=moreRef.current; if(!el||!hasMore) return;
+    const io=new IntersectionObserver(es=>{ if(es[0].isIntersecting) setN(v=>Math.min(v+PAGE_ROWS,total)); },{rootMargin:'400px'});
+    io.observe(el); return ()=>io.disconnect();
+  },[hasMore,total,n]);
+  return { rows:n>=total?shown:shown.slice(0,n), hasMore, moreRef, shownCount:Math.min(n,total), total };
+}
+// 표 맨 아래 감시행 — 여기가 보이면 다음 묶음이 붙는다
+function MoreRow({pg,cols=99}){
+  if(!pg.hasMore) return null;
+  return <tr ref={pg.moreRef}><td colSpan={cols} style={{textAlign:'center',padding:'10px 8px',fontSize:11,color:'var(--muted)'}}>
+    ⌄ 아래로 내리면 더 보입니다 ({pg.shownCount} / {pg.total})
+  </td></tr>;
+}
 function useRowSelect(shown){
   const [sel,setSel]=useState(()=>new Set());
   const ids=(shown||[]).map(r=>r.id);
@@ -3246,12 +3297,16 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
   const [monthFilter,setMonthFilter]=useState(null);
   const [cat,setCat]=useState(null); // 페르소나 카테고리 필터(키 또는 '__uncat')
   const [colF,setColF]=useState({}); const [showColF,setShowColF]=useState(false);
-  const q=search.trim().toLowerCase();
+  const q=useDeferredValue(search).trim().toLowerCase();   // 표 필터는 한 박자 늦게 — 타자가 안 밀리게
   const s=v=>String(v||'');
   const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
   function setCol(f,v){setColF(p=>({...p,[f]:v}));}
-  const byDay=(dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows);
-  const shown=byDay
+  // 아래 계산들은 행 수에 비례한다(리스트업은 수천 행). 입력할 때마다 다시 돌면 화면이 밀리므로
+  // 실제로 바뀐 것이 있을 때만 다시 계산한다(useMemo).
+  const colFKey=JSON.stringify(colF);
+  const shown=useMemo(()=>{
+    const byDay=(dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows);
+    return byDay
     .filter(r=>s(r.name).trim())
     .filter(r=>!colFActive.length||colFActive.every(([f,v])=>s(r[f]).toLowerCase().includes(v.trim().toLowerCase())))
     .filter(r=>{
@@ -3264,13 +3319,18 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
       if(filter==='rj') return r.reviewStatus==='반려';
       return r.reviewStatus!=='반려'; // '진행 중' = 반려 제외(반려는 칩에서만 모아 봄)
     });
-  const cnt={all:rows.filter(r=>r.name&&r.reviewStatus!=='반려').length,ap:rows.filter(r=>r.reviewStatus==='승인').length,wt:rows.filter(r=>r.reviewStatus==='검수대기').length,rj:rows.filter(r=>r.reviewStatus==='반려').length};
-  // 페르소나 카테고리별 인원 집계(반려 제외) — 칩에 표시·필터.
-  const named1=rows.filter(r=>s(r.name).trim()&&r.reviewStatus!=='반려');
-  const catCnt={}; PERSONA_CATEGORIES.forEach(c=>catCnt[c.key]=0); let uncatN=0;
-  named1.forEach(r=>{const cs=rowCatsOf(r); if(cs.length)cs.forEach(k=>{if(catCnt[k]!=null)catCnt[k]++;}); else uncatN++;});
+  },[rows,dayFilter,monthFilter,colFKey,cat,q,filter]);
+  const cnt=useMemo(()=>({all:rows.filter(r=>r.name&&r.reviewStatus!=='반려').length,ap:rows.filter(r=>r.reviewStatus==='승인').length,wt:rows.filter(r=>r.reviewStatus==='검수대기').length,rj:rows.filter(r=>r.reviewStatus==='반려').length}),[rows]);
+  // 페르소나 카테고리별 인원 집계(반려 제외) — 칩에 표시·필터. 키워드 매칭이라 행 수만큼 비싸다.
+  const {named1,catCnt,uncatN}=useMemo(()=>{
+    const named1=rows.filter(r=>s(r.name).trim()&&r.reviewStatus!=='반려');
+    const catCnt={}; PERSONA_CATEGORIES.forEach(c=>catCnt[c.key]=0); let uncatN=0;
+    named1.forEach(r=>{const cs=rowCatsOf(r); if(cs.length)cs.forEach(k=>{if(catCnt[k]!=null)catCnt[k]++;}); else uncatN++;});
+    return {named1,catCnt,uncatN};
+  },[rows]);
   function up(id,k,v){onUpdate(id,{[k]:v});}
   const sel=useRowSelect(shown);
+  const pg=useProgressive(shown);   // 화면에 보이는 만큼만 그린다
   const reviewBadge=(s)=>s==='승인'?'b-ap':s==='반려'?'b-rj':'b-wt';
   return <div className="view-wrap">
     <div className="view-main">
@@ -3320,7 +3380,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
         </tr>}
         </thead>
         <tbody>
-          {shown.map(r=><tr key={r.id} className={sel.has(r.id)?'sel-on':''}>
+          {pg.rows.map(r=><tr key={r.id} className={sel.has(r.id)?'sel-on':''}>
             <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:2}}>
               <SelBox sel={sel} id={r.id}/>
               <span draggable onDragStart={e=>{e.dataTransfer.setData('text/plain',r.id);e.dataTransfer.effectAllowed='move';}} title="끌어다 위 카테고리 칩에 놓으면 분류돼요" style={{cursor:'grab',color:'var(--dim)',fontSize:13,userSelect:'none'}}>⠿</span>
@@ -3344,6 +3404,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
             </td>
             <td><Cell value={r.memo} onChange={v=>up(r.id,'memo',v)} type="textarea" placeholder="메모…"/></td>
           </tr>)}
+          <MoreRow pg={pg}/>
         </tbody>
       </table>
     </div>
@@ -3358,7 +3419,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
   const [monthFilter,setMonthFilter]=useState(null);
   const [sortDir,setSortDir]=useState('asc');   // 날짜 정렬: 'asc'=오래된순(기본), 'desc'=최신순
   const [colF,setColF]=useState({}); const [showColF,setShowColF]=useState(false);
-  const q=search.trim().toLowerCase();
+  const q=useDeferredValue(search).trim().toLowerCase();   // 표 필터는 한 박자 늦게 — 타자가 안 밀리게
   const s2=v=>String(v||'');
   const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
   function setCol(f,v){setColF(p=>({...p,[f]:v}));}
@@ -3368,11 +3429,14 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
   const isRej=r=>normStatus(r.contactStatus)==='거절';
   const isPurged=r=>!!r.privacyPurged;
   const isArchived=r=>isRej(r);
-  const named=rows.filter(r=>s2(r.name).trim());
+  const colFKey=JSON.stringify(colF);
+  const named=useMemo(()=>rows.filter(r=>s2(r.name).trim()),[rows]);
   const mode=filter==='rej'?'reject':filter==='arc'?'archive':'active';
+  // 행 수에 비례하는 계산 — 입력할 때마다 다시 돌지 않도록 묶어 둔다.
+  const shown=useMemo(()=>{
   const byDayAll=dayFilter?named.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?named.filter(r=>parseYM(r.date)===monthFilter):named;
   const byDay=colFActive.length?byDayAll.filter(r=>colFActive.every(([f,v])=>cfVal(r,f).toLowerCase().includes(v.trim().toLowerCase()))):byDayAll;
-  const shown=byDay.filter(r=>{
+  return byDay.filter(r=>{
     // 검색은 보관 포함 전체에서 — 누적돼도 누구든 찾을 수 있게.
     if(q) return [r.name,r.pa,r.memo,r.contactStatus].some(v=>s2(v).toLowerCase().includes(q));
     if(filter==='dm') return r.dmSent==='Y';
@@ -3395,11 +3459,13 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
     const base=ka<kb?-1:ka>kb?1:0;   // 오름차순 기준
     return sortDir==='asc'?base:-base;
   });
-  const cnt={all:named.filter(r=>!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,fin:named.filter(r=>r.finalDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
+  },[named,dayFilter,monthFilter,colFKey,q,filter,sortDir]);
+  const cnt=useMemo(()=>({all:named.filter(r=>!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,fin:named.filter(r=>r.finalDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
     rep:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length,
     wait:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r)).length,
-    apv:named.filter(r=>r.approved==='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length};
+    apv:named.filter(r=>r.approved==='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length}),[named]);
   const sel=useRowSelect(shown);
+  const pg=useProgressive(shown);   // 화면에 보이는 만큼만 그린다
   function up(id,k,v){onUpdate(id,{[k]:v});}
   // 협업성사/최종완료/DM발송을 Y로 바꾸면 날짜 자동 기록, 다시 N으로 해제하면 날짜도 같이 제거(정산 월 구분 일관성).
   // 협업성사 = 그 인플루언서와 협업이 성사됐다는 표시(수당 아님). 성사를 취소하면 최종완료도 같이 풀린다.
@@ -3488,13 +3554,14 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
         </tr>}
         </thead>
         <tbody>
-          {shown.map(r=>{
+          {pg.rows.map(r=>{
             const privSubmitted=(privacyRows||[]).some(p=>p.channelName===r.name);
             return <Step2Row key={r.id} r={r} isClaude={isClaude} privSubmitted={privSubmitted} paList={PA_LIST} H={hRef} selOn={sel.has(r.id)}/>;
           })}
           {shown.length===0&&<tr><td colSpan={13+(isClaude?3:0)+(!IS_STAFF&&!isClaude?2:0)+((!IS_STAFF||isClaude)?1:0)} className="empty" style={{height:80}}>
             <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'개인정보가 폐기된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'STEP1에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
           </td></tr>}
+          <MoreRow pg={pg}/>
         </tbody>
       </table>
     </div>
@@ -3574,7 +3641,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
   const [reqF,setReqF]=useState(''); // 요청자 필터('' = 전체)
   const [colF,setColF]=useState({}); // 엑셀식 컬럼별 포함검색 필터 {필드:문자열}
   const [showColF,setShowColF]=useState(false);
-  const q=search.trim().toLowerCase();
+  const q=useDeferredValue(search).trim().toLowerCase();   // 표 필터는 한 박자 늦게 — 타자가 안 밀리게
   const product=shipProductOf(brand?.id); // 브랜드별 고정 상품명
   // 요청자 필터 옵션 — 실제 출고행에 있는 요청자(공백 제외) 모음
   const reqOpts=Array.from(new Set((rows||[]).map(r=>r.requester).filter(Boolean)));
@@ -3617,6 +3684,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
     });
   const cnt={all:rows.filter(r=>!isLiveRow(r)).length,done:rows.filter(isLiveRow).length,pend:rows.filter(r=>!isLiveRow(r)&&!r.status?.includes('완료')).length};
   const sel=useRowSelect(shown);
+  const pg=useProgressive(shown);   // 화면에 보이는 만큼만 그린다
   function up(id,k,v){onUpdate(id,{[k]:v});}
   function setCol(f,v){setColF(p=>({...p,[f]:v}));}
   return <div className="view-wrap">
@@ -3663,7 +3731,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
         </tr>}
         </thead>
         <tbody>
-          {shown.map(r=><tr key={r.id} className={sel.has(r.id)?'sel-on':''}>
+          {pg.rows.map(r=><tr key={r.id} className={sel.has(r.id)?'sel-on':''}>
             <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
               <SelBox sel={sel} id={r.id}/>
               <RowDelBtn name={r.recipient||r.channelName} onDelete={()=>onDelete(r.id)}/>
@@ -3693,6 +3761,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
           <tr className="add-row"><td colSpan={13} style={{padding:'8px 0'}}>
             <button className="btn-add" onClick={onAdd}>+ 출고 추가</button>
           </td></tr>
+          <MoreRow pg={pg}/>
         </tbody>
       </table>
     </div>
@@ -4071,7 +4140,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
   const [pvRow,setPvRow]=useState(null); // 개인정보 모달 대상 행(관리자 전용)
   const [copiedId,setCopiedId]=useState(null);
   const [colF,setColF]=useState({}); const [showColF,setShowColF]=useState(false);
-  const q=search.trim().toLowerCase();
+  const q=useDeferredValue(search).trim().toLowerCase();   // 표 필터는 한 박자 늦게 — 타자가 안 밀리게
   const s=v=>String(v||'');
   const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
   function setCol(f,v){setColF(p=>({...p,[f]:v}));}
@@ -4101,6 +4170,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
     purged:rows.filter(r=>settleState(r)==='purged').length,
     live:rows.filter(r=>r.live==='Y').length};
   const sel=useRowSelect(shown);
+  const pg=useProgressive(shown);   // 화면에 보이는 만큼만 그린다
   function up(id,k,v){onUpdate(id,{[k]:v});}
   const driveLink=brand?BRAND_DRIVE[brand.id]:null;
   // PA 코드 한번에 복사 — 현재 화면(shown)에 있는 코드들을 줄바꿈으로 모아 복사.
@@ -4152,7 +4222,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
         </tr>}
         </thead>
         <tbody>
-          {shown.map(r=>{
+          {pg.rows.map(r=>{
             const isOpen=openId===r.id;
             const ss=settleState(r);const st=settleOf(r);
             return <React.Fragment key={r.id}>
@@ -4224,6 +4294,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
           <tr><td colSpan={11} style={{padding:'8px 0'}}>
             <button className="btn-add" onClick={onAdd}>+ 영상 검수 추가</button>
           </td></tr>
+          <MoreRow pg={pg}/>
         </tbody>
       </table>
     </div>
@@ -4305,6 +4376,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
   const isLive=r=>!!liveOf(r.channelName);
   const cnt={all:rows.length,live:rows.filter(r=>isLive(r)&&statusOf(r)==='unpaid').length,unpaid:rows.filter(r=>statusOf(r)==='unpaid').length,paid:rows.filter(r=>statusOf(r)==='paid').length,purged:rows.filter(r=>statusOf(r)==='purged').length};
   const shown=rows.filter(r=>pFilter==='all'?true:pFilter==='live'?(isLive(r)&&statusOf(r)==='unpaid'):statusOf(r)===pFilter);
+  const pg=useProgressive(shown);   // 화면에 보이는 만큼만 그린다
   // ── 전체 일괄 자동인식 — 폐기 안 된 행 중, 파일은 있는데 은행/계좌·주민번호가 빈 것을 순회 OCR ──
   async function autoAll(){
     const targets=rows.filter(r=>statusOf(r)!=='purged' && ((r.bankFile&&!(r.bankName&&r.bankAccount)) || (r.idFile&&!r.rrn)));
@@ -4343,7 +4415,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
           <th style={{width:140,textAlign:'center'}}>정산 / 지급 처리</th>
         </tr></thead>
         <tbody>
-          {shown.map(r=>{
+          {pg.rows.map(r=>{
             const st=settleOf(r.channelName);
             const status=statusOf(r);
             const left=status==='paid'?(()=>{const dd=daysSinceKey(st.infSettledDate);return dd==null?null:30-dd;})():null;
@@ -4394,6 +4466,7 @@ function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle
           <tr><td colSpan={10} style={{padding:'8px 0'}}>
             <button className="btn-add" onClick={onAdd}>+ 개인정보 추가</button>
           </td></tr>
+          <MoreRow pg={pg}/>
         </tbody>
       </table>
     </div>
@@ -5255,6 +5328,7 @@ function AppMain({ authInfo, onLogout }) {
   const [msg,         setMsg]         = useState('');
   const [saveState,   setSaveState]   = useState('idle'); // idle|saving|saved|error — 헤더 저장 표시기
   const saveTimerRef = useRef(null);   // 자동저장 디바운스 타이머
+  const lsTimerRef   = useRef(null);   // 로컬백업 디바운스 타이머 (아래 saveLocal 참고)
   const savedClearRef= useRef(null);   // '저장됨' 표시를 잠시 후 지우는 타이머
   const dirtyRef     = useRef(false);  // 서버에 아직 저장 안 된 로컬 변경 존재 여부
   const baseRef      = useRef(null);   // ★동시편집 기준선 — 마지막으로 서버와 맞춘 상태(내 변경분만 골라내 병합할 때 씀)
@@ -5495,6 +5569,15 @@ function AppMain({ authInfo, onLogout }) {
     return ()=>clearTimeout(t);
   },[saveState,postData]);
 
+  /* 로컬 백업(localStorage)은 상태가 바뀔 때마다 데이터 전체를 문자열로 만들어 동기로 디스크에 쓴다.
+     데이터가 1MB 쯤 되면 한 번에 20~30ms 라, 타자·토글마다 하면 눈에 띄게 걸린다.
+     → 400ms 모아 한 번만 쓴다. 탭을 닫거나 숨길 때는 바로 아래 flush 가 즉시 확정하므로
+       '저장 실패 시 마지막 보루' 역할은 그대로다. */
+  const saveLocal=useCallback(s=>{
+    clearTimeout(lsTimerRef.current);
+    lsTimerRef.current=setTimeout(()=>save(s),400);
+  },[]);
+
   // 모바일 저장 유실 방지 — 탭을 닫거나 다른 앱으로 전환하는 순간(숨김),
   // 대기 중인 디바운스 저장을 즉시 강제 전송한다. (모바일은 백그라운드 전환 시
   // setTimeout이 죽어 700ms 디바운스 POST가 영영 안 나가던 문제를 막음)
@@ -5502,6 +5585,7 @@ function AppMain({ authInfo, onLogout }) {
     const flush=()=>{
       if(!serverLoadedRef.current||!dirtyRef.current)return; // 저장할 변경 없음
       clearTimeout(saveTimerRef.current);                    // 대기 중 디바운스 취소
+      clearTimeout(lsTimerRef.current);                      // 대기 중 로컬백업도 지금 확정
       const s={brands:brandsRef.current,settlements:settlementsRef.current,paList:paListRef.current};
       save(s);                                               // 로컬 백업 확정
       postData(s,++saveSeqRef.current);                      // 즉시 서버 전송(숨김 직전이라 보통 완료됨)
@@ -5514,7 +5598,7 @@ function AppMain({ authInfo, onLogout }) {
 
   useEffect(()=>{
     const s={brands,settlements,paList};
-    save(s);
+    saveLocal(s);
     if(!serverLoadedRef.current){
       // 서버 최초 로드 전: 낡은 localStorage가 서버를 덮어쓰는 건 막되,
       // 콜드스타트 대기 중 사용자가 실제로 한 편집(체크 등)은 보존되도록 표시
@@ -6086,10 +6170,11 @@ function AppMain({ authInfo, onLogout }) {
     e.target.value = '';
     const isExcel = /\.(xlsx|xls)$/i.test(file.name);
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
         let rows, headers;
         if (isExcel) {
+          await window.needXLSX();   // 엑셀 파일일 때만 SheetJS 를 내려받는다
           const wb = XLSX.read(ev.target.result, {type:'array'});
           const ws = wb.Sheets[wb.SheetNames[0]];
           const csv = XLSX.utils.sheet_to_csv(ws);
@@ -6376,6 +6461,51 @@ class EB extends React.Component {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<EB><App/></EB>);
+</script>
+
+<!-- ─── JSX 로더 ───
+     예전엔 페이지를 열 때마다 브라우저에서 Babel 로 30만 자를 변환했다(매번 2초 넘게 날아감).
+     이제는 한 번 변환한 결과를 '소스 해시'를 열쇠로 캐시해 두고, 다음부터는 그걸 바로 실행한다.
+     위 JSX 를 한 글자라도 고치면 해시가 달라져 자동으로 다시 변환되므로 낡은 코드가 남을 수 없다. -->
+<script>
+(function(){
+  var el=document.getElementById('pa-app-src'), src=el.textContent;
+  // FNV-1a 32bit — 30만 자도 수 ms
+  var hsh=2166136261;
+  for(var i=0;i<src.length;i++){ hsh^=src.charCodeAt(i); hsh=(hsh*16777619)>>>0; }
+  var KEY='pa_app_'+src.length+'_'+hsh.toString(36);
+  function run(code){
+    var s=document.createElement('script');
+    s.textContent=code;
+    document.body.appendChild(s);
+  }
+  var cached=null;
+  try{ cached=localStorage.getItem(KEY); }catch(e){}
+  if(cached){ run(cached); return; }
+  // 캐시가 없을 때만 Babel 을 내려받아 변환한다(설치 직후·코드 수정 직후 딱 한 번).
+  var b=document.createElement('script');
+  b.src='https://unpkg.com/@babel/standalone@7.24.7/babel.min.js';
+  b.onload=function(){
+    var code;
+    try{
+      code=Babel.transform(src,{presets:[['react',{runtime:'classic'}]],sourceType:'script'}).code;
+    }catch(err){
+      document.getElementById('root').textContent='앱 코드 오류: '+err.message; throw err;
+    }
+    try{
+      for(var i=localStorage.length-1;i>=0;i--){            // 옛 버전 캐시는 지운다
+        var k=localStorage.key(i);
+        if(k&&k.indexOf('pa_app_')===0&&k!==KEY) localStorage.removeItem(k);
+      }
+      localStorage.setItem(KEY,code);
+    }catch(e){}                                             // 용량 초과 등은 무시(캐시 없이도 동작)
+    run(code);
+  };
+  b.onerror=function(){
+    document.getElementById('root').textContent='앱을 불러오지 못했습니다. 네트워크 확인 후 새로고침해 주세요.';
+  };
+  document.head.appendChild(b);
+})();
 </script>
 </body>
 </html>

@@ -25,6 +25,27 @@
 - 백엔드를 건드리지 않고 프론트만 테스트하려면 `window.PA_API` 로 목 서버를 주입한다(`test/` 의 E2E 가 이 방식).
 - `server.js` · `node/` · `start.bat` 은 **폐기된 Render 백엔드 잔재**다. 실행하지 말 것(gitignore 로 빠져 있음).
 
+## 속도 (2026-08-31 손봄 — 데이터가 늘어도 안 버벅이게)
+데이터가 수백~수천 행이 되면서 로딩·탭전환·타자가 눈에 띄게 밀렸다. 네 군데를 고쳤다.
+1. **JSX 컴파일 캐시** — 예전엔 페이지를 열 때마다 브라우저 Babel 이 30만 자를 변환했다(매번 2초+).
+   지금은 앱 본체가 `<script type="text/pa-jsx" id="pa-app-src">` 에 들어 있고, 파일 맨 아래 **로더**가
+   변환 결과를 *소스 해시*를 열쇠로 `localStorage['pa_app_…']` 에 캐시한다. 두 번째 방문부터는 Babel 을
+   내려받지도 않는다. **JSX 를 고치면 해시가 달라져 자동 재컴파일**되므로 낡은 코드가 남을 수 없다(빌드 단계 없음).
+   → 편집 방법은 예전과 똑같다. index.html 안의 JSX 를 그대로 고치면 된다.
+2. **무거운 라이브러리 지연 로딩** — SheetJS·pdf-lib·html2canvas(합쳐 1.5MB)는 첫 화면에 필요 없다.
+   `window.needXLSX()` / `window.needPDF()` 로 실제 쓰는 순간에만 받는다(`loadLib`).
+3. **긴 표 점진 렌더(`useProgressive`)** — 표는 처음에 60행만 그리고, 표 끝 감시행이 화면에 들어오면
+   60행씩 이어 붙인다(IntersectionObserver). STEP1·STEP2·출고·영상검수·개인정보 다섯 표에 적용.
+   **개수 표시·전체선택·삭제·검색·집계는 전부 원본 배열(`shown`)로 계산**하므로 안 그려진 행도 빠지지 않는다.
+   이 불변식은 `test/progressive.e2e.mjs` 가 지킨다.
+4. **행 수에 비례하는 계산 useMemo** — Step1/Step2 의 `shown`·`cnt`·카테고리 집계는 키를 누를 때마다
+   전체 행을 다시 훑었다. 이제 실제 입력이 바뀔 때만 계산한다. 검색어는 `useDeferredValue` 로 표에 한 박자 늦게 반영.
+5. **로컬백업 디바운스** — 상태가 바뀔 때마다 1MB 를 `localStorage` 에 동기로 쓰던 걸 400ms 로 모았다.
+   탭을 닫거나 숨기면 `flush` 가 즉시 확정하므로 '마지막 보루' 역할은 그대로다.
+
+측정(모의 데이터 1MB·CPU 4배 느리게, `test/progressive.e2e.mjs` 와 같은 목백엔드):
+첫 화면 3.9s→**1.1s**(재방문) · STEP1 탭 1.6s→**0.45s** · 검색 한 글자 0.25s→**0.03s** · Y/N 토글 0.12s→**0.05s**
+
 ## 프론트엔드 구조 (index.html)
 - 메인 컴포넌트: `AppMain`. 탭(`TABS`) 기반.
 - 탭: `dashboard`(📊 대시보드, 첫 화면) · `step1`(STEP1 리스트업) · `step2`(STEP2 컨택현황) · `shipping`(출고) · `review`(영상검수) · `dm`(DM 템플릿) · `settle`(정산, 관리자) · `privacy`(개인정보, 관리자) · `guide`(가이드).
@@ -48,7 +69,7 @@
 2. **낡은 탭이 서버를 덮어씀(해결됨)**: 프론트가 localStorage(`pa_mgr_v5`)에 캐시 → 옛 탭이 자동저장으로 서버를 덮어쓸 수 있음. 데이터 수정 후엔 **모든 탭/기기 새로고침** 필요. `serverLoadedRef`로 마운트 시 덮어쓰기를 막아둠.
 
 ## 작업 팁
-- JSX는 브라우저 Babel이 변환하므로 **배포 전 문법 검증**을 하면 좋다: `@babel/standalone`(unpkg)로 `index.html`의 babel 스크립트를 `Babel.transform(code,{presets:['react']})` 해보면 문법 오류를 잡을 수 있다.
+- JSX는 로더가 Babel로 변환하므로 **배포 전 문법 검증**을 하면 좋다: `@babel/standalone`(unpkg)로 `index.html`의 babel 스크립트를 `Babel.transform(code,{presets:['react']})` 해보면 문법 오류를 잡을 수 있다.
 - 다크 테마 CSS 변수: `--bg #111`, `--surface #1a1a1a`, `--surface2 #222`, `--surface3 #2a2a2a`, `--border #2d2d2d`, `--muted #71717a`, `--accent #6366f1`, `--green --red --blue`.
 - `.main`은 `display:flex; overflow:hidden`이므로, 탭 최상위 div는 `flex:1 1 0; min-width:0; overflow-y:auto`를 줘야 폭을 채우고 스크롤된다.
 
