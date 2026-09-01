@@ -2146,7 +2146,11 @@ function rebaseData(base, mine, theirs){
   return { brands, settlements: mergeDeep(base.settlements||{}, mine.settlements||{}, theirs.settlements||{}), paList };
 }
 let _lastRev=null; // 마지막으로 받은 서버 리비전 — 폴링에서 변경 여부 판단(304 대체)
-// 서버 최신본을 받아 내 변경분을 얹은 결과를 돌려준다({merged, theirs, rev}) — 저장 충돌 해소용
+// 서버 최신본을 받아 내 변경분을 얹은 결과를 돌려준다({merged, theirs, rev}) — 저장 충돌 해소용.
+// ★ mine·base 는 반드시 "서버 응답이 도착한 뒤"에 읽는다(함수로 넘겨 늦게 평가).
+//   앱스스크립트 재조회는 몇 초가 걸리고 그 사이 사용자는 계속 타자를 친다. 호출 시점의
+//   스냅샷으로 병합하면 그 몇 초 사이에 친 값(영상검수 광고코드 등)이 병합 결과에서 빠지고,
+//   그 결과로 화면을 덮어써 화면에서도 서버에서도 통째로 사라진다. (2026-09-01 실사고)
 async function pullMerge(mine, base, srvData, srvRev){
   let raw=srvData, rev=srvRev;
   if(!raw){
@@ -2157,7 +2161,9 @@ async function pullMerge(mine, base, srvData, srvRev){
   if(!raw||!raw.brands) return null;
   const theirs=normalizeData(raw);
   delete theirs._hadLegacy;
-  return { merged: rebaseData(base, mine, theirs), theirs, rev };
+  const mineNow=typeof mine==='function'?mine():mine;   // ← 지금 이 순간의 화면
+  const baseNow=typeof base==='function'?base():base;
+  return { merged: rebaseData(baseNow, mineNow, theirs), theirs, rev };
 }
 async function loadFromServer(retries=4) {
   try {
@@ -5457,7 +5463,10 @@ function AppMain({ authInfo, onLogout }) {
         const mine={brands:brandsRef.current, settlements:settlementsRef.current, paList:paListRef.current};
         // 미저장 편집이 있어도 화면이 멈추지 않게: 서버 최신본 위에 내 변경분만 얹어 적용
         // (예전엔 dirty면 폴링을 건너뛰어, 편집 중인 사람에겐 상대 입력이 영영 안 보였음)
-        const merged=(dirtyRef.current&&baseRef.current)?rebaseData(baseRef.current, mine, theirs):theirs;
+        // 항상 3-way 병합한다. 예전엔 dirty 플래그가 켜져 있을 때만 병합했는데, 플래그가 어떤
+        // 이유로든 안 켜지면(저장 생략 경로 등) 서버본이 내 미저장 입력을 통째로 덮어썼다.
+        // 로컬에 바뀐 게 없으면 병합 결과는 어차피 서버본과 같으므로 손해가 없다.
+        const merged=baseRef.current?rebaseData(baseRef.current, mine, theirs):theirs;
         baseRef.current=theirs;
         const mineChanged=JSON.stringify(merged.brands)!==JSON.stringify(theirs.brands)||JSON.stringify(merged.settlements)!==JSON.stringify(theirs.settlements);
         if(JSON.stringify(merged.brands)!==JSON.stringify(brandsRef.current)||JSON.stringify(merged.settlements)!==JSON.stringify(settlementsRef.current)){
@@ -5524,7 +5533,14 @@ function AppMain({ authInfo, onLogout }) {
         console.log('[save] 응답', j);
         // 서버가 "그 사이 남이 저장함(conflict)"이라고 알려주면 최신본 위에 다시 얹어 재시도
         if(j && j.conflict){
-          const r=(depth<4)?await pullMerge(payload, baseRef.current, j.data, j.rev):null;
+          // ★ 병합 기준은 "지금 이 순간의 화면"이어야 한다.
+          //   충돌 복구는 서버 최신본을 다시 받아오느라 몇 초가 걸리는데(앱스스크립트),
+          //   그 사이 사용자는 계속 타자를 친다. 예전엔 몇 초 전에 보낸 payload 로만 병합해
+          //   그 사이 입력한 값(영상검수 광고코드 등)이 병합 결과에서 빠졌고,
+          //   그 결과로 화면을 덮어써 화면에서도 서버에서도 통째로 사라졌다.
+          const r=(depth<4)?await pullMerge(
+            ()=>({brands:brandsRef.current,settlements:settlementsRef.current,paList:paListRef.current}),
+            ()=>baseRef.current, j.data, j.rev):null;
           if(r){
             _lastRev=r.rev; baseRef.current=r.theirs;
             applyMerged(r.merged, true);
@@ -5606,10 +5622,13 @@ function AppMain({ authInfo, onLogout }) {
       mountedRef.current=true;
       return;
     }
-    // 서버에서 받아 그대로 적용한 상태면 되저장하지 않는다(두 화면이 2분마다 서로 되저장하던 핑퐁 차단)
+    // 서버에서 받아 그대로 적용한 상태면 되저장하지 않는다(두 화면이 2분마다 서로 되저장하던 핑퐁 차단).
+    // ★ 단, "그대로일 때만" 생략한다. 예전엔 내용이 달라도 무조건 return 해서,
+    //   서버본을 적용한 직후 5초 안에 친 입력이 저장도 안 되고 dirty 표시도 안 남아 통째로 사라졌다.
     if(skipSaveRef.current){
-      if(Date.now()>skipSaveRef.current.until) skipSaveRef.current=null;         // 만료(형태 불일치 대비) → 정상 저장
-      else { if(JSON.stringify(s)===skipSaveRef.current.json) skipSaveRef.current=null; return; }
+      const sk=skipSaveRef.current;
+      skipSaveRef.current=null;                                                  // 한 번 쓰고 무조건 해제
+      if(Date.now()<=sk.until && JSON.stringify(s)===sk.json) return;            // 서버본 그대로 → 되저장만 생략
     }
     dirtyRef.current=true;               // 미저장 변경 발생
     const seq=++saveSeqRef.current;
