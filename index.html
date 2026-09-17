@@ -278,6 +278,61 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 .log-fail{color:#b91c1c;}
 .log-out{color:#b45309;}
 
+/* DASHBOARD — 역할별 단계 카드 · 담당자별 소통 중 · 할 일 (해트케 PA 구조, 밝은 테마) */
+.hk-page{flex:1 1 0;min-width:0;overflow-y:auto;}
+.hk-in{padding:20px 24px 48px;max-width:1300px;margin:0 auto;}
+.product-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.ptab{padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;white-space:nowrap;}
+.ptab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.ptab:hover:not(.active){border-color:var(--dim);}
+.ptab-all{border-color:#c4b5fd;color:#6d28d9;background:#f5f3ff;}
+.ptab-all.active{background:#7c3aed;border-color:#7c3aed;color:#fff;}
+.role-section{margin-bottom:14px;}
+.role-header{font-size:12px;font-weight:700;margin-bottom:7px;display:flex;align-items:center;gap:5px;}
+.role-header.part{color:#b7791f;}
+.role-header.boss{color:#d84848;}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:border-color .15s;}
+.card:hover{border-color:var(--accent);}
+.card-count{font-size:26px;font-weight:700;margin-bottom:3px;line-height:1.1;}
+.card-label{font-size:11px;color:var(--muted);}
+.talk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:20px;}
+.talk-col{background:var(--surface);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;min-width:0;}
+.talk-h{display:flex;align-items:center;gap:6px;padding:11px 12px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700;cursor:pointer;}
+.talk-h .srch-in{flex:1 1 60px;min-width:0;margin-left:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--text);outline:none;font-weight:400;}
+.talk-h .srch-in:focus{border-color:var(--accent);}
+.talk-h .n{margin-left:4px;flex-shrink:0;font-size:11px;font-weight:600;padding:1px 8px;border-radius:10px;}
+.talk-sub{padding:6px 12px 0;font-size:10px;color:var(--muted);}
+.talk-list{padding:8px;max-height:340px;overflow-y:auto;}
+.talk-item{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:12px;}
+.talk-item:hover{background:var(--surface2);}
+.talk-item .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.talk-dup{background:#fffbeb;border:1px solid #fcd34d;color:#b45309;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px;}
+.todo-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;}
+.todo-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.todo-box h3{font-size:12px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:5px;font-weight:600;}
+.todo-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:var(--surface2);border-radius:6px;margin-bottom:5px;cursor:pointer;transition:background .15s;}
+.todo-item:hover{background:var(--surface3);}
+.todo-item:last-child{margin-bottom:0;}
+.todo-name{font-weight:500;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.todo-right{display:flex;gap:5px;align-items:center;flex-shrink:0;}
+.todo-stage{font-size:10px;padding:2px 7px;border-radius:20px;white-space:nowrap;}
+.todo-none{color:var(--muted);font-size:11px;padding:6px 0;}
+.todo-group{margin-bottom:12px;}
+.todo-group:last-child{margin-bottom:0;}
+.todo-group-h{font-size:12px;font-weight:700;margin:0 0 6px 2px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+.todo-group-h>span:not(.todo-group-sub){font-size:11px;opacity:.8;}
+.todo-group-sub{font-size:10px;font-weight:400;color:var(--muted);margin-left:6px;}
+.hk-page .btn-outline{background:var(--surface);border:1px solid var(--border);color:var(--text);}
+.hk-page .btn-outline:hover{border-color:var(--accent);color:var(--accent);}
+.hk-page .btn-sm{padding:3px 8px;font-size:11px;}
+.hk-page .text-muted{color:var(--muted);font-size:11px;}
+@media (max-width:768px){
+  .hk-in{padding:14px;}
+  .todo-grid{grid-template-columns:1fr;}
+  .cards{grid-template-columns:repeat(2,1fr);}
+}
+
 /* ─────────────────────────────────────────────
    모바일/태블릿 반응형 (≤768px) — PC 레이아웃은 그대로, 좁은 화면에서만 적용
    ───────────────────────────────────────────── */
@@ -1918,14 +1973,24 @@ function sanitizePA(raw){
   if(byKor) return byKor;
   return s; // 매칭 실패 시 원본 반환
 }
+const PA_TINTS=[['#dbeafe','#1d4ed8'],['#ede9fe','#7c3aed'],['#dcfce7','#15803d'],['#ffedd5','#c2410c'],['#fce7f3','#be185d'],['#ccfbf1','#0f766e'],['#fef9c3','#a16207']];
+const paSlot=pa=>PA_LIST.filter(p=>p!=='기타').indexOf(pa);
 function paColor(pa) {
   if (!pa) return { background:'var(--surface3)', color:'var(--muted)' };
-  const cs=[['#dbeafe','#1d4ed8'],['#ede9fe','#7c3aed'],['#dcfce7','#15803d'],['#ffedd5','#c2410c'],['#fef9c3','#a16207']];
-  // 등록된 PA(PA_LIST)는 순서대로 고정 색 — 4명이 항상 서로 다른 색으로 구분됨
-  const fixed=PA_LIST.indexOf(pa);
+  const cs=PA_TINTS;
+  // 등록된 PA(PA_LIST, '기타' 제외)는 순서대로 고정 색 — 6명까지 서로 다른 색
+  const fixed=paSlot(pa);
   if(fixed>=0) return { background:cs[fixed%cs.length][0], color:cs[fixed%cs.length][1] };
   let h=0; for(let i=0;i<pa.length;i++) h=(h*31+pa.charCodeAt(i))%cs.length;
   return { background:cs[h][0], color:cs[h][1] };
+}
+function paHex(pa){
+  if(!pa) return '#888';
+  const cs=PA_TINTS.map(t=>t[1]);
+  const fixed=paSlot(pa);
+  if(fixed>=0) return cs[fixed%cs.length];
+  let h=0; for(let i=0;i<pa.length;i++) h=(h*31+pa.charCodeAt(i))%cs.length;
+  return cs[h];
 }
 // 날짜 문자열 → "YYYY-MM-DD" 표준 키 (YY.MM.DD / YYYY.MM.DD 모두 처리)
 function parseDateKey(s){
@@ -3063,92 +3128,267 @@ function WorkManual(){
 }
 
 /* ─── STEP1 VIEW ─── */
-function DashboardView({ brand, isManager, isStaff, authInfo, setTab, setFilter, onAddStep1 }) {
-  const s1 = (brand.step1Rows||[]).filter(r=>r.name);
-  const s2 = (brand.step2Rows||[]).filter(r=>r.name);
-  const wait = s1.filter(r=>r.reviewStatus==='검수대기').length;
-  const rej  = s1.filter(r=>r.reviewStatus==='반려').length;
-  const ing   = s2.filter(r=>normStatus(r.contactStatus)==='진행중').length;
-  const deal  = s2.filter(r=>r.dealDone==='Y').length;
-  const fin   = s2.filter(r=>r.finalDone==='Y').length;
-  const sDone = s2.filter(r=>r.shippingDone==='✅ 완료').length;
-  const td = today();
-  const todayN = s1.filter(r=>r.date===td).length;
+/* ─── 대시보드용 인플루언서 단계 (v2 인플루언서 관리와 같은 규칙) ───
+   필드(컨택 행에 기록): listType 'manual'|'auto'(리스트업 방식, 등록 시점 고정) · dmType 'manual'|'auto'|null
+     · pa(담당자, paList 참조) · stage(아래 key) · endReason '거절'|'무응답'
+   원칙 — 사람이 누르는 곳은 셋뿐:
+     ① 수동 건 DM 발송 확인  ② 답장 확인(자동 건=담당자 칩, 수동 건=답장옴)  ③ 답장 이후 '다음 처리'
+   자동 건은 자동화가 리스트업+DM을 한 번에 해서 DM발송 단계로 들어온다.
+   예전 행(필드 없음)은 기존 값(dmSent·replied·dealDone·출고·영상검수·finalDone·infSettled)으로 단계를 추정하고,
+   버튼을 누르면 새 필드와 기존 값을 함께 기록한다(옛 표 탭·정산이 그대로 맞도록). */
+const INF_STAGES=[
+  {id:0,key:'listup', name:'리스트업',             short:'리스트업',   color:'#6c757d',role:'part'},
+  {id:1,key:'dm',     name:'DM발송',               short:'DM발송',     color:'#0dcaf0',role:'part'},
+  {id:2,key:'replied',name:'답장옴(진행대기)',      short:'답장옴',     color:'#3b82f6',role:'part'},
+  {id:3,key:'contract',name:'계약서발송',           short:'계약서',     color:'#20c997',role:'boss'},
+  {id:4,key:'ship',   name:'제품발송',             short:'제품발송',   color:'#8b5cf6',role:'boss'},
+  {id:5,key:'adcode', name:'광고코드·입금정보수집', short:'광고코드',   color:'#f97316',role:'part'},
+  {id:6,key:'adset',  name:'광고세팅·입금완료',     short:'광고세팅',   color:'#ec4899',role:'boss'},
+];
+const STAGE_IDX=Object.fromEntries(INF_STAGES.map(s=>[s.key,s.id]));
+// 각 단계에서 '다음 처리' 버튼 글자
+const INF_NEXT_LABEL={0:'DM 발송',1:'답장옴',2:'계약서 발송',3:'계약 완료',4:'제품 발송 완료',5:'수집 완료',6:'세팅·입금 완료'};
+const AUTO_PA='🤖 자동화';
+const nzName=s=>String(s||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,'');
+const infStageInfo=inf=>inf.status==='rejected'?{name:inf.endReason||'거절',short:inf.endReason||'거절',color:inf.endReason==='무응답'?'#888888':'#e74c3c'}:inf.status==='done'?{name:'완료',short:'완료',color:'#22c55e'}:INF_STAGES[inf.stage];
 
-  // PA별 실적
-  const paMap={};
-  const ensure=p=>(paMap[p]=paMap[p]||{listed:0,appr:0,step2:0});
-  s1.forEach(r=>{const p=(r.pa||'').trim()||'미지정'; ensure(p).listed++; if(r.reviewStatus==='승인')paMap[p].appr++;});
-  s2.forEach(r=>{const p=(r.pa||'').trim()||'미지정'; ensure(p).step2++;});
-  const paRows=Object.entries(paMap).map(([pa,v])=>({pa,...v,rate:v.listed?Math.round(v.appr/v.listed*100):0})).sort((a,b)=>b.listed-a.listed||b.appr-a.appr);
-  const me=(authInfo?.username||'').trim();
-  const isMine=pa=> !!me && (pa===me || pa.replace(/님$/,'')===me || (me.length>1&&pa.includes(me)));
-  const myStat = paRows.find(p=>isMine(p.pa));
+function buildInfluencers(brand,paList){
+  const P=v=>{const s=String(v||'').trim(); if(!s) return ''; return (paList||[]).includes(s)?s:(sanitizePA(s)||s);};
+  const named=(rows,k='name')=>(rows||[]).filter(r=>r&&String(r[k]||'').trim());
+  const s1=named(brand.step1Rows), s2=named(brand.step2Rows), cs=named(brand.claudeStep2Rows);
+  const ship=brand.shippingRows||[], rev=named(brand.reviewRows,'channelName'), priv=brand.privacyRows||[];
+  const first=(arr,keyFn)=>{const m=new Map(); arr.forEach(r=>{const k=keyFn(r); if(k&&!m.has(k)) m.set(k,r);}); return m;};
+  const s1ById=new Map(s1.map(r=>[r.id,r])), s1ByName=first(s1,r=>nzName(r.name));
+  const privByCh=first(priv,r=>nzName(r.channelName));
+  const revByCh=first(rev,r=>nzName(r.channelName)), revByReal=first(rev,r=>nzName(r.realName));
+  const shipByCh=first(ship,r=>nzName(r.channelName)), shipByRec=first(ship,r=>nzName(r.recipient));
+  const out=[], usedS1=new Set(), usedRev=new Set(), usedName=new Set();
+  const make=(key,step1,contact,src,reviewRow)=>{
+    const base=contact||step1||reviewRow;
+    const name=base.name||base.channelName; const k=nzName(name);
+    const pv=privByCh.get(k)||null;
+    const review=reviewRow||revByCh.get(k)||(pv&&revByReal.get(nzName(pv.realName)))||null;
+    if(review) usedRev.add(review.id);
+    const realName=(review&&review.realName)||(pv&&pv.realName)||'';
+    const shipping=shipByCh.get(k)||(realName?shipByRec.get(nzName(realName)):null)||null;
+    const c=contact||{};
+    const shipped=c.shippingDone==='✅ 완료'||String((shipping&&shipping.status)||'').includes('완료');
+    const listType=c.listType||(src==='auto'?'auto':'manual');
+    const dmType=c.dmType||(c.dmSent==='Y'?(src==='auto'?'auto':'manual'):null);
+    const pa=P(c.pa||(step1&&step1.pa)||(review&&review.pa))||(src==='auto'?AUTO_PA:'');
+    const st=normStatus(c.contactStatus);
+    // 기존 값으로 추정한 단계
+    let legacy=0;
+    if(c.finalDone==='Y') legacy=6;
+    else if(shipped||review) legacy=5;
+    else if(c.dealDone==='Y'&&(c.contractDone==='✅ 완료'||(review&&review.contractDone==='Y'))) legacy=4;
+    else if(c.dealDone==='Y') legacy=3;
+    else if(c.replied==='Y'||st==='진행중'||st==='계약서 작성') legacy=2;
+    else if(c.dmSent==='Y') legacy=1;
+    // 자동 건인데 담당자가 아직 없으면 답장이 와도 칩으로 담당자를 정해야 하므로 DM발송에 둔다
+    if(legacy===2&&src==='auto'&&!c.pa) legacy=1;
+    const stored=c.stage in STAGE_IDX?STAGE_IDX[c.stage]:-1;
+    const stage=Math.max(legacy,stored);
+    const ended=!!c.endReason||st==='거절'||(!contact&&step1&&step1.reviewStatus==='반려');
+    const done=!!contact&&(c.stage==='done'||c.infSettled==='Y'||!!c.privacyPurged);
+    usedName.add(k);
+    out.push({id:key,name,src,step1,contact,review,shipping,privacy:pv,realName,pa,shipped,stage,listType,dmType,
+      endReason:ended?(c.endReason||'거절'):'',
+      status:ended?'rejected':done?'done':'active',
+      link:c.link||(step1&&step1.link)||'',
+      followers:c.followers||(step1&&step1.followers)||'',
+      date:(step1&&step1.date)||c.date||(review&&review.date)||'',
+      phone:(pv&&pv.phone)||c.phone||(shipping&&shipping.phone)||''});
+  };
+  s2.forEach(c=>{const st=s1ById.get(c.step1Id)||s1ByName.get(nzName(c.name))||null; if(st) usedS1.add(st.id); make('c:'+c.id,st,c,'s2');});
+  cs.forEach(c=>{ if(usedName.has(nzName(c.name))) return; make('a:'+c.id,null,c,'auto'); });
+  s1.forEach(r=>{ if(usedS1.has(r.id)||usedName.has(nzName(r.name))) return; make('s:'+r.id,r,null,'s1'); });
+  rev.forEach(r=>{ if(usedRev.has(r.id)||usedName.has(nzName(r.channelName))) return; make('r:'+r.id,null,null,'rev',r); });
+  return out;
+}
+const activePas=paList=>(paList||[]).filter(p=>p&&p!=='기타');
 
-  // 업무 흐름 단계 (쉬운 말 설명 + 현재 인원 + 클릭 이동) — 신입도 한눈에
-  const stages=[
-    {no:1,emoji:'📋',title:'리스트업',desc:'좋은 인플루언서를 찾아 등록',count:s1.length,unit:'명',go:()=>{setTab('step1');setFilter('all');}},
-    {no:2,emoji:'✅',title:'검수',desc:'담당자가 승인 / 반려',count:wait,unit:'대기',hot:wait>0,go:()=>{setTab('step1');setFilter('wt');}},
-    {no:3,emoji:'📨',title:'컨택',desc:'승인된 분께 DM·협의',count:ing,unit:'진행중',go:()=>setTab('step2')},
-    {no:4,emoji:'📦',title:'계약·출고',desc:'계약서 작성·제품 발송',count:sDone,unit:'출고',go:()=>setTab('shipping')},
-    {no:5,emoji:'🎬',title:'영상검수',desc:'업로드 결과 확인',count:null,go:()=>setTab('review')},
-  ];
+// 담당자 탭 — 준섭 앱의 '제품 탭' 자리
+function PaTabs({infs,paFocus,setPaFocus,paList}){
+  const cnt={}; infs.forEach(i=>{const k=i.pa||'미지정'; cnt[k]=(cnt[k]||0)+1;});
+  const names=[...(paList||[]).filter(p=>cnt[p]), ...Object.keys(cnt).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
+  return <div className="product-tabs">
+    <div className={'ptab ptab-all'+(!paFocus?' active':'')} onClick={()=>setPaFocus(null)}>전체 ({infs.length})</div>
+    {names.map(p=>{const on=paFocus===p, c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
+      return <div key={p} className={'ptab'+(on?' active':'')} style={on?{background:c,borderColor:c}:undefined} onClick={()=>setPaFocus(on?null:p)}>
+        <span style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:on?'#fff':c,marginRight:6,verticalAlign:'middle'}}/>{p} ({cnt[p]})</div>;})}
+  </div>;
+}
 
-  const card={background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'16px 18px'};
-  const kpi=(label,val,sub,color,onClick)=>(
-    <div onClick={onClick} style={{...card,cursor:onClick?'pointer':'default'}}
-      onMouseEnter={e=>{if(onClick)e.currentTarget.style.borderColor=color||'var(--accent)';}}
-      onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)';}}>
-      <div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>{label}</div>
-      <div style={{fontSize:26,fontWeight:700,color:color||'var(--text)',lineHeight:1}}>{val}</div>
-      {sub&&<div style={{fontSize:11,color:'var(--muted)',marginTop:6}}>{sub}</div>}
+function useInfActions(A){
+  const td=today();
+  const up=(inf,patch)=>{
+    if(inf.contact){ (inf.src==='auto'?A.updateClaudeS2Row:A.updateStep2Row)(inf.contact.id,patch); return; }
+    A.addContact(inf,{listType:'manual',...patch});   // 리스트업만 있던 사람 → 컨택현황에 행을 만들며 기록
+  };
+  const pa0=inf=>inf.pa===AUTO_PA?'':inf.pa;
+  const acts={
+    up,
+    // ① 수동 건 DM 발송 확인
+    sendDm:inf=>up(inf,{dmSent:'Y',dmDate:(inf.contact&&inf.contact.dmDate)||td,dmType:'manual',listType:inf.listType,stage:'dm',pa:pa0(inf),
+      ...(!inf.contact||normStatus(inf.contact.contactStatus)==='컨택 전'?{contactStatus:'컨택 완료'}:{})}),
+    // ② 답장 확인 — 자동 건은 담당자 칩(pa 지정+답장옴), 수동 건은 pa 유지
+    replied:(inf,pa)=>up(inf,{replied:'Y',replyDate:td,stage:'replied',contactStatus:'진행중',...(pa!==undefined?{pa}:{})}),
+    noReply:inf=>up(inf,{endReason:'무응답',contactStatus:'거절',rejectDate:td}),
+    reject:inf=>{ if(inf.contact||inf.src!=='s1') up(inf,{endReason:'거절',contactStatus:'거절',rejectDate:td}); else A.updateStep1Row(inf.step1.id,{reviewStatus:'반려'}); },
+    restore:inf=>{ if(inf.contact) up(inf,{endReason:'',contactStatus:inf.stage>=2?'진행중':inf.contact.dmSent==='Y'?'컨택 완료':'컨택 전',rejectDate:''}); else if(inf.step1) A.updateStep1Row(inf.step1.id,{reviewStatus:'검수대기'}); },
+    setPa:(inf,pa)=>{ if(inf.step1) A.updateStep1Row(inf.step1.id,{pa}); if(inf.contact) up(inf,{pa}); if(inf.review) A.updateReviewRow(inf.review.id,{pa}); },
+    // 이 사람에게 지금 누를 버튼이 '다음 처리' 하나인가 (칩 선택이 필요한 자동 DM 건·자동 DM 대기 건은 아님)
+    canNext:(inf,isStaff)=>{
+      if(inf.status!=='active') return false;
+      if(inf.stage===0) return inf.listType==='manual';
+      if(inf.stage===1) return inf.dmType!=='auto';
+      if(inf.stage===6) return !isStaff;
+      return true;
+    },
+    // ③ 다음 처리 — 새 stage 와 기존 값을 같이 기록
+    next:(inf,isStaff)=>{
+      if(!acts.canNext(inf,isStaff)) return false;
+      const c=inf.contact||{};
+      switch(inf.stage){
+        case 0: acts.sendDm(inf); return true;
+        case 1: acts.replied(inf); return true;
+        case 2: up(inf,{stage:'contract',dealDone:'Y',dealDate:c.dealDate||td,contactStatus:'계약서 작성'}); return true;
+        case 3: up(inf,{stage:'ship',contractDone:'✅ 완료'}); return true;
+        case 4: up(inf,{stage:'adcode',shippingDone:'✅ 완료',shipDate:c.shipDate||td});
+          if(inf.shipping&&!String(inf.shipping.status||'').includes('완료')) A.updateShipRow(inf.shipping.id,{status:'✅ 완료',shipDate:inf.shipping.shipDate||td});
+          A.ensureReviewRow({channelName:inf.name,realName:inf.realName,pa:pa0(inf)}); return true;
+        case 5: up(inf,{stage:'adset',finalDone:'Y',finalDate:c.finalDate||td}); return true;
+        case 6: up(inf,{stage:'done'}); A.setInfSettledByName(inf.name,true,{pa:pa0(inf),realName:inf.realName}); return true;
+      }
+      return false;
+    },
+    back:inf=>{ // 한 단계 되돌리기(잘못 누른 경우)
+      const c=inf.contact||{}; const prev=INF_STAGES[Math.max(0,inf.stage-1)].key;
+      const undo={1:{dmSent:'N',dmType:null},2:{replied:'',contactStatus:'컨택 완료'},3:{dealDone:'N',contactStatus:'진행중'},4:{contractDone:'미완료'},5:{shippingDone:'미완료'},6:{finalDone:'N',finalDate:''}}[inf.stage]||{};
+      up(inf,{...undo,stage:prev});
+    },
+    settleUndo:inf=>{ up(inf,{stage:'adset'}); A.setInfSettledByName(inf.name,false,{}); },
+  };
+  return acts;
+}
+
+function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go }) {
+  // 해트케 PA(준섭) 대시보드 구조 그대로: [담당자 탭] → 🟡 알바 담당 / 🔴 관리자 담당 단계 카드 → 관리자 할 일 · 알바 할 일
+  const infsAll=useMemo(()=>buildInfluencers(brand,paList),[brand,paList]);
+  const [talkQ,setTalkQ]=useState({}); // 소통 중 칸별 검색어 {담당자: 검색어}
+  const act=useInfActions(A);
+  const infs=paFocus?infsAll.filter(i=>(i.pa||'미지정')===paFocus):infsAll;
+  const active=infs.filter(i=>i.status==='active');
+  const byStage=id=>active.filter(i=>i.stage===id);
+  const card=s=>(
+    <div key={s.id} className="card" style={{borderTop:'3px solid '+s.color}} onClick={()=>go('manage',String(s.id),paFocus)}>
+      <div className="card-count" style={{color:s.color}}>{byStage(s.id).length}</div>
+      <div className="card-label">{s.name}</div>
     </div>
   );
+  const MAX=5;
+  const item=i=>{
+    const s=INF_STAGES[i.stage];
+    const canAdv=act.canNext(i,isStaff);
+    const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
+    return <div key={i.id} className="todo-item" onClick={()=>go('manage',String(i.stage),paFocus,'',i)}>
+      <span className="todo-name">{i.name}</span>
+      <div className="todo-right">
+        {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
+        <span className="todo-stage" style={{background:s.color+'22',color:s.color}}>{s.short}</span>
+        {canAdv&&<button className="btn btn-outline btn-sm" title={INF_NEXT_LABEL[i.stage]} style={{padding:'2px 7px'}}
+          onClick={e=>{e.stopPropagation(); if(confirm(`${i.name} — ${INF_NEXT_LABEL[i.stage]} 처리할까요?`)) act.next(i,isStaff);}}>→</button>}
+      </div>
+    </div>;
+  };
+  const moreRow=(n,onClick)=>n>MAX&&<div className="todo-item" style={{justifyContent:'center',color:'var(--muted)',fontSize:11}} onClick={onClick}>외 {n-MAX}명 더 보기 →</div>;
+  const empty=<div className="todo-none">할 일 없음 ✓</div>;
+
+  // 관리자 할 일 — 단계별로 묶어서
+  const bossStages=INF_STAGES.filter(s=>s.role==='boss');
+  const bossTodo=bossStages.map(s=>{const l=byStage(s.id); if(!l.length) return null;
+    return <div key={s.id} className="todo-group">
+      <div className="todo-group-h" style={{color:s.color}}>{s.name} <span>{l.length}</span></div>
+      {l.slice(0,MAX).map(item)}{moreRow(l.length,()=>go('manage',String(s.id),paFocus))}
+    </div>;}).filter(Boolean);
+
+  // 알바 할 일 — 알바가 여러 명이라 사람별로 묶는다
+  // 💬 담당자별 소통 중 — DM을 보내 대화가 시작된 뒤 아직 끝나지 않은 사람(완료·거절·DM 전은 뺀다)
+  const talking=active.filter(i=>i.stage>=2&&i.stage<=5); // 최종완료(정산만 남음)는 끝난 건으로 본다
+  const talkBy={}; talking.forEach(i=>{const k=i.pa||'미지정'; (talkBy[k]=talkBy[k]||[]).push(i);});
+  const talkOrder=[...(paList||[]).filter(p=>talkBy[p]), ...Object.keys(talkBy).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
+  // 같은 인플루언서를 두 사람이 동시에 맡고 있으면(리스트업/컨택 담당이 다르거나 자동화와 겹침) 알려준다
+  const dupTalk=useMemo(()=>{
+    const m={}; const add=(name,pa,st)=>{const k=nzName(name); if(!k) return; (m[k]=m[k]||{name,pas:new Set()}).pas.add(pa||'미지정');};
+    const live=r=>normStatus(r.contactStatus)!=='거절'&&r.infSettled!=='Y'&&!r.privacyPurged&&r.dmSent==='Y';
+    (brand.step2Rows||[]).filter(live).forEach(r=>add(r.name,(paList||[]).includes(r.pa)?r.pa:(sanitizePA(r.pa)||r.pa)));
+    (brand.claudeStep2Rows||[]).filter(live).forEach(r=>add(r.name,r.pa?((paList||[]).includes(r.pa)?r.pa:(sanitizePA(r.pa)||r.pa)):AUTO_PA));
+    return Object.values(m).filter(x=>x.pas.size>1).map(x=>({name:x.name,pas:[...x.pas]}));
+  },[brand,paList]);
+  const partItems=active.filter(i=>INF_STAGES[i.stage].role==='part');
+  const groups={}; partItems.forEach(i=>{const k=i.pa||'미지정'; (groups[k]=groups[k]||[]).push(i);});
+  const order=[...(paList||[]).filter(p=>groups[p]), ...Object.keys(groups).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
+  const partTodo=order.map(p=>{const l=groups[p].sort((a,b)=>b.stage-a.stage); const c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
+    const perStage=[5,2,1,0].map(id=>[id,l.filter(i=>i.stage===id).length]).filter(x=>x[1]);
+    return <div key={p} className="todo-group">
+      <div className="todo-group-h" style={{color:c}}>
+        <span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:c,marginRight:6}}/>{p} <span>{l.length}</span>
+        <span className="todo-group-sub">{perStage.map(([id,n])=>INF_STAGES[id].short+' '+n).join(' · ')}</span>
+      </div>
+      {l.slice(0,MAX).map(item)}{moreRow(l.length,()=>go('manage','all',p))}
+    </div>;});
+
   return (
-    <div style={{flex:'1 1 0',minWidth:0,overflowY:'auto',padding:'18px 20px 40px'}}>
-      {/* 업무 흐름 — 쉬운 말 + 단계별 인원 + 클릭 이동 */}
-      <div style={{...card,marginBottom:16}}>
-        <div style={{fontSize:12,color:'var(--muted)',marginBottom:12}}>📍 업무 흐름 — 카드를 누르면 해당 화면으로 이동해요</div>
-        <div style={{display:'flex',alignItems:'stretch',gap:6,overflowX:'auto',paddingBottom:4}}>
-          {stages.map((st,i)=>(
-            <React.Fragment key={st.no}>
-              <div onClick={st.go} style={{flex:'1 1 0',minWidth:118,cursor:'pointer',background:st.hot?'#fef2f2':'var(--surface2)',border:'1px solid '+(st.hot?'var(--red)':'var(--border)'),borderRadius:10,padding:'11px 13px'}}>
-                <div style={{fontSize:10,color:'var(--muted)',marginBottom:3}}>STEP {st.no}</div>
-                <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>{st.emoji} {st.title}</div>
-                <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.4,minHeight:30}}>{st.desc}</div>
-                {st.count!=null && <div style={{fontSize:12,fontWeight:600,marginTop:6,color:st.hot?'var(--red)':'var(--blue)'}}>{st.count}{st.unit}</div>}
-              </div>
-              {i<stages.length-1 && <div style={{alignSelf:'center',color:'var(--muted)',fontSize:14,flexShrink:0}}>→</div>}
-            </React.Fragment>
-          ))}
+    <div className="hk-page"><div className="hk-in">
+      <PaTabs infs={infsAll} paFocus={paFocus} setPaFocus={setPaFocus} paList={paList}/>
+      <div className="role-section">
+        <div className="role-header part">🟡 알바 담당</div>
+        <div className="cards">{INF_STAGES.filter(s=>s.role==='part').map(card)}</div>
+      </div>
+      <div className="role-section">
+        <div className="role-header boss">🔴 관리자 담당</div>
+        <div className="cards">{INF_STAGES.filter(s=>s.role==='boss').map(card)}</div>
+      </div>
+      <div className="role-header" style={{color:'var(--text)',marginTop:18}}>💬 담당자별 소통 중 <span className="text-muted" style={{fontWeight:400}}>— DM 보낸 뒤 진행 중인 사람만 · 최종완료·정산·거절은 뺌 · 이름을 누르면 상세</span></div>
+      {dupTalk.length>0&&!paFocus&&<div className="talk-dup">⚠️ 두 명 이상이 동시에 연락 중: {dupTalk.slice(0,8).map(d=>d.name+' ('+d.pas.join(', ')+')').join(' · ')}{dupTalk.length>8?` 외 ${dupTalk.length-8}명`:''}</div>}
+      {talkOrder.length===0?<div className="todo-box" style={{marginBottom:20}}><div className="todo-none">소통 중인 인플루언서 없음</div></div>:
+      <div className="talk-grid">
+        {talkOrder.map(p=>{const q=String(talkQ[p]||'').trim().toLowerCase();
+          const hit=i=>!q||[i.name,i.realName,i.contact&&i.contact.memo].some(v=>String(v||'').toLowerCase().includes(q));
+          const l=talkBy[p].slice().sort((a,b)=>b.stage-a.stage||String(b.contact&&b.contact.dmDate||'').localeCompare(String(a.contact&&a.contact.dmDate||'')));
+          const c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
+          const per=[2,3,4,5].map(id=>[id,l.filter(i=>i.stage===id).length]).filter(x=>x[1]);
+          return <div key={p} className="talk-col" style={{borderTop:'3px solid '+c}}>
+            <div className="talk-h" onClick={()=>setPaFocus(paFocus===p?null:p)} title="이 담당자만 보기">
+              <span style={{width:8,height:8,borderRadius:'50%',background:c,flexShrink:0}}/><span style={{whiteSpace:'nowrap'}}>{p}</span>
+              <input className="srch-in" value={talkQ[p]||''} placeholder="🔍 검색" onClick={e=>e.stopPropagation()}
+                onChange={e=>setTalkQ(s=>({...s,[p]:e.target.value}))} onKeyDown={e=>{if(e.key==='Escape')setTalkQ(s=>({...s,[p]:''}));}}/>
+              <span className="n" style={{background:c+'22',color:c}}>{q?`${l.filter(hit).length}/`:''}{l.length}명</span>
+            </div>
+            <div className="talk-sub">{per.map(([id,n])=>INF_STAGES[id].short+' '+n).join(' · ')}</div>
+            <div className="talk-list">
+              {q&&!l.some(hit)&&<div className="todo-none" style={{padding:'6px 8px'}}>'{talkQ[p]}' 없음</div>}
+              {l.filter(hit).map(i=>{const s=INF_STAGES[i.stage];
+                return <div key={i.id} className="talk-item" onClick={()=>go('manage','all',paFocus,'',i)} title={i.name}>
+                  <span className="nm">{i.name}</span>
+                  <span className="todo-stage" style={{background:s.color+'22',color:s.color,flexShrink:0}}>{s.short}</span>
+                </div>;})}
+            </div>
+          </div>;})}
+      </div>}
+      <div className="todo-grid">
+        <div className="todo-box">
+          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일</h3>
+          {bossTodo.length?bossTodo:empty}
+        </div>
+        <div className="todo-box">
+          <h3><span style={{color:'#ffc107'}}>🟡</span> 알바 할 일 {paFocus?`— ${paFocus}`:'— 사람별'}</h3>
+          {partTodo.length?partTodo:empty}
         </div>
       </div>
-
-      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,flexWrap:'wrap'}}>
-        <span style={{fontSize:13,fontWeight:700,color:'var(--muted)'}}>📊 {brand.name} 현황 숫자</span>
-        <span style={{fontSize:11,color:'var(--muted)'}}>오늘 신규 등록 {todayN}건 · 숫자를 누르면 목록으로 이동</span>
-      </div>
-
-      {wait>0 && (
-        <div onClick={()=>{setTab('step1');setFilter('wt');}}
-          style={{...card,background:'#fef2f2',borderColor:'var(--red)',cursor:'pointer',marginBottom:14,display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:20}}>🔎</span>
-          <span style={{fontWeight:600,color:'var(--red)'}}>검수 대기 {wait}건</span>
-          <span style={{fontSize:12,color:'var(--muted)'}}>— 클릭하면 검수대기 목록으로</span>
-        </div>
-      )}
-
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:10,marginBottom:18}}>
-        {kpi('리스트업 총건',s1.length,'반려 '+rej+'건','var(--text)',()=>{setTab('step1');setFilter('all');})}
-        {kpi('검수대기',wait,wait>0?'확인 필요':'없음','var(--red)',()=>{setTab('step1');setFilter('wt');})}
-        {kpi('협업 성사',deal,'전체 '+s2.length+'건 중','var(--green)',()=>{setTab('step2');setFilter('deal');})}
-        {kpi('최종 완료',fin,'성사 '+deal+'건 중','var(--purple)',()=>{setTab('step2');setFilter('fin');})}
-        {kpi('출고 완료',sDone,null,'#eab308',()=>setTab('shipping'))}
-      </div>
-
       <WorkManual/>
-
-    </div>
+    </div></div>
   );
 }
 
@@ -5322,6 +5562,30 @@ function AppMain({ authInfo, onLogout }) {
   const [tab,         setTab]         = useState('dashboard');
   const [filter,      setFilter]      = useState('all');
   const [search,      setSearch]      = useState('');
+  const [dashPa,      setDashPa]      = useState(null); // 대시보드 담당자 탭
+  const navRef = useRef(null); // 대시보드에서 넘어갈 때 적용할 필터·검색(탭 초기화 effect 가 덮지 않게)
+  // 대시보드 카드·이름 클릭 → 기존 탭으로 이동. 사람을 누르면 그 사람 이름으로 검색해 바로 보이게 한다.
+  function go(t,f='all',pa,q='',inf=null){
+    if(pa!==undefined) setDashPa(pa||null);
+    let T=t, Fl=f, Q=q;
+    if(t==='manage'){
+      const auto=pa==='🤖 자동화';
+      if(inf){
+        Fl='all';
+        if(inf.stage===4&&inf.shipping&&inf.status==='active'){ T='shipping'; Q=inf.shipping.recipient||''; }
+        else if(inf.stage>=5&&inf.review){ T='review'; Q=inf.name; }
+        else if(inf.contact){ T=inf.src==='auto'?'claudeS2':'step2'; Q=inf.name; }
+        else if(inf.step1){ T='step1'; Q=inf.name; }
+        else { T='review'; Q=inf.name; }
+      } else {
+        const m={'0':['step1','all'],'1':['step2','dm'],'2':['step2','all'],'3':['step2','deal'],'4':['shipping','pend'],'5':['review','all'],'6':['step2','fin'],'all':['step2','all']}[String(f)]||['step2','all'];
+        [T,Fl]=m;
+        if(auto&&['step1','step2'].includes(T)){ T='claudeS2'; if(Fl==='dm'||Fl==='all') Fl='all'; }
+      }
+    }
+    if(T===tab){ setFilter(Fl); setSearch(Q); return; }
+    navRef.current={filter:Fl,search:Q}; setTab(T);
+  }
   const [modal,       setModal]       = useState(null);
   const [sheetModal,  setSheetModal]  = useState(false);
   const [menuOpen,    setMenuOpen]    = useState(false); // ⚙️ 관리 드롭다운
@@ -5641,7 +5905,7 @@ function AppMain({ authInfo, onLogout }) {
     }
   },[brands,settlements,paList]);
 
-  useEffect(()=>{setFilter('all');setSearch('');},[bId,tab]);
+  useEffect(()=>{const n=navRef.current; navRef.current=null; setFilter(n?n.filter:'all'); setSearch(n?n.search:'');},[bId,tab]);
 
   // Update brand helper
   function updateBrand(bId,updater){
@@ -6258,6 +6522,11 @@ function AppMain({ authInfo, onLogout }) {
   const primaryTabs=visibleTabs.filter(t=>PRIMARY_TABS.has(t.key));
   const moreTabs=visibleTabs.filter(t=>!PRIMARY_TABS.has(t.key));
   const activeMore=moreTabs.find(t=>t.key===tab);
+  // 대시보드 '→' 빠른 처리가 쓰는 원본 조작 함수 — 기존 탭과 같은 함수
+  const infA={updateStep1Row,updateStep2Row,updateClaudeS2Row,updateShipRow,addShipRow,updateReviewRow,ensureReviewRow,setInfSettledByName,deleteRowsMany,
+    openPrivacy:setPrivacyModalRow,
+    addContact:(inf,patch)=>updateBrand(bId,b=>({...b,step1Rows:inf.step1?(b.step1Rows||[]).map(r=>r.id===inf.step1.id?{...r,reviewStatus:'승인',promotedToStep2:true}:r):b.step1Rows,step2Rows:[...(b.step2Rows||[]),{id:makeId(),step1Id:(inf.step1&&inf.step1.id)||'',date:today(),name:inf.name,link:inf.link||'',followers:inf.followers||'',
+      pa:inf.pa==='🤖 자동화'?'':(inf.pa||''),contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:'',...patch}]}))};
 
   return <>
     <div className={`mode-banner ${isStaff?'staff':'manager'}`}>
@@ -6330,15 +6599,7 @@ function AppMain({ authInfo, onLogout }) {
     </div>
 
     <div className="main">
-      {tab==='dashboard'&&<DashboardView
-        brand={brand}
-        isManager={isManager}
-        isStaff={isStaff}
-        authInfo={authInfo}
-        setTab={setTab}
-        setFilter={setFilter}
-        onAddStep1={()=>{setTab('step1');setModal('addStep1');}}
-      />}
+      {tab==='dashboard'&&<DashboardView brand={brand} paList={paList} paFocus={dashPa} setPaFocus={setDashPa} isStaff={IS_STAFF} A={infA} go={go}/>}
       {tab==='step1'&&<Step1View
         rows={brand.step1Rows||[]}
         onUpdate={updateStep1Row}
