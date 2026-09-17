@@ -120,7 +120,7 @@ await evalJs(`(window.__cf=[],window.confirm=m=>{window.__cf.push(m);return true
 
 console.log('\n[대시보드] 구성');
 const dash=await evalJs(`document.querySelector('.hk-in').innerText`);
-chk(['알바 담당','관리자 담당','담당자별 소통 중','관리자 할 일','알바 할 일','업무 매뉴얼'].every(t=>dash.includes(t)),'역할 카드·소통 중·할 일·업무 매뉴얼');
+chk(['매니저 담당','관리자 담당','담당자별 소통 중','관리자 할 일','매니저 할 일','업무 매뉴얼'].every(t=>dash.includes(t)),'역할 카드·소통 중·할 일·업무 매뉴얼');
 const talk=await evalJs("[...document.querySelectorAll('.talk-col:not(.dm-col)')].map(c=>c.innerText.replace(/\\s+/g,' ').trim())");
 const col=n=>talk.find(t=>t.startsWith(n))||'';
 chk(col('안민영').includes('디디')&&col('안민영').includes('에프'),'안민영 소통 중: 디디·에프',talk);

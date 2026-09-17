@@ -37,7 +37,7 @@ body{background:var(--bg);color:var(--text);font-family:'Pretendard','Apple SD G
 .menu-pop{position:absolute;right:0;top:115%;z-index:41;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px;}
 .menu-item{text-align:left;padding:8px 10px;border-radius:5px;background:transparent;border:none;color:var(--text);font-size:12px;cursor:pointer;white-space:nowrap;}
 .menu-item:hover{background:var(--surface3);}
-/* 계약서 양식 — 알바가 한눈에 보이도록 강조 */
+/* 계약서 양식 — 매니저가 한눈에 보이도록 강조 */
 .contract-link{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;color:#fff;background:var(--green);border:1px solid transparent;white-space:nowrap;transition:filter .12s;}
 .contract-link:hover{filter:brightness(1.12);}
 
@@ -1072,7 +1072,7 @@ function contractDateText(d){
   const a=String(d||'').split('-');
   return a.length===3 ? `${a[0]}년 ${a[1]}월 ${a[2]}일` : String(d||'');
 }
-// 모델이 직접 채워야 하는 칸 — 알바가 비워둔 항목만 안내한다.
+// 모델이 직접 채워야 하는 칸 — 매니저가 비워둔 항목만 안내한다.
 function contractMailDefaults({ brandName, company, name, fee, date, phone, rrn, addr }){
   const blanks=[];
   if(!phone) blanks.push('연락처');
@@ -1942,7 +1942,7 @@ function normDate(s){
 function today()  { return normDate(new Date().toLocaleDateString('ko-KR',{year:'2-digit',month:'2-digit',day:'2-digit'})); }
 function calcPay(row) {
   const dm   = row.dmSent   === 'Y' ? 2000 : 0;
-  const deal = row.finalDone === 'Y' ? 20000 : 0;   // 알바 수당은 '최종 완료' 기준(협업성사는 표시용)
+  const deal = row.finalDone === 'Y' ? 20000 : 0;   // 매니저 수당은 '최종 완료' 기준(협업성사는 표시용)
   return { dm, deal, subtotal: dm+deal };
 }
 function fmtMoney(n) { return n > 0 ? n.toLocaleString()+'원' : '0원'; }
@@ -2118,8 +2118,8 @@ function normalizeData(d) {
       // Claude 리스트업(claudeStep1Rows)을 컨택현황(claudeStep2Rows)으로 1회 자동 통합 —
       // 이름 중복 제외, 페르소나·피드·가설은 메모에 보존. 통합 후 리스트업은 비움(다음 로드부터 재실행 안 됨).
       ...(() => {
-        // 클로드 발굴 행: 담당 PA를 이은영으로 고정하지 않음 — 협업 성사 시 그 알바가 자기 이름을 직접 선택.
-        // 옛 'Claude'/이은영 표기는 '미지정'(빈값)으로 두고, 지정된 알바 이름은 유지(성사수당 귀속).
+        // 클로드 발굴 행: 담당 PA를 이은영으로 고정하지 않음 — 협업 성사 시 그 매니저가 자기 이름을 직접 선택.
+        // 옛 'Claude'/이은영 표기는 '미지정'(빈값)으로 두고, 지정된 매니저 이름은 유지(성사수당 귀속).
         const fixPa=rows=>rows.map(r=>(r.pa==='Claude'||r.pa==='이은영')?{...r,pa:''}:r);
         // 카테고리(낚시·뷰티 등) 자동 채움 — 미지정(category 키 없음) 행만, 키워드 잡힐 때만. 사용자가 비운('') 건 건드리지 않음.
         const fillCat=rows=>rows.map(r=>{ if(r.category!=null) return r; const n=nicheOf([r.name,r.memo].join(' ')); return n?{...r,category:n}:r; });
@@ -2137,7 +2137,7 @@ function normalizeData(d) {
   };
 }
 /* ─── 동시편집 병합(리베이스) ───────────────────────────────────────────────
-   이 앱은 "화면 전체 상태"를 통째로 저장한다. 두 사람(매니저·알바)이 같이 쓰면
+   이 앱은 "화면 전체 상태"를 통째로 저장한다. 두 사람(관리자·매니저)이 같이 쓰면
    나중에 저장한 쪽이 상대의 최근 입력을 통째로 덮어써 사라졌다(2026-07 사고).
    → 저장 직전에 서버 최신본을 가져와, 내가 "기준선(base) 이후 실제로 바꾼 것"만
      그 위에 얹어서(3-way merge) 올린다. 상대 입력은 그대로 살아남는다. */
@@ -3342,10 +3342,10 @@ function useInfActions(A){
 }
 
 function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, settlements }) {
-  // 해트케 PA(준섭) 대시보드 구조 그대로: [담당자 탭] → 🟡 알바 담당 / 🔴 관리자 담당 단계 카드 → 관리자 할 일 · 알바 할 일
+  // 해트케 PA(준섭) 대시보드 구조 그대로: [담당자 탭] → 🟡 매니저 담당 / 🔴 관리자 담당 단계 카드 → 관리자 할 일 · 매니저 할 일
   const infsAll=useMemo(()=>buildInfluencers(brand,paList),[brand,paList]);
   const [talkQ,setTalkQ]=useState({}); // 소통 중 칸별 검색어 {담당자: 검색어}
-  // 📨 담당자별 DM 보낸 인플루언서 — 알바가 직접 DM 보낸 컨택현황 행(자동화 DM 제외).
+  // 📨 담당자별 DM 보낸 인플루언서 — 매니저가 직접 DM 보낸 컨택현황 행(자동화 DM 제외).
   //    거절·완료(인플루언서 정산/폐기)·DM 수당이 이미 지급된 달·너무 오래된 DM 은 뺀다.
   const [dmDays,setDmDays]=useState(60);
   const [dmQ,setDmQ]=useState({});
@@ -3404,7 +3404,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       {l.slice(0,MAX).map(item)}{moreRow(l.length,()=>go('manage',String(s.id),paFocus))}
     </div>;}).filter(Boolean);
 
-  // 알바 할 일 — 알바가 여러 명이라 사람별로 묶는다
+  // 매니저 할 일 — 매니저가 여러 명이라 사람별로 묶는다
   // 💬 담당자별 소통 중 — DM을 보내 대화가 시작된 뒤 아직 끝나지 않은 사람(완료·거절·DM 전은 뺀다)
   const talking=active.filter(i=>i.stage>=2&&i.stage<=5); // 최종완료(정산만 남음)는 끝난 건으로 본다
   const talkBy={}; talking.forEach(i=>{const k=i.pa||'미지정'; (talkBy[k]=talkBy[k]||[]).push(i);});
@@ -3434,7 +3434,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     <div className="hk-page"><div className="hk-in">
       <PaTabs infs={infsAll} paFocus={paFocus} setPaFocus={setPaFocus} paList={paList}/>
       <div className="role-section">
-        <div className="role-header part">🟡 알바 담당</div>
+        <div className="role-header part">🟡 매니저 담당</div>
         <div className="cards">{INF_STAGES.filter(s=>s.role==='part').map(card)}</div>
       </div>
       <div className="role-section">
@@ -3510,7 +3510,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
           {bossTodo.length?bossTodo:empty}
         </div>
         <div className="todo-box">
-          <h3><span style={{color:'#ffc107'}}>🟡</span> 알바 할 일 {paFocus?`— ${paFocus}`:'— 사람별'}</h3>
+          <h3><span style={{color:'#ffc107'}}>🟡</span> 매니저 할 일 {paFocus?`— ${paFocus}`:'— 사람별'}</h3>
           {partTodo.length?partTodo:empty}
         </div>
       </div>
@@ -3846,7 +3846,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
     if(v==='Y'){if(!r.dealDate)patch.dealDate=today();patch.finalDone=r.finalDone||'N';}
     else{patch.dealDate='';patch.finalDone='N';patch.finalDate='';}
     onUpdate(r.id,patch);}
-  // 최종 완료 = 알바 수당(2만)이 잡히는 기준(영상 업로드+광고코드까지 끝난 상태). 완료일이 정산 귀속 월.
+  // 최종 완료 = 매니저 수당(2만)이 잡히는 기준(영상 업로드+광고코드까지 끝난 상태). 완료일이 정산 귀속 월.
   function setFinal(r,v){const patch={finalDone:v};
     if(v==='Y'){if(!r.finalDate)patch.finalDate=today();
       if(r.dealDone!=='Y'){patch.dealDone='Y';if(!r.dealDate)patch.dealDate=today();}}  // 완료면 성사는 당연히 Y
@@ -3855,9 +3855,9 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
   function setDm(r,v){const patch={dmSent:v};if(v==='Y'&&!r.dmDate)patch.dmDate=today();if(v!=='Y')patch.dmDate='';onUpdate(r.id,patch);}
   // 진행 상태를 '거절'로 바꾸면 거절일 자동 기록(그달 DM 수당 정산 기준), 벗어나면 제거.
   function setStatus(r,v){const patch={contactStatus:v};if(v==='거절'&&!r.rejectDate)patch.rejectDate=today();if(v!=='거절')patch.rejectDate='';onUpdate(r.id,patch);}
-  // 답장(알바가 체크) — 답장 온 사람만 따로 모아보기 위한 표시. Y로 바꾸면 답장일 자동 기록.
+  // 답장(매니저가 체크) — 답장 온 사람만 따로 모아보기 위한 표시. Y로 바꾸면 답장일 자동 기록.
   function setReplied(r,v){const patch={replied:v};if(v==='Y'&&!r.replyDate)patch.replyDate=today();if(v!=='Y'){patch.replyDate='';}onUpdate(r.id,patch);}
-  // 승인(관리자만) — 승인하면 그때부터 알바가 소통 진행. 승인 시 답장도 자동 Y(답장 없이 승인되는 일 방지).
+  // 승인(관리자만) — 승인하면 그때부터 매니저가 소통 진행. 승인 시 답장도 자동 Y(답장 없이 승인되는 일 방지).
   function setApproved(r,v){const patch={approved:v};if(v==='Y'){if(!r.approveDate)patch.approveDate=today();if(r.replied!=='Y'){patch.replied='Y';if(!r.replyDate)patch.replyDate=today();}}else{patch.approveDate='';}onUpdate(r.id,patch);}
 
   // 행(Step2Row)에 넘길 핸들러 묶음 — ref 라 신원이 고정돼 memo 가 살아 있고,
@@ -3980,7 +3980,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                 {IS_STAFF
                   ? <span style={{display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap',...(r.approved==='Y'?{background:'#dcfce7',color:'#15803d'}:{background:'var(--surface3)',color:'var(--muted)'})}} title={r.approved==='Y'?`관리자 승인 ${r.approveDate||''}`:'관리자 승인 대기'}>{r.approved==='Y'?'✅ 승인됨':'🔒 대기'}</span>
                   : <span style={{display:'inline-flex',gap:3}}>
-                      <button className={`yn-btn ${r.approved==='Y'?'yn-y':'yn-n'}`} style={{padding:'2px 7px'}} title={r.approved==='Y'?'승인 취소':'승인 — 알바가 소통 진행'}
+                      <button className={`yn-btn ${r.approved==='Y'?'yn-y':'yn-n'}`} style={{padding:'2px 7px'}} title={r.approved==='Y'?'승인 취소':'승인 — 매니저가 소통 진행'}
                         onClick={()=>{if(r.approved==='Y'){H.current.setApproved(r,'N');return;}const patch={approved:'Y',approveDate:r.approveDate||today()};if(r.replied!=='Y'){patch.replied='Y';if(!r.replyDate)patch.replyDate=today();}if(isRej(r)){patch.contactStatus='진행중';patch.rejectDate='';}H.current.onUpdate(r.id,patch);}}>Y</button>
                       <button className={`yn-btn ${isRej(r)?'yn-rej':'yn-n'}`} style={{padding:'2px 7px'}} title={isRej(r)?'거절 취소 (컨택 전으로 되돌림)':'승인 안 함 → 거절(보관)으로 이동'}
                         onClick={()=>{if(isRej(r)){H.current.setStatus(r,'컨택 전');return;}const patch={approved:'',approveDate:'',contactStatus:'거절'};if(!r.rejectDate)patch.rejectDate=today();H.current.onUpdate(r.id,patch);}}>N</button>
@@ -4287,7 +4287,7 @@ function DMTemplateModal({init,onSave,onClose}){
           <input className="modal-inp" value={f.insight} onChange={u('insight')} placeholder="예: 00은 인플루언서 이름으로 수정"/>
         </div>
         <div className="modal-full">
-          <div className="modal-lbl">본문 내용 (알바가 복사해서 보내는 글)</div>
+          <div className="modal-lbl">본문 내용 (매니저가 복사해서 보내는 글)</div>
           <textarea className="modal-ta" style={{minHeight:280,lineHeight:1.6}} value={f.content} onChange={u('content')} placeholder="DM 본문을 그대로 붙여넣으세요"/>
         </div>
       </div>
@@ -4453,7 +4453,7 @@ function ReviewChecklist({ brandId, brandName }){
 /* ── 계약서 수집 버튼 ──────────────────────────────────────
    서명해서 회신 온 계약서를 메일함에서 찾아 브랜드 드라이브에 넣는다.
    평소엔 매일 12시·18시에 저절로 돌지만, "방금 온 회신"을 바로 받고 싶을 때 누른다.
-   관리자·알바 누구나 누를 수 있다(구글 계정 필요 없음).
+   관리자·매니저 누구나 누를 수 있다(구글 계정 필요 없음).
 
    ★ 구조: 이 앱은 메일함을 못 본다. 여기서는 시트에 "수집해줘"만 적고(collectRun),
      메일 권한을 가진 회수기(별도 스크립트, cheddar 계정 전용, 주소 비공개)가
@@ -4971,7 +4971,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   const staffPASet = isStaffView ? new Set(parseTabs(staffPA).map(sanitizePA).filter(Boolean)) : null; // 본인 PA 여러 명
   // 정산 대상 = 컨택현황(step2)만. Claude 발굴 탭(claudeStep2)은 정산에서 제외.
   // 정산 대상 = 컨택현황(step2) + Claude 발굴 탭(claudeStep2). 단, Claude 탭은 DM은 내가 자동 발송하므로
-  // DM 수당 없이 '협업 성사(2만)'만 담당 PA(알바)에게 정산(_claude 태그로 아래에서 DM 제외).
+  // DM 수당 없이 '협업 성사(2만)'만 담당 PA(매니저)에게 정산(_claude 태그로 아래에서 DM 제외).
   const allRows2=[...(brand?.step2Rows||[]), ...((brand?.claudeStep2Rows||[]).map(r=>({...r,_claude:true})))];
   // 정산에서 제외할 담당자(관리자 등 — 수당 정산 대상 아님)
   const SETTLE_EXCLUDE_PA=['이은영'];
@@ -6763,7 +6763,7 @@ function AppMain({ authInfo, onLogout }) {
       />}
       {tab==='claudeS2'&&<div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'var(--surface2)'}}>
-          <span style={{fontSize:12,color:'var(--muted)'}}>🤖 자동 DM 발송 → 💬 답장(알바 체크) → ✅ 승인 Y · 안 하면 N(거절 보관) — 관리자 → 알바가 소통 진행 → 협업성사 Y → 🏁 최종완료 Y(수당 집계)</span>
+          <span style={{fontSize:12,color:'var(--muted)'}}>🤖 자동 DM 발송 → 💬 답장(매니저 체크) → ✅ 승인 Y · 안 하면 N(거절 보관) — 관리자 → 매니저가 소통 진행 → 협업성사 Y → 🏁 최종완료 Y(수당 집계)</span>
           <span style={{fontSize:11,color:'var(--muted)'}}>{(brand.claudeStep2Rows||[]).length}명</span>
           <button className="btn btn-primary" style={{fontSize:11}} onClick={addClaudeS2Row}>＋ 추가</button>
           {(brand.claudeStep1Rows||[]).length>0&&<button className="btn" style={{fontSize:11,background:'var(--accent)',color:'#fff'}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
@@ -6849,7 +6849,7 @@ function AppMain({ authInfo, onLogout }) {
     {modal==='addReview'&&<AddReviewModal onConfirm={r=>{addReviewRow(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
     {modal==='addPrivacy'&&<AddPrivacyModal prefill={privacyPrefill} brandId={bId} onConfirm={r=>{addPrivacyRow(r);setModal(null);setPrivacyPrefill(null);}} onCancel={()=>{setModal(null);setPrivacyPrefill(null);}}/>}
     {/* 컨택현황에서 '개인정보 제출' → 영상검수와 동일한 개인정보 입력(통장·신분증 OCR) 모달.
-        스태프(알바)도 협업 성사 인플루언서의 개인정보(통장·신분증·계약서)를 수집·제출해야 하므로 관리자 전용이 아님. */}
+        스태프(매니저)도 협업 성사 인플루언서의 개인정보(통장·신분증·계약서)를 수집·제출해야 하므로 관리자 전용이 아님. */}
     {privacyModalRow&&<ReviewPrivacyModal row={privacyModalRow} privacyRows={brand.privacyRows||[]} brandId={bId}
       onUpdatePrivacy={(id,patch)=>{updatePrivacyRow(id,patch);ensureReviewRow({channelName:patch.channelName,realName:patch.realName,pa:privacyModalRow.pa});}}
       onAddPrivacy={(r)=>{addPrivacyRow(r);ensureReviewRow({channelName:r.channelName,realName:r.realName,pa:privacyModalRow.pa});}}
