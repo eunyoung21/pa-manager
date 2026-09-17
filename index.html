@@ -2878,8 +2878,10 @@ function PaManageModal({ paList, setPaList, onClose }) {
 }
 
 /* ─── ADD ROW MODAL (Step1) ─── */
-function AddStep1Modal({ onConfirm, onCancel }) {
+function AddStep1Modal({ onConfirm, onCancel, brand }) {
   const [f,setF]=useState({date:today(),name:'',link:'',followers:'',persona:'',memo:'',pa:'',reviewStatus:'검수대기'});
+  // 입력하는 동안 바로 중복 확인 — 진행 중인 사람이면 추가 버튼을 잠근다
+  const dup=useMemo(()=>brand&&(f.name.trim()||f.link.trim())?findListupDup(brand,f):null,[brand,f.name,f.link]);
   const u=k=>e=>setF(p=>({...p,[k]:typeof e==='string'?e:e.target.value}));
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()}>
     <div className="modal">
@@ -2903,11 +2905,70 @@ function AddStep1Modal({ onConfirm, onCancel }) {
           </select>
         </div>}
       </div>
+      <DupNotice dup={dup}/>
       <div className="modal-foot">
         <button className="btn btn-ghost" onClick={onCancel}>취소</button>
-        <button className="btn btn-primary" disabled={!f.name.trim()} onClick={()=>onConfirm({...f,id:makeId(),promotedToStep2:false})}>추가</button>
+        <button className="btn btn-primary" disabled={!f.name.trim()||dup?.level==='block'} onClick={()=>onConfirm({...f,id:makeId(),promotedToStep2:false})}>{dup?.level==='warn'?'그래도 추가':'추가'}</button>
       </div>
     </div>
+  </div>;
+}
+
+/* ─── 리스트업 중복 검사 (2026-09-17) ───
+   원칙: 같은 인플루언서는 "먼저 리스트업한 사람"이 담당. 같은 브랜드 안에서 인스타 아이디(없으면 채널명)가 같으면 같은 사람.
+   - 누가 진행 중(리스트업 검수대기·승인 / 컨택 진행) → 🚫 차단
+   - 🤖 자동화 탭에 있는 사람(자동 DM) → 🚫 차단
+   - 거절·반려·완료(최종완료·인플루언서 정산)로 끝난 건만 있으면 → ⚠️ 경고만(등록 가능) */
+const IG_RESERVED=new Set(['p','reel','reels','stories','explore','tv','accounts','direct']);
+function igHandle(s){
+  const m=String(s||'').match(/instagram\.com\/([A-Za-z0-9._]+)/i);
+  if(!m) return '';
+  const hd=m[1].toLowerCase().replace(/\.+$/,'');
+  return IG_RESERVED.has(hd)?'':hd;
+}
+const dupName=s=>String(s||'').normalize('NFC').trim().toLowerCase().replace(/^@/,'').replace(/\s+/g,'');
+function findListupDup(brand,cand,skip){
+  skip=skip||{};
+  const rawName=String(cand.name||'').trim().replace(/^@/,'');
+  const h=igHandle(cand.link)||(/^[a-z0-9._]{3,30}$/i.test(rawName)?rawName.toLowerCase():''); // 채널명에 아이디를 적은 경우도 잡는다
+  const n=dupName(cand.name);
+  if(!h&&!n) return {level:null,hits:[]};
+  const same=(r,uname)=>{
+    const rh=igHandle(r.link)||String(uname||'').toLowerCase().replace(/^@/,'');
+    if(h&&rh) return h===rh;                    // 둘 다 아이디가 있으면 아이디로만 판단
+    const rn=dupName(r.name);
+    return (!!n&&rn===n)||(!!h&&rn===h)||(!!rh&&rh===n);
+  };
+  const P=v=>{const s=String(v||'').trim(); if(!s) return ''; return PA_LIST.includes(s)?s:(sanitizePA(s)||s);};
+  const ns=s=>String(s||'').replace(/\s+/g,'');
+  const hits=[];
+  (brand.step1Rows||[]).forEach(r=>{
+    if(r.id===skip.step1Id||!r.name||!same(r)) return;
+    // 승인돼 컨택현황으로 넘어간 리스트업은 컨택 행으로 판단(옛 데이터는 step1Id 연결이 없어 같은 담당자·같은 사람으로도 찾는다)
+    if(r.reviewStatus==='승인'&&(brand.step2Rows||[]).some(c=>c.step1Id===r.id||(P(c.pa)===P(r.pa)&&((igHandle(c.link)&&igHandle(c.link)===igHandle(r.link))||dupName(c.name)===dupName(r.name))))) return;
+    const ended=r.reviewStatus==='반려';
+    hits.push({pa:P(r.pa)||'담당 없음',where:'리스트업',status:ended?'반려':(r.reviewStatus||'검수대기'),date:r.date||'',ended});
+  });
+  (brand.step2Rows||[]).forEach(r=>{
+    if(r.id===skip.step2Id||(skip.step1Id&&r.step1Id===skip.step1Id)||!r.name||!same(r)) return;
+    const rej=ns(r.contactStatus)==='거절'||!!r.endReason;
+    const done=r.infSettled==='Y'||!!r.privacyPurged||r.finalDone==='Y';
+    hits.push({pa:P(r.pa)||'담당 없음',where:'컨택현황',status:rej?'거절':done?'완료':(r.dmSent==='Y'?'DM 보냄 · '+(r.contactStatus||''):(r.contactStatus||'컨택 전')),date:r.dmDate||r.date||'',ended:rej||done});
+  });
+  (brand.claudeStep2Rows||[]).forEach(r=>{
+    if(!r.name||!same(r,r.username)) return;
+    hits.push({pa:P(r.pa)||'🤖 자동화',where:'자동화',status:r.dmSent==='Y'?'자동 DM 보냄':'자동화 대기',date:r.dmDate||r.date||'',ended:false});
+  });
+  return {level:hits.some(x=>!x.ended)?'block':hits.length?'warn':null,hits};
+}
+const dupText=d=>d.hits.map(x=>'· '+x.pa+' · '+x.where+' · '+x.status+(x.date?' ('+x.date+')':'')).join('\n');
+function DupNotice({dup}){
+  if(!dup||!dup.level) return null;
+  const block=dup.level==='block';
+  return <div className="dup-notice" data-level={dup.level} style={{margin:'2px 0 10px',padding:'9px 12px',borderRadius:8,fontSize:12,lineHeight:1.6,background:block?'#fee2e2':'#fef3c7',border:'1px solid '+(block?'#fca5a5':'#fcd34d'),color:block?'#b91c1c':'#b45309'}}>
+    <b>{block?'🚫 이미 담당자가 있는 인플루언서예요 — 등록할 수 없어요':'⚠️ 전에 진행했다가 끝난 인플루언서예요 — 등록은 할 수 있어요'}</b>
+    {dup.hits.map((x,i)=><div key={i}>· {x.pa} · {x.where} · {x.status}{x.date?' ('+x.date+')':''}</div>)}
+    {block&&<div>같은 인플루언서는 <b>먼저 리스트업한 사람</b>이 담당이에요.</div>}
   </div>;
 }
 
@@ -2946,7 +3007,7 @@ const PASTE_FIELDS={
     {key:'postLink',label:'게시링크',hints:['게시','링크','url','post'],link:true},
   ]},
 };
-function PasteImportModal({kind,onConfirm,onCancel}){
+function PasteImportModal({kind,onConfirm,onCancel,brand}){
   const cfg=PASTE_FIELDS[kind]||PASTE_FIELDS.step1;
   const fields=cfg.fields;
   const [text,setText]=useState('');
@@ -3001,6 +3062,9 @@ function PasteImportModal({kind,onConfirm,onCancel}){
     return {rows,hasHeader};
   },[text,kind]);
   const rows=parsed.rows;
+  // 리스트업만: 행마다 중복 확인(차단 건은 추가에서 빠짐)
+  const dups=useMemo(()=>kind==='step1'&&brand?rows.map(r=>findListupDup(brand,r)):[],[rows,brand,kind]);
+  const nBlock=dups.filter(d=>d.level==='block').length, nWarn=dups.filter(d=>d.level==='warn').length;
   const colHint=fields.map(f=>f.label).join('·');
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()}>
     <div className="modal" style={{width:720,maxWidth:'calc(100vw - 24px)'}}>
@@ -3015,11 +3079,15 @@ function PasteImportModal({kind,onConfirm,onCancel}){
       <div style={{fontSize:12,margin:'8px 0 4px',color:rows.length?'var(--green)':'var(--muted)',fontWeight:600}}>
         {rows.length?`✅ ${rows.length}${cfg.unit} 인식됨${parsed.hasHeader?' (제목행 자동인식)':' (순서 방식)'}`:'붙여넣으면 여기에 인식된 항목이 표시됩니다'}
       </div>
+      {nBlock>0&&<div className="dup-notice" data-level="block" style={{fontSize:12,margin:'0 0 6px',padding:'7px 10px',borderRadius:8,background:'#fee2e2',border:'1px solid #fca5a5',color:'#b91c1c'}}>🚫 {nBlock}명은 이미 담당자가 있어 <b>추가되지 않아요</b> (표에서 🚫 표시 · 같은 인플루언서는 먼저 리스트업한 사람이 담당)</div>}
+      {nWarn>0&&<div style={{fontSize:12,margin:'0 0 6px',padding:'7px 10px',borderRadius:8,background:'#fef3c7',border:'1px solid #fcd34d',color:'#b45309'}}>⚠️ {nWarn}명은 전에 거절·완료된 인플루언서예요 (추가는 됩니다)</div>}
       {rows.length>0&&<div className="table-wrap" style={{maxHeight:230,overflow:'auto',border:'1px solid var(--border)',borderRadius:8}}>
         <table><thead><tr>
+          {dups.length>0&&<th>중복</th>}
           {fields.map(f=><th key={f.key} style={f.nowrap?{whiteSpace:'nowrap'}:undefined}>{f.label}</th>)}
         </tr></thead><tbody>
-          {rows.slice(0,50).map((r,i)=><tr key={i}>
+          {rows.slice(0,50).map((r,i)=><tr key={i} style={dups[i]?.level==='block'?{opacity:.55}:undefined}>
+            {dups.length>0&&<td style={{fontSize:11,whiteSpace:'nowrap'}} title={dups[i]?.level?dupText(dups[i]):''}>{dups[i]?.level==='block'?'🚫 '+dups[i].hits.find(x=>!x.ended).pa:dups[i]?.level==='warn'?'⚠️ 끝난 건':''}</td>}
             {fields.map(f=><td key={f.key} style={{fontSize:11,whiteSpace:'nowrap',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',color:f.required?'var(--text)':'var(--muted)',fontWeight:f.required?500:400}}>
               {f.link?(r[f.key]?<span title={r[f.key]} style={{color:'var(--blue)'}}>↗ 링크</span>:'—'):(f.review?reviewLabel(r[f.key]):(r[f.key]||'—'))}
             </td>)}
@@ -3029,7 +3097,7 @@ function PasteImportModal({kind,onConfirm,onCancel}){
       </div>}
       <div className="modal-foot">
         <button className="btn btn-ghost" onClick={onCancel}>취소</button>
-        <button className="btn btn-primary" disabled={!rows.length} onClick={()=>onConfirm(rows)}>{rows.length?`${rows.length}${cfg.unit} 추가`:'추가'}</button>
+        <button className="btn btn-primary" disabled={!(rows.length-nBlock)} onClick={()=>onConfirm(rows)}>{rows.length-nBlock?`${rows.length-nBlock}${cfg.unit} 추가`:'추가'}</button>
       </div>
     </div>
   </div>;
@@ -5973,27 +6041,38 @@ function AppMain({ authInfo, onLogout }) {
 
   // STEP1 operations
   function addStep1Row(row){
+    const dup=findListupDup(brandsRef.current.find(x=>x.id===bId)||{},row);
+    if(dup.level==='block'){ alert('🚫 등록하지 않았어요 — 이미 담당자가 있는 인플루언서예요.\n같은 인플루언서는 먼저 리스트업한 사람이 담당이에요.\n\n'+dupText(dup)); return false; }
     updateBrand(bId,b=>({...b,step1Rows:[...(b.step1Rows||[]),row]}));
+    return true;
   }
   // 붙여넣기로 여러 행 한 번에 추가 — 이름·링크가 이미 있으면 건너뜀(중복 방지). 추가/스킵 수 반환.
   function addStep1RowsBulk(newRows){
     const b=brandsRef.current.find(x=>x.id===bId)||{};
     const existing=b.step1Rows||[];
-    const seenN=new Set(existing.map(r=>normName(r.name)));
-    const seenL=new Set(existing.map(r=>normLink(r.link)).filter(Boolean));
-    const toAdd=[];
+    // 기존 데이터와의 중복은 findListupDup 이 판단(진행 중·자동화=차단, 끝난 건=경고만). 여기 seen 은 붙여넣은 묶음 안의 중복만.
+    const seenN=new Set(), seenL=new Set();
+    const toAdd=[], blocked=[];
     for(const r of newRows){
       const nn=normName(r.name); if(!nn) continue;
       const nl=normLink(r.link);
       if(seenN.has(nn)||(nl&&seenL.has(nl))) continue;
+      const dup=findListupDup(b,r);
+      if(dup.level==='block'){ blocked.push(r.name+'\n'+dupText(dup)); continue; }
       seenN.add(nn); if(nl) seenL.add(nl);
       toAdd.push({id:makeId(),promotedToStep2:r.reviewStatus==='승인',...r});
     }
     if(toAdd.length) updateBrand(bId,bb=>({...bb,step1Rows:[...(bb.step1Rows||[]),...toAdd]}));
-    return {added:toAdd.length, skipped:newRows.length-toAdd.length};
+    return {added:toAdd.length, skipped:newRows.length-toAdd.length-blocked.length, blocked};
   }
   function updateStep1Row(id,patch){
     if(!id)return;
+    // 승인할 때 — 다른 담당자가 이미 진행 중이면 한 번 더 확인
+    if(patch.reviewStatus==='승인'){
+      const b0=brandsRef.current.find(x=>x.id===bId)||{}; const r0=(b0.step1Rows||[]).find(x=>x.id===id);
+      if(r0&&!r0.promotedToStep2){ const dup=findListupDup(b0,r0,{step1Id:id});
+        if(dup.level==='block'&&!confirm('⚠️ 이미 담당자가 있는 인플루언서예요.\n같은 인플루언서는 먼저 리스트업한 사람이 담당이에요.\n\n'+dupText(dup)+'\n\n그래도 승인할까요?')) return; }
+    }
     updateBrand(bId,b=>{
       const rows=(b.step1Rows||[]).map(r=>{
         if(r.id!==id)return r;
@@ -6584,8 +6663,10 @@ function AppMain({ authInfo, onLogout }) {
   // 대시보드 '→' 빠른 처리가 쓰는 원본 조작 함수 — 기존 탭과 같은 함수
   const infA={updateStep1Row,updateStep2Row,updateClaudeS2Row,updateShipRow,addShipRow,updateReviewRow,ensureReviewRow,setInfSettledByName,deleteRowsMany,
     openPrivacy:setPrivacyModalRow,
-    addContact:(inf,patch)=>updateBrand(bId,b=>({...b,step1Rows:inf.step1?(b.step1Rows||[]).map(r=>r.id===inf.step1.id?{...r,reviewStatus:'승인',promotedToStep2:true}:r):b.step1Rows,step2Rows:[...(b.step2Rows||[]),{id:makeId(),step1Id:(inf.step1&&inf.step1.id)||'',date:today(),name:inf.name,link:inf.link||'',followers:inf.followers||'',
-      pa:inf.pa==='🤖 자동화'?'':(inf.pa||''),contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:'',...patch}]}))};
+    addContact:(inf,patch)=>{ if(inf.step1){ const b0=brandsRef.current.find(x=>x.id===bId)||{}; const dup=findListupDup(b0,inf.step1,{step1Id:inf.step1.id});
+      if(dup.level==='block'&&!confirm('⚠️ 이미 담당자가 있는 인플루언서예요.\n\n'+dupText(dup)+'\n\n그래도 진행할까요?')) return; }
+      updateBrand(bId,b=>({...b,step1Rows:inf.step1?(b.step1Rows||[]).map(r=>r.id===inf.step1.id?{...r,reviewStatus:'승인',promotedToStep2:true}:r):b.step1Rows,step2Rows:[...(b.step2Rows||[]),{id:makeId(),step1Id:(inf.step1&&inf.step1.id)||'',date:today(),name:inf.name,link:inf.link||'',followers:inf.followers||'',
+      pa:inf.pa==='🤖 자동화'?'':(inf.pa||''),contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:'',...patch}]})); }};
 
   return <>
     <div className={`mode-banner ${isStaff?'staff':'manager'}`}>
@@ -6759,8 +6840,8 @@ function AppMain({ authInfo, onLogout }) {
     />}
 
     {modal==='paManage'&&<PaManageModal paList={paList} setPaList={setPaList} onClose={()=>setModal(null)}/>}
-    {modal==='addStep1'&&<AddStep1Modal onConfirm={r=>{addStep1Row(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
-    {modal==='pasteStep1'&&<PasteImportModal kind="step1" onConfirm={rows=>{const {added,skipped}=addStep1RowsBulk(rows);setModal(null);setMsg(`📋 ${added}명 추가${skipped>0?` · 중복 ${skipped}명 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
+    {modal==='addStep1'&&<AddStep1Modal brand={brand} onConfirm={r=>{if(addStep1Row(r)!==false)setModal(null);}} onCancel={()=>setModal(null)}/>}
+    {modal==='pasteStep1'&&<PasteImportModal kind="step1" brand={brand} onConfirm={rows=>{const {added,skipped,blocked}=addStep1RowsBulk(rows);setModal(null);setMsg(`📋 ${added}명 추가${skipped>0?` · 중복 ${skipped}명 건너뜀`:''}`+(blocked.length?` · 🚫 담당자 있음 ${blocked.length}명 제외`:''));if(blocked.length)alert('🚫 이미 담당자가 있어 추가하지 않은 인플루언서 '+blocked.length+'명\n같은 인플루언서는 먼저 리스트업한 사람이 담당이에요.\n\n'+blocked.join('\n\n'));}} onCancel={()=>setModal(null)}/>}
     {modal==='pasteShip'&&<PasteImportModal kind="ship" onConfirm={rows=>{const {added,skipped}=addShipRowsBulk(rows);setModal(null);setMsg(`📋 출고 ${added}건 추가${skipped>0?` · 중복 ${skipped}건 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
     {modal==='pasteReview'&&<PasteImportModal kind="review" onConfirm={rows=>{const {added,skipped}=addReviewRowsBulk(rows);setModal(null);setMsg(`📋 영상검수 ${added}건 추가${skipped>0?` · 중복 ${skipped}건 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
     {modal==='addClaudeS1'&&<AddStep1Modal onConfirm={r=>{addClaudeS1Row(r);setModal(null);}} onCancel={()=>setModal(null)}/>}
