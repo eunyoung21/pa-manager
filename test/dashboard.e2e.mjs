@@ -13,7 +13,10 @@ const TMP  = path.join(os.tmpdir(), 'pa-dash-e2e');
 // 단계마다 한 사람씩:
 //  에이(수동 리스트업) 엠(자동, DM 전) 비비(수동 DM) 제이·케이·엘(자동 DM, 담당자 없음) 씨씨(답장옴) 디디(계약서)
 //  이이(제품발송) 에프(광고코드) 지지(광고세팅) 에이치(완료) 아이(거절)
-const S2=(name,pa,x={})=>({id:'s2_'+name,step1Id:'',date:'26.09.01',name,link:'https://instagram.com/'+name,followers:'1000',pa,contactStatus:'컨택 완료',dmSent:'Y',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:'',...x});
+// 날짜는 오늘 기준으로 만든다(DM '최근 60일' 조건이 시간이 지나도 깨지지 않게)
+const ymd=n=>{const t=new Date(Date.now()-n*864e5);return String(t.getFullYear()).slice(2)+'.'+String(t.getMonth()+1).padStart(2,'0')+'.'+String(t.getDate()).padStart(2,'0');};
+const ym=n=>{const t=new Date(Date.now()-n*864e5);return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');};
+const S2=(name,pa,x={})=>({id:'s2_'+name,step1Id:'',date:ymd(10),name,link:'https://instagram.com/'+name,followers:'1000',pa,contactStatus:'컨택 완료',dmSent:'Y',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:'',...x});
 const C2=(name,x={})=>({...S2(name,''),id:'c2_'+name,contactStatus:'컨택 중',category:'',...x});
 let savedData = { paList:['유송미','박민선','안민영','권미림','기타'], brands: [
   { id:'basetune', name:'베이스튠',
@@ -32,6 +35,9 @@ let savedData = { paList:['유송미','박민선','안민영','권미림','기�
       S2('지지','권미림',{dealDone:'Y',shippingDone:'✅ 완료',finalDone:'Y'}),
       S2('에이치','안민영',{dealDone:'Y',shippingDone:'✅ 완료',finalDone:'Y',infSettled:'Y',infSettledDate:'26.09.10'}),
       S2('아이','권미림',{contactStatus:'거절'}),
+      // DM 보낸 인플루언서 칸 — 오래된 DM(100일 전), DM 수당이 이미 지급된 달의 DM 은 빠져야 한다
+      S2('올드','안민영',{date:ymd(100),dmDate:ymd(100)}),
+      S2('지급','권미림',{date:ymd(40),dmDate:ymd(40)}),
     ],
     shippingRows:[{id:'sh_e',requestDate:'26.09.03',requester:'권미림',channelName:'이이',recipient:'김이이',phone:'010-1111-2222',address:'서울시 강남구 1',notes:'',status:'처리중',shipDate:'',tracking:''}],
     reviewRows:[
@@ -39,7 +45,7 @@ let savedData = { paList:['유송미','박민선','안민영','권미림','기�
       {id:'rv_g',date:'26.09.08',channelName:'지지',realName:'최지지',pa:'권미림',paCode:'adcode-G',postLink:'',live:'Y',contractDone:'Y',checks:{}},
     ],
     privacyRows:[] },
-], settlements:{} };
+], settlements:{ basetune:{ [ym(40)]:{ '권미림':{paid:2000,paidDate:'지급',note:''} } } } };
 let rev=1;
 const PORT=8943;
 const server = http.createServer((req,res)=>{
@@ -115,13 +121,34 @@ await evalJs(`(window.__cf=[],window.confirm=m=>{window.__cf.push(m);return true
 console.log('\n[대시보드] 구성');
 const dash=await evalJs(`document.querySelector('.hk-in').innerText`);
 chk(['알바 담당','관리자 담당','담당자별 소통 중','관리자 할 일','알바 할 일','업무 매뉴얼'].every(t=>dash.includes(t)),'역할 카드·소통 중·할 일·업무 매뉴얼');
-const talk=await evalJs("[...document.querySelectorAll('.talk-col')].map(c=>c.innerText.replace(/\\s+/g,' ').trim())");
+const talk=await evalJs("[...document.querySelectorAll('.talk-col:not(.dm-col)')].map(c=>c.innerText.replace(/\\s+/g,' ').trim())");
 const col=n=>talk.find(t=>t.startsWith(n))||'';
 chk(col('안민영').includes('디디')&&col('안민영').includes('에프'),'안민영 소통 중: 디디·에프',talk);
 chk(col('권미림').includes('씨씨')&&col('권미림').includes('이이'),'권미림 소통 중: 씨씨·이이',talk);
 chk(!['지지','에이치','아이','비비','에이'].some(n=>talk.join(' ').includes(n)),'광고세팅·완료·거절·DM 전은 소통 중에 없음',talk);
-const dots=await evalJs(`[...document.querySelectorAll('.talk-h')].map(h=>getComputedStyle(h.querySelector('span')).backgroundColor)`);
+const dots=await evalJs(`[...document.querySelectorAll('.talk-col:not(.dm-col) .talk-h')].map(h=>getComputedStyle(h.querySelector('span')).backgroundColor)`);
 chk(new Set(dots).size===dots.length,'담당자마다 점 색이 다름',dots);
+
+console.log('\n[대시보드] 담당자별 DM 보낸 인플루언서');
+const dmCols=await evalJs("[...document.querySelectorAll('.dm-col')].map(c=>c.innerText.replace(/\\s+/g,' ').trim())");
+const dcol=n=>dmCols.find(t=>t.startsWith(n))||'';
+chk(['비비','디디','에프'].every(n=>dcol('안민영').includes(n)),'안민영: 비비·디디·에프',dmCols);
+chk(['씨씨','이이','지지'].every(n=>dcol('권미림').includes(n)),'권미림: 씨씨·이이·지지',dmCols);
+chk(!dcol('안민영').includes('에이치'),'인플루언서 정산 끝난 에이치는 뺌',dcol('안민영'));
+chk(!dcol('권미림').includes('아이'),'거절된 아이는 뺌',dcol('권미림'));
+chk(!dcol('안민영').includes('올드'),'100일 전 DM(올드)은 뺌',dcol('안민영'));
+chk(!dcol('권미림').includes('지급'),'DM 수당 지급된 달의 DM(지급)은 뺌',dcol('권미림'));
+chk(!dmCols.join(' ').match(/제이|케이|엘/),'자동화 DM은 안 나옴',dmCols);
+await evalJs(`(()=>{const s=[...document.querySelectorAll('.dm-col select, .role-header select')][0];Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'30');s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`); await wait(300);
+const dm30=await evalJs("[...document.querySelectorAll('.dm-col')].map(c=>c.innerText.replace(/\\s+/g,' ').trim()).join(' ')");
+chk(dm30.includes('디디')&&!dm30.includes('올드'),'30일로 줄여도 최근 건은 그대로',dm30);
+await evalJs(`(()=>{const c=[...document.querySelectorAll('.dm-col')].find(x=>x.innerText.trim().startsWith('안민영'));const i=c.querySelector('.srch-in');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'디디');i.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`); await wait(250);
+const dSearch=await evalJs("[...[...document.querySelectorAll('.dm-col')].find(x=>x.innerText.trim().startsWith('안민영')).querySelectorAll('.talk-item .nm')].map(x=>x.textContent)");
+chk(JSON.stringify(dSearch)===JSON.stringify(['디디']),'DM 칸 검색 → 디디만',dSearch);
+await evalJs(`(()=>{[...document.querySelectorAll('.dm-col .talk-item')].find(x=>x.textContent.includes('디디')).click();return 1})()`);
+await waitFor(`document.querySelector('td[data-label="협업성사"]')`,'컨택현황'); await wait(300);
+chk((await activeTab()).includes('STEP2')&&await searchVal()==='디디','DM 칸 이름 클릭 → 컨택현황에서 검색',[await activeTab(),await searchVal()]);
+await backToDash();
 
 console.log('\n[이동] 이름 클릭 → 기존 탭 + 이름 검색');
 await evalJs(`(()=>{[...document.querySelectorAll('.talk-item')].find(x=>x.textContent.includes('씨씨')).click();return 1})()`);
