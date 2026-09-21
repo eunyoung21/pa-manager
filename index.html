@@ -3892,7 +3892,9 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
     if(filter==='nd') return r.dmSent!=='Y'&&!isArchived(r);
     if(filter==='rej') return isRej(r);
     if(filter==='arc') return isPurged(r);
-    return !isArchived(r); // 'all' = 진행 중만
+    if(filter==='apv2') return r.approved==='Y'&&r.finalDone!=='Y'&&!isArchived(r); // 자동화 '승인' — 승인 후 완료 전
+    // 'all' — 컨택현황은 '진행 중'(거절·완료 제외), 자동화는 '리스트업'(거절·승인·완료 제외)
+    return !isArchived(r)&&r.finalDone!=='Y'&&(!isClaude||r.approved!=='Y');
   }).sort((a,b)=>{   // 날짜 정렬(최신순/오래된순 토글) — 같은 날짜는 기존 순서 유지(안정 정렬)
     const ka=parseDateKey(a.date),kb=parseDateKey(b.date);
     if(!ka&&!kb) return 0;
@@ -3902,7 +3904,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
     return sortDir==='asc'?base:-base;
   });
   },[named,dayFilter,monthFilter,colFKey,q,filter,sortDir]);
-  const cnt=useMemo(()=>({all:named.filter(r=>!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,fin:named.filter(r=>r.finalDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
+  const cnt=useMemo(()=>({all:named.filter(r=>!isArchived(r)&&r.finalDone!=='Y'&&(!isClaude||r.approved!=='Y')).length,apv2:named.filter(r=>r.approved==='Y'&&r.finalDone!=='Y'&&!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,fin:named.filter(r=>r.finalDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
     rep:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length,
     wait:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r)).length,
     apv:named.filter(r=>r.approved==='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length}),[named]);
@@ -3938,17 +3940,11 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
   return <div className="view-wrap">
     <div className="view-main">
     <div className="toolbar">
-      {[{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'dm',l:`DM 발송 (${cnt.dm})`,c:'f-dm'},
-        ...(isClaude?[{k:'rep',l:`💬 답장옴 (${cnt.rep})`,c:'f-rep'},{k:'apv',l:`✅ 승인됨 (${cnt.apv})`,c:'f-ap'}]:[]),
-        {k:'deal',l:`협업 성사 (${cnt.deal})`,c:'f-deal'},{k:'fin',l:`🏁 최종 완료 (${cnt.fin})`,c:'f-deal'},{k:'nd',l:`미발송 (${cnt.nd})`,c:'f-wt'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:'f-rj'},
-        ...(!isClaude?[{k:'arc',l:`🗑️ 개인정보 폐기 (${cnt.arc})`,c:'f-arc'}]:[])]
+      {(isClaude
+        ? [{k:'all',l:`리스트업 (${cnt.all})`,c:''},{k:'apv2',l:`✅ 승인 (${cnt.apv2})`,c:'f-ap'},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'}]
+        : [{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'}])
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
-      <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
-      {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
       <div className="sep"/>
-      <button className="fchip" style={{whiteSpace:'nowrap'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="날짜 정렬 전환 (최신순 ↔ 오래된순)">
-        {sortDir==='desc'?'📅 최신순 ↓':'📅 오래된순 ↑'}
-      </button>
       <div className="search-wrap">
         <input className="srch" placeholder="채널명, PA, 메모…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
         {search&&<button className="srch-x" onClick={()=>setSearch('')}>×</button>}
@@ -3973,9 +3969,8 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
           <th style={{width:'1%',whiteSpace:'nowrap'}}>채널명</th>
           <th style={{width:50}}>링크</th>
           <th style={{width:80}}>팔로워</th>
-          {isClaude&&<th style={{width:80}}>카테고리</th>}
           <th style={{width:75}}>담당 PA</th>
-          <th style={{width:90}}>진행 상태</th>
+          {isClaude&&<th style={{width:90}}>진행 상태</th>}
           <th style={{width:65}}>DM발송</th>
           {isClaude&&<th style={{width:60}}>답장</th>}
           {isClaude&&<th style={{width:70}}>승인</th>}
@@ -3985,7 +3980,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
           <th style={{width:90}}>단가</th>
         </tr>
         {showColF&&<tr className="colf-row">
-          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent',...(isClaude?['replied','approved']:[]),'dealDone','finalDone','finalDate','rate'].map((f,i)=>(
+          {[null,'date','name','link','followers','pa',...(isClaude?['contactStatus']:[]),'dmSent',...(isClaude?['replied','approved']:[]),'dealDone','finalDone','finalDate','rate'].map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
           ))}
         </tr>}
@@ -4178,11 +4173,10 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                 :<Cell value={r.link} onChange={v=>H.current.up(r.id,'link',v)} placeholder="URL" style={{width:50}}/>}
               </td>
               <td data-label="팔로워"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
-              {isClaude&&<td data-label="카테고리"><Cell value={r.category!=null?r.category:nicheOf([r.name,r.memo].join(' '))} onChange={v=>H.current.up(r.id,'category',v)} placeholder="예: 낚시" style={{width:72}}/></td>}
               <td data-label="담당 PA" style={{textAlign:'center',whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
                 style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
-              <td data-label="진행 상태" style={{textAlign:'center'}}><Cell value={normStatus(r.contactStatus)} onChange={v=>H.current.setStatus(r,v)} type="select" options={CONTACT_STATUS}
-                style={r.contactStatus?{...csColor(r.contactStatus),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap'}:undefined}/></td>
+              {isClaude&&<td data-label="진행 상태" style={{textAlign:'center'}}><Cell value={normStatus(r.contactStatus)} onChange={v=>H.current.setStatus(r,v)} type="select" options={CONTACT_STATUS}
+                style={r.contactStatus?{...csColor(r.contactStatus),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap'}:undefined}/></td>}
               <td data-label="DM발송" style={{textAlign:'center'}}><YN value={r.dmSent} onChange={v=>H.current.setDm(r,v)}/></td>
               {isClaude&&<td data-label="답장" style={{textAlign:'center'}} title={r.replyDate?`답장일 ${r.replyDate}`:'답장 오면 체크'}><YN value={r.replied} onChange={v=>H.current.setReplied(r,v)}/></td>}
               {/* 자동화 탭 승인: Y/N 분리 버튼 — Y = 승인(진행), N = 승인 안 함 → 거절(보관)으로 이동,
@@ -5902,7 +5896,7 @@ function AppMain({ authInfo, onLogout }) {
         else if(inf.step1){ T='step1'; Q=inf.name; }
         else { T='review'; Q=inf.name; }
       } else {
-        const m={'0':['step1','all'],'1':['step2','dm'],'2':['step2','all'],'3':['step2','deal'],'4':['shipping','pend'],'5':['review','all'],'6':['step2','fin'],'all':['step2','all']}[String(f)]||['step2','all'];
+        const m={'0':['step1','all'],'1':['step2','all'],'2':['step2','all'],'3':['step2','all'],'4':['shipping','pend'],'5':['review','all'],'6':['step2','fin'],'all':['step2','all']}[String(f)]||['step2','all'];
         [T,Fl]=m;
         if(auto&&['step1','step2'].includes(T)){ T='claudeS2'; if(Fl==='dm'||Fl==='all') Fl='all'; }
       }
@@ -6991,8 +6985,6 @@ function AppMain({ authInfo, onLogout }) {
       />}
       {tab==='claudeS2'&&<div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'var(--surface2)'}}>
-          <span style={{fontSize:12,color:'var(--muted)'}}>🤖 자동 DM 발송 → 💬 답장(매니저 체크) → ✅ 승인 Y · 안 하면 N(거절 보관) — 관리자 → 매니저가 소통 진행 → 협업성사 Y → 🏁 최종완료 Y(수당 집계)</span>
-          <span style={{fontSize:11,color:'var(--muted)'}}>{(brand.claudeStep2Rows||[]).length}명</span>
           <button className="btn btn-primary" style={{fontSize:11}} onClick={addClaudeS2Row}>＋ 추가</button>
           {(brand.claudeStep1Rows||[]).length>0&&<button className="btn" style={{fontSize:11,background:'var(--accent)',color:'#fff'}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
           {bId==='granny'&&<button className="btn" style={{fontSize:11,background:'var(--surface3)',color:'var(--text)',marginLeft:'auto'}} onClick={seedClaudeGranny}>🤖 발굴 50명 불러오기</button>}

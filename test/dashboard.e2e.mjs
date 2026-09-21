@@ -184,7 +184,7 @@ await backToDash();
 
 console.log('\n[이동] 단계 카드 → 필터 유지(탭 초기화에 안 덮임)');
 await click('.card','계약서발송'); await waitFor(`document.querySelector('td[data-label="협업성사"]')`,'컨택현황'); await wait(300);
-chk((await activeChips()).includes('협업 성사'),'계약서발송 카드 → 컨택현황 협업 성사 필터',await activeChips());
+chk((await activeChips()).includes('진행 중'),'계약서발송 카드 → 컨택현황 진행 중',await activeChips());
 await backToDash();
 await click('.card','리스트업'); await wait(500);
 chk((await activeTab()).includes('STEP1'),'리스트업 카드 → STEP1',await activeTab());

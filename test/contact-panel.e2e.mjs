@@ -194,7 +194,6 @@ await pbtn('닫기'); await wait(200);
 
 console.log('\n[되돌리기] 진행 단계에서 지난 단계를 누르면 그 단계로');
 await evalJs(`(window.__cf=[],window.confirm=m=>{window.__cf.push(m);return true},1)`);
-await click('.fchip','개인정보 폐기'); await wait(100); await click('.fchip','진행 중'); await wait(300);
 const stepClick=name=>evalJs(`(()=>{const it=[...document.querySelectorAll('.s2p .s2p-tl-item')].find(x=>x.querySelector('.s2p-tl-label').childNodes[0].textContent===${J(name)});it.click();return 1})()`);
 // 에이 는 정산까지 끝나 '완료' 필터에만 있을 수 있어 검색으로 연다
 await evalJs(`(()=>{const i=document.querySelector('.srch');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'에이');i.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`); await wait(500);

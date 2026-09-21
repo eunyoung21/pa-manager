@@ -87,10 +87,12 @@ const chk=(c,m,extra)=>{ console.log((c?'  PASS ':'  FAIL ')+m+(c||extra===undef
 const clickText=t=>evalJs(`(()=>{const b=[...document.querySelectorAll('button,a,div[role=button]')].find(x=>x.textContent.trim()===${JSON.stringify(t)});if(!b)throw new Error('없음: '+${JSON.stringify(t)});b.click();return 1})()`);
 // 이름으로 행 찾아 그 행의 셀/버튼 다루기
 const ROW=n=>`[...document.querySelectorAll('tbody tr')].find(tr=>tr.innerText.includes(${JSON.stringify(n)}))`;
-const cellText=(n,label)=>evalJs(`(${ROW(n)}).querySelector('td[data-label=${JSON.stringify(label)}]').innerText.trim()`);
+// 컨택현황 기본 목록은 '진행 중'(완료 제외) — 완료된 사람도 보이게 이름으로 검색해서 찾는다
+const findByName=async n=>{await evalJs(`(()=>{const i=document.querySelector('.srch');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,${JSON.stringify(n)});i.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);await new Promise(r=>setTimeout(r,350));};
+const cellText=async(n,label)=>{await findByName(n);return evalJs(`(${ROW(n)}).querySelector('td[data-label=${JSON.stringify(label)}]').innerText.trim()`);};
 // 컨택현황 화면엔 성사일·수당 칸이 없다(2026-09-21) → 그 값은 저장된 데이터와 정산 탭으로 확인
 const savedRow=async n=>{await new Promise(r=>setTimeout(r,1600));return savedData.brands.flatMap(b=>b.step2Rows||[]).find(r=>r.name===n)||{};};
-const clickYN=(n,label)=>evalJs(`((${ROW(n)}).querySelector('td[data-label=${JSON.stringify(label)}] button').click(),1)`);
+const clickYN=async(n,label)=>{await findByName(n);return evalJs(`((${ROW(n)}).querySelector('td[data-label=${JSON.stringify(label)}] button').click(),1)`);};
 
 await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
 await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.includes('STEP2 컨택현황'))`,'앱 로딩');
@@ -141,7 +143,7 @@ chk(/22,000원/.test(julyTxt),'7월 DM 2천 + 완료 2만',julyTxt.match(/[\d,]+
 
 console.log('\n[5] 협업성사를 끄면 최종완료도 풀림');
 await clickText('📨 STEP2 컨택현황');
-await waitFor(`document.querySelector('td[data-label="협업성사"]')`,'컨택현황 복귀');
+await waitFor(`document.querySelector('.srch')&&document.querySelector('thead th')`,'컨택현황 복귀'); // 둘 다 완료라 기본 목록이 비어 있을 수 있음
 await clickYN('신규건','협업성사');
 await new Promise(r=>setTimeout(r,300));
 chk(await cellText('신규건','협업성사')==='N','협업성사 N');
