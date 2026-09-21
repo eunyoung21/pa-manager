@@ -4285,11 +4285,10 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
           <th style={{width:80}}>비고</th>
           <th style={{width:80}}>처리 상태</th>
           <th style={{width:85}}>출고일자</th>
-          <th style={{minWidth:110}}>송장번호</th>
           <th style={{width:100,textAlign:'center'}}>라이브</th>
         </tr>
         {showColF&&<tr className="colf-row">
-          {[null,'requestDate','requester','channelName','recipient','phone','address','product','notes','status','shipDate','tracking','live'].map((f,i)=>(
+          {[null,'requestDate','requester','channelName','recipient','phone','address','product','notes','status','shipDate','live'].map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터" title="이 열에서 포함검색"/>}</th>
           ))}
         </tr>}
@@ -4313,7 +4312,6 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
             <td data-label="비고"><Cell value={r.notes} onChange={v=>up(r.id,'notes',v)}/></td>
             <td data-label="처리 상태"><Cell value={r.status} onChange={v=>up(r.id,'status',v)} type="select" options={['처리중','✅ 완료']}/></td>
             <td data-label="출고일자"><Cell value={r.shipDate||''} onChange={v=>up(r.id,'shipDate',v)} type="date" style={{width:80}} placeholder="출고일"/></td>
-            <td data-label="송장번호"><Cell value={r.tracking} onChange={v=>up(r.id,'tracking',v)} placeholder="송장번호 입력"/></td>
             <td data-label="라이브" style={{textAlign:'center'}}>
               {(()=>{const ch=r.channelName||chanOf(r.recipient);const lv=liveOf(ch,r.recipient);
                 if(lv)return <span style={{fontSize:10,color:'var(--green)',fontWeight:700,whiteSpace:'nowrap'}}>🔴 라이브{lv.liveDate?' '+lv.liveDate:''}</span>;
