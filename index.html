@@ -278,6 +278,44 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 .log-fail{color:#b91c1c;}
 .log-out{color:#b45309;}
 
+/* 컨택현황 상세 창 (해트케 PA 구조) */
+.ch-link{cursor:pointer;color:var(--text);border-bottom:1px dashed var(--dim);}
+.ch-link:hover{color:var(--accent);border-bottom-color:var(--accent);}
+.s2p-backdrop{position:fixed;inset:0;z-index:60;background:rgba(30,36,48,.15);}
+.s2p{position:fixed;top:0;right:0;width:460px;max-width:100%;height:100vh;background:var(--surface);border-left:1px solid var(--border);z-index:61;overflow-y:auto;box-shadow:-8px 0 24px rgba(0,0,0,.12);}
+.s2p-head{position:sticky;top:0;background:var(--surface);z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 20px;border-bottom:1px solid var(--border);}
+.s2p-head h2{font-size:16px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.s2p-body{padding:18px 20px 40px;}
+.s2p-sec{font-size:12px;font-weight:700;color:var(--muted);margin:4px 0 10px;}
+.s2p-tl{margin-bottom:20px;}
+.s2p-tl-item{display:flex;align-items:center;gap:10px;}
+.s2p-dot{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;}
+.s2p-dot.done{background:var(--green);color:#fff;}
+.s2p-dot.current{background:var(--accent);color:#fff;box-shadow:0 0 0 3px var(--accent-soft);}
+.s2p-dot.pending{background:var(--surface3);color:var(--muted);border:1px solid var(--border);}
+.s2p-line{width:1px;height:14px;background:var(--border);margin-left:11px;}
+.s2p-tl-label{font-size:13px;}
+.s2p-tl-label.done{color:var(--muted);}
+.s2p-tl-label.current{font-weight:700;}
+.s2p-date{font-size:11px;color:var(--muted);margin-left:6px;font-weight:400;}
+.s2p-fg{margin-bottom:12px;}
+.s2p-fg label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;}
+.s2p-fg input,.s2p-fg textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--text);outline:none;font-family:inherit;}
+.s2p-fg input:focus,.s2p-fg textarea:focus{border-color:var(--accent);}
+.s2p-fg textarea{min-height:64px;resize:vertical;}
+.s2p-fg input[readonly]{color:var(--muted);}
+.s2p-copy{display:flex;gap:6px;align-items:stretch;}
+.s2p-copy input{flex:1;}
+.s2p-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.s2p-po{display:flex;gap:10px;align-items:center;margin:4px 0 14px;}
+.s2p-help{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;}
+.s2p-hr{border-top:1px solid var(--border);margin:18px 0 14px;}
+.s2p-outline{background:var(--surface);border:1px solid var(--border);color:var(--text);}
+.s2p-outline:hover{border-color:var(--accent);color:var(--accent);}
+.s2p-danger{background:var(--red);color:#fff;}
+.s2p-success{background:var(--green);color:#fff;}
+@media (max-width:768px){ .s2p{width:100%;} }
+
 /* DASHBOARD — 역할별 단계 카드 · 담당자별 소통 중 · 할 일 (해트케 PA 구조, 밝은 테마) */
 .hk-page{flex:1 1 0;min-width:0;overflow-y:auto;}
 .hk-in{padding:20px 24px 48px;max-width:1300px;margin:0 auto;}
@@ -3814,7 +3852,8 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
 }
 
 /* ─── STEP2 VIEW ─── */
-function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude }) {
+function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle }) {
+  const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [sortDir,setSortDir]=useState('asc');   // 날짜 정렬: 'asc'=오래된순(기본), 'desc'=최신순
@@ -3890,7 +3929,8 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
   // 행(Step2Row)에 넘길 핸들러 묶음 — ref 라 신원이 고정돼 memo 가 살아 있고,
   // 내용은 매 렌더마다 최신으로 갱신되므로 클릭 시점엔 항상 최신 함수가 불린다.
   const hRef=useRef({});
-  hRef.current={up,setStatus,setDm,setDeal,setFinal,setReplied,setApproved,onDelete,onUpdate,onAddPrivacy,isRej,selToggle:sel.toggle};
+  hRef.current={up,setStatus,setDm,setDeal,setFinal,setReplied,setApproved,onDelete,onUpdate,onAddPrivacy,isRej,selToggle:sel.toggle,open:setOpenId};
+  const openRow=openId?rows.find(x=>x.id===openId):null;
 
   return <div className="view-wrap">
     <div className="view-main">
@@ -3965,7 +4005,127 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
     </div>
     </div>
     <CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
+    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSettle={onSettle}/>}
   </div>;
+}
+
+/* ─── 컨택현황 상세 창 (해트케 PA 구조, 2026-09-21) ───
+   채널명을 누르면 오른쪽에 열린다. 진행 단계는 해트케와 같은 6단계.
+   단계 버튼은 기존 칸(DM발송·협업성사·계약·출고·최종완료·정산)을 그대로 바꾼다 — 정산 계산 규칙은 그대로. */
+const S2_STAGES=['리스팅 목록','DM 발송 완료/ 진행 대기','계약서발송/수집','제품 발송','광고 코드/입금정보 수집','광고세팅/입금'];
+const s2nz=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
+function s2Review(brand,r){ return (brand&&brand.reviewRows||[]).find(x=>s2nz(x.channelName)&&s2nz(x.channelName)===s2nz(r.name))||null; }
+function s2Stage(r,rv){
+  if(normStatus(r.contactStatus)==='거절'||r.endReason) return 'rejected';
+  if(r.infSettled==='Y'||r.privacyPurged) return 'done';
+  if(r.finalDone==='Y') return 5;
+  if(r.shippingDone==='✅ 완료') return 4;
+  if(r.dealDone==='Y'&&(r.contractDone==='✅ 완료'||r.productOnly==='Y'||(rv&&rv.contractDone==='Y'))) return 3;
+  if(r.dealDone==='Y') return 2;
+  if(r.dmSent==='Y') return 1;
+  return 0;
+}
+function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle }){
+  const rv=s2Review(brand,r), st=s2Stage(r,rv);
+  const handle=igHandle(r.link);
+  const init=()=>({name:r.name||'',followers:r.followers||'',date:r.date||'',memo:r.memo||'',
+    realName:r.realName||(rv&&rv.realName)||'',phone:r.phone||'',address:r.address||'',
+    contractDate:r.contractDate||today(),contractUrl:r.contractUrl||'',rate:r.rate||'',adCode:(rv&&rv.paCode)||''});
+  const [f,setF]=useState(init);
+  useEffect(()=>{setF(init());},[r.id]);
+  const u=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const upd=patch=>H.current.onUpdate(r.id,patch);
+  const dates=[r.date,r.dmDate,r.dealDate,r.contractDate||(rv&&rv.contractDate),r.shipDate,r.finalDate];
+  const cur=typeof st==='number'?st:(st==='done'?6:-1);
+  const reject=<button className="btn s2p-danger" onClick={()=>H.current.setStatus(r,'거절')}>✕ 거절됨으로</button>;
+  const fld=(label,k,ph,area)=><div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph}/>:<input value={f[k]} onChange={u(k)} placeholder={ph}/>}</div>;
+  const copyFld=(label,v)=><div className="s2p-fg"><label>{label}</label><div className="s2p-copy"><input value={v||''} readOnly/><CopyBtn value={v}/></div></div>;
+  const pa=sanitizePA(r.pa)||'';
+
+  let action=null;
+  if(st==='rejected') action=<>
+    <p className="s2p-help">거절 처리된 인플루언서입니다.{r.rejectDate?` (거절일 ${r.rejectDate})`:''}</p>
+    <button className="btn s2p-outline" onClick={()=>H.current.setStatus(r,r.dmSent==='Y'?'진행중':'컨택 전')}>↩ 복구</button></>;
+  else if(st==='done') action=<>
+    <p style={{color:'var(--green)',fontWeight:700,marginBottom:6}}>✓ 모든 단계 완료</p>
+    <p className="s2p-help">광고코드: {(rv&&rv.paCode)||'-'}{r.infSettledDate?` · 정산 ${r.infSettledDate}`:''}</p></>;
+  else if(st===0) action=<>
+    <p className="s2p-help">DM 발송 준비가 완료되면 다음 단계로 이동하세요.</p>
+    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>H.current.setDm(r,'Y')}>▶ DM 발송으로 이동</button>{reject}</div></>;
+  else if(st===1) action=<>
+    <p className="s2p-help">DM 발송 후 인플루언서의 실명·연락처·주소를 받아 입력해주세요.<br/>(비워둔 채로 다음 단계로 넘어가도 됩니다)</p>
+    {fld('실명 (계약/입금용)','realName','홍길동')}
+    {fld('연락처','phone','010-0000-0000')}
+    {fld('배송 주소','address','우편번호 / 주소 입력',true)}
+    <div className="s2p-po">
+      <button className={'btn '+(r.productOnly==='Y'?'btn-primary':'s2p-outline')} onClick={()=>upd({productOnly:r.productOnly==='Y'?'':'Y'})}>📦 제품만 협찬{r.productOnly==='Y'?' ✓':''}</button>
+      <span className="s2p-help" style={{margin:0}}>계약서 단계 건너뛰고 바로 제품 발송</span>
+    </div>
+    <div className="s2p-btns">
+      <button className="btn btn-primary" onClick={()=>{upd({realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()});H.current.setDeal(r,'Y');}}>협찬 성사 완료</button>{reject}
+    </div></>;
+  else if(st===2) action=<>
+    {fld('계약 완료일','contractDate','YY.MM.DD')}
+    {fld('계약서 링크','contractUrl','계약서 파일 링크')}
+    {fld('특이사항 (진행 단가 등)','rate','예: 80,000')}
+    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),contractUrl:f.contractUrl.trim(),rate:f.rate.trim()})}>계약 완료 →</button>{reject}</div></>;
+  else if(st===3) action=<>
+    <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '제품 발송 완료'를 눌러주세요.</p>
+    {copyFld('실명 (받는 분)',r.realName)}
+    {copyFld('연락처',r.phone)}
+    {copyFld('배송 주소',r.address)}
+    <div className="s2p-btns" style={{marginBottom:8}}><CopyBtn value={[r.realName,r.phone,r.address].filter(Boolean).join('\n')}/><span className="s2p-help" style={{margin:0}}>실명·연락처·주소 한 번에 복사</span></div>
+    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({shippingDone:'✅ 완료',shipDate:r.shipDate||today()})}>제품 발송 완료 →</button></div></>;
+  else if(st===4) action=<>
+    {fld('광고 코드','adCode','광고 코드 입력')}
+    <div className="s2p-btns" style={{marginBottom:10}}>
+      <button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 통장사본·신분증 제출</button>
+    </div>
+    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{if(f.adCode.trim())onSetAdCode&&onSetAdCode(r,f.adCode.trim());H.current.setFinal(r,'Y');}}>협찬 완료</button></div></>;
+  else if(st===5) action=<>
+    <p className="s2p-help">광고 세팅 및 인플루언서 입금을 진행해주세요.</p>
+    {copyFld('광고코드 (복사용)',(rv&&rv.paCode)||'')}
+    {copyFld('실명 (예금주 확인)',r.realName||(rv&&rv.realName)||'')}
+    {copyFld('단가',r.rate)}
+    <div className="s2p-btns" style={{marginBottom:8}}><button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 입금정보·서류 보기</button></div>
+    {IS_STAFF?<p className="s2p-help">입금 완료는 관리자가 처리해요.</p>
+      :<div className="s2p-btns"><button className="btn s2p-success" onClick={()=>onSettle&&onSettle(r.name,true,{pa,realName:r.realName||(rv&&rv.realName)||''})}>✓ 광고세팅 및 입금 완료</button></div>}</>;
+
+  return <>
+    <div className="s2p-backdrop" onClick={onClose}/>
+    <div className="s2p">
+      <div className="s2p-head">
+        <h2>{handle?'@'+handle:r.name}</h2>
+        <button className="btn s2p-outline" onClick={onClose}>✕ 닫기</button>
+      </div>
+      <div className="s2p-body">
+        <div className="s2p-sec">진행 단계</div>
+        <div className="s2p-tl">
+          {S2_STAGES.map((name,i)=>{
+            const dc=cur>i||st==='done'?'done':cur===i?'current':'pending';
+            return <React.Fragment key={i}>
+              <div className="s2p-tl-item"><div className={'s2p-dot '+dc}>{dc==='done'?'✓':i+1}</div>
+                <div className={'s2p-tl-label '+dc}>{name}{dates[i]&&i<=cur?<span className="s2p-date">{dates[i]}</span>:null}</div></div>
+              {i<S2_STAGES.length-1&&<div className="s2p-line"/>}
+            </React.Fragment>;})}
+          {st==='rejected'&&<div className="s2p-tl-item"><div className="s2p-dot" style={{background:'var(--red)',color:'#fff'}}>✕</div><div className="s2p-tl-label" style={{color:'var(--red)'}}>거절됨</div></div>}
+        </div>
+        <div className="s2p-sec">기본 정보</div>
+        {fld('이름 (별칭)','name','채널명')}
+        <div className="s2p-fg"><label>협찬 제품</label><input value={(brand&&SHIP_PRODUCT[brand.id])||(brand&&brand.name)||''} readOnly/></div>
+        {fld('팔로워 수','followers','12,400')}
+        {fld('모집일','date','YY.MM.DD')}
+        {fld('메모','memo','',true)}
+        <div className="s2p-btns">
+          <button className="btn s2p-outline" onClick={()=>upd({name:f.name.trim()||r.name,followers:f.followers.trim(),date:f.date.trim(),memo:f.memo})}>저장</button>
+          <button className="btn s2p-danger" onClick={()=>{if(confirm(`'${r.name}' 을(를) 삭제할까요?\n복구할 수 없습니다.`)){H.current.onDelete(r.id);onClose();}}}>🗑 삭제</button>
+        </div>
+        <div className="s2p-hr"/>
+        <div className="s2p-sec">단계 액션 <span style={{fontWeight:400,color:'var(--muted)'}}>· 담당 {pa||'없음'}</span></div>
+        {action}
+      </div>
+    </div>
+  </>;
 }
 
 /* ─── STEP2 행 (메모이제이션) ────────────────────────────────────────────────
@@ -3986,7 +4146,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                 <RowDelBtn name={r.name} onDelete={()=>H.current.onDelete(r.id)}/>
               </span></td>
               <td data-label="날짜"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
-              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}><Cell value={r.name} onChange={v=>H.current.up(r.id,'name',v)} style={{whiteSpace:'nowrap',minWidth:'auto'}}/></td>
+              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}>{isClaude?<Cell value={r.name} onChange={v=>H.current.up(r.id,'name',v)} style={{whiteSpace:'nowrap',minWidth:'auto'}}/>:<span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>}</td>
               <td data-label="링크" style={{textAlign:'center'}}>
                 {r.link?<a href={r.link} target="_blank" rel="noopener" style={{color:'var(--blue)',fontSize:13}}>↗</a>
                 :<Cell value={r.link} onChange={v=>H.current.up(r.id,'link',v)} placeholder="URL" style={{width:50}}/>}
@@ -6296,6 +6456,15 @@ function AppMain({ authInfo, onLogout }) {
     updateBrand(bId,b=>({...b,reviewRows:(b.reviewRows||[]).filter(r=>r.id!==id)}));
   }
 
+  // 컨택현황 상세 창에서 넣은 광고코드 → 영상검수 행의 PA 코드(없으면 행을 만든다). 영상검수 탭과 같은 값을 본다.
+  function setReviewCode(r,code){
+    const nz=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
+    updateBrand(bId,b=>{
+      const rows=b.reviewRows||[]; const i=rows.findIndex(x=>nz(x.channelName)&&nz(x.channelName)===nz(r.name));
+      if(i>=0) return {...b,reviewRows:rows.map((x,j)=>j===i?{...x,paCode:code}:x)};
+      return {...b,reviewRows:[...rows,{id:makeId(),date:today(),channelName:r.name||'',realName:r.realName||'',pa:sanitizePA(r.pa)||'',paCode:code,postLink:'',live:'N',contractDone:'N',checks:{}}]};
+    });
+  }
   // Privacy operations — id가 이미 있으면 수정(덮어쓰기), 없으면 추가(upsert)
   function addPrivacyRow(row){
     updateBrand(bId,b=>{
@@ -6780,7 +6949,8 @@ function AppMain({ authInfo, onLogout }) {
         onUpdate={updateStep2Row}
         onDelete={deleteStep2Row}
         onDeleteMany={ids=>deleteRowsMany('step2Rows',ids)}
-        onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:'',phone:r.phone,pa:sanitizePA(r.pa)})}
+        onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:r.realName||'',phone:r.phone,pa:sanitizePA(r.pa)})}
+        onSetAdCode={setReviewCode} onSettle={setInfSettledByName}
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}
       />}
