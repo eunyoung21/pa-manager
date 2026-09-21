@@ -88,6 +88,8 @@ const clickText=t=>evalJs(`(()=>{const b=[...document.querySelectorAll('button,a
 // 이름으로 행 찾아 그 행의 셀/버튼 다루기
 const ROW=n=>`[...document.querySelectorAll('tbody tr')].find(tr=>tr.innerText.includes(${JSON.stringify(n)}))`;
 const cellText=(n,label)=>evalJs(`(${ROW(n)}).querySelector('td[data-label=${JSON.stringify(label)}]').innerText.trim()`);
+// 컨택현황 화면엔 성사일·수당 칸이 없다(2026-09-21) → 그 값은 저장된 데이터와 정산 탭으로 확인
+const savedRow=async n=>{await new Promise(r=>setTimeout(r,1600));return savedData.brands.flatMap(b=>b.step2Rows||[]).find(r=>r.name===n)||{};};
 const clickYN=(n,label)=>evalJs(`((${ROW(n)}).querySelector('td[data-label=${JSON.stringify(label)}] button').click(),1)`);
 
 await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
@@ -99,22 +101,26 @@ console.log('앱 로딩 완료');
 console.log('\n[1] 옛 성사건 -> 최종완료로 이관');
 chk(await cellText('레거시성사','최종완료')==='Y','옛 협업성사 Y → 최종완료 Y');
 chk(await cellText('레거시성사','완료일')==='26.07.10','완료일 = 옛 성사일',await cellText('레거시성사','완료일'));
-chk((await cellText('레거시성사','완료수당')).includes('20,000'),'옛 건 수당 유지',await cellText('레거시성사','완료수당'));
+const heads=await evalJs(`[...document.querySelectorAll('thead th')].map(t=>t.textContent.trim())`);
+chk(!heads.some(h=>['성사일','DM수당','완료수당','소계'].includes(h)),'컨택현황에 성사일·DM수당·완료수당·소계 칸이 안 보임',heads);
+chk(heads.includes('최종완료')&&heads.includes('완료일')&&heads.includes('단가'),'나머지 칸(최종완료·완료일·단가)은 그대로',heads);
 
 console.log('\n[2] 협업성사만 켜면 수당 없음');
 await clickYN('신규건','협업성사');
 await new Promise(r=>setTimeout(r,300));
 chk(await cellText('신규건','협업성사')==='Y','협업성사 Y');
-chk(await cellText('신규건','성사일')===TODAY,'성사일 오늘 자동기록',await cellText('신규건','성사일'));
+let sr=await savedRow('신규건');
+chk(sr.dealDate===TODAY,'성사일 오늘 자동기록(데이터)',sr.dealDate);
 chk(await cellText('신규건','최종완료')==='N','최종완료는 아직 N');
-chk((await cellText('신규건','완료수당')).trim()==='0원','수당 0원',await cellText('신규건','완료수당'));
+chk(sr.finalDone!=='Y','수당 대상 아님(최종완료 N)',sr.finalDone);
 
 console.log('\n[3] 최종완료를 켜야 수당 2만');
 await clickYN('신규건','최종완료');
 await new Promise(r=>setTimeout(r,300));
 chk(await cellText('신규건','최종완료')==='Y','최종완료 Y');
 chk(await cellText('신규건','완료일')===TODAY,'완료일 오늘 자동기록',await cellText('신규건','완료일'));
-chk((await cellText('신규건','완료수당')).includes('20,000'),'수당 20,000원',await cellText('신규건','완료수당'));
+sr=await savedRow('신규건');
+chk(sr.finalDone==='Y'&&sr.finalDate===TODAY,'최종완료·완료일 저장 → 수당 대상(금액은 정산 탭에서 확인)',sr);
 
 console.log('\n[4] 정산 탭 — 완료일 달로 집계');
 await clickText('💰 정산');
@@ -140,7 +146,8 @@ await clickYN('신규건','협업성사');
 await new Promise(r=>setTimeout(r,300));
 chk(await cellText('신규건','협업성사')==='N','협업성사 N');
 chk(await cellText('신규건','최종완료')==='N','최종완료도 N');
-chk((await cellText('신규건','완료수당')).trim()==='0원','수당 다시 0원');
+sr=await savedRow('신규건');
+chk(sr.finalDone==='N'&&!sr.dealDate,'데이터도 성사일·최종완료 풀림 → 수당 대상 아님',sr);
 
 console.log('\n'+(fail?`❌ 실패 ${fail}건`:'✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close();

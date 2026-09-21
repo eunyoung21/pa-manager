@@ -3738,13 +3738,6 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
     });
   },[rows,dayFilter,monthFilter,colFKey,cat,q,filter]);
   const cnt=useMemo(()=>({all:rows.filter(r=>r.name&&r.reviewStatus!=='반려').length,ap:rows.filter(r=>r.reviewStatus==='승인').length,wt:rows.filter(r=>r.reviewStatus==='검수대기').length,rj:rows.filter(r=>r.reviewStatus==='반려').length}),[rows]);
-  // 페르소나 카테고리별 인원 집계(반려 제외) — 칩에 표시·필터. 키워드 매칭이라 행 수만큼 비싸다.
-  const {named1,catCnt,uncatN}=useMemo(()=>{
-    const named1=rows.filter(r=>s(r.name).trim()&&r.reviewStatus!=='반려');
-    const catCnt={}; PERSONA_CATEGORIES.forEach(c=>catCnt[c.key]=0); let uncatN=0;
-    named1.forEach(r=>{const cs=rowCatsOf(r); if(cs.length)cs.forEach(k=>{if(catCnt[k]!=null)catCnt[k]++;}); else uncatN++;});
-    return {named1,catCnt,uncatN};
-  },[rows]);
   function up(id,k,v){onUpdate(id,{[k]:v});}
   const sel=useRowSelect(shown);
   const pg=useProgressive(shown);   // 화면에 보이는 만큼만 그린다
@@ -3763,15 +3756,6 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
       </div>
       <span className="cnt">{shown.length}명</span>
     </div>
-    {named1.length>0&&<div className="toolbar" style={{paddingTop:0,flexWrap:'wrap'}}>
-      <span style={{fontSize:11,color:'var(--muted)',marginRight:2}} title="행 왼쪽 ⠿ 를 끌어다 카테고리에 놓으면 직접 분류돼요">🏷️ 카테고리 <span style={{opacity:.6}}>(⠿ 끌어 놓기)</span></span>
-      <button className={`fchip ${!cat?'active':''}`} onClick={()=>setCat(null)}
-        onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('text/plain');if(id)onUpdate(id,{category:''});}}>전체</button>
-      {PERSONA_CATEGORIES.map(c=><button key={c.key} className={`fchip ${cat===c.key?'active':''}`} onClick={()=>setCat(cat===c.key?null:c.key)} title={'키워드: '+c.kw.join(', ')+'\n행 ⠿ 를 끌어다 놓으면 이 카테고리로 지정'}
-        onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('text/plain');if(id)onUpdate(id,{category:c.key});}}>{c.emoji} {c.label} ({catCnt[c.key]})</button>)}
-      {uncatN>0&&<button className={`fchip ${cat==='__uncat'?'active':''}`} onClick={()=>setCat(cat==='__uncat'?null:'__uncat')}
-        onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const id=e.dataTransfer.getData('text/plain');if(id)onUpdate(id,{category:''});}}>❔ 미분류 ({uncatN})</button>}
-    </div>}
     <div style={{padding:'6px 12px 2px',display:'flex',gap:6}}>
       <button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={onAdd}>＋ 인플루언서 추가</button>
       <button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
@@ -3800,7 +3784,6 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
           {pg.rows.map(r=><tr key={r.id} className={sel.has(r.id)?'sel-on':''}>
             <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:2}}>
               <SelBox sel={sel} id={r.id}/>
-              <span draggable onDragStart={e=>{e.dataTransfer.setData('text/plain',r.id);e.dataTransfer.effectAllowed='move';}} title="끌어다 위 카테고리 칩에 놓으면 분류돼요" style={{cursor:'grab',color:'var(--dim)',fontSize:13,userSelect:'none'}}>⠿</span>
               <RowDelBtn name={r.name} onDelete={()=>onDelete(r.id)}/>
             </span></td>
             <td><Cell value={r.date} onChange={v=>up(r.id,'date',v)} type="date" style={{width:80}}/></td>
@@ -3954,18 +3937,16 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
           {isClaude&&<th style={{width:60}}>답장</th>}
           {isClaude&&<th style={{width:70}}>승인</th>}
           <th style={{width:65}}>협업성사</th>
-          <th style={{width:85}}>성사일</th>
+          {isClaude&&<th style={{width:85}}>성사일</th>}
           <th style={{width:70}}>최종완료</th>
           <th style={{width:85}}>완료일</th>
           <th style={{width:90}}>단가</th>
-          {!IS_STAFF&&!isClaude&&<th style={{width:80}}>DM수당</th>}
-          {(!IS_STAFF||isClaude)&&<th style={{width:80}}>완료수당</th>}
-          {!IS_STAFF&&!isClaude&&<th style={{width:80}}>소계</th>}
+          {isClaude&&<th style={{width:80}}>완료수당</th>}
           <th style={{minWidth:100}}>메모</th>
           <th style={{width:70,textAlign:'center'}}>개인정보</th>
         </tr>
         {showColF&&<tr className="colf-row">
-          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent',...(isClaude?['replied','approved']:[]),'dealDone','dealDate','finalDone','finalDate','rate',...((!IS_STAFF||isClaude)?(isClaude?[null]:[null,null,null]):[]),'memo',null].map((f,i)=>(
+          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent',...(isClaude?['replied','approved']:[]),'dealDone',...(isClaude?['dealDate']:[]),'finalDone','finalDate','rate',...(isClaude?[null]:[]),'memo',null].map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
           ))}
         </tr>}
@@ -4031,13 +4012,11 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                     </span>}
               </td>}
               <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>H.current.setDeal(r,v)}/></td>
-              <td data-label="성사일"><Cell value={r.dealDate} onChange={v=>H.current.up(r.id,'dealDate',v)} type="date" style={{width:85}} placeholder={r.dealDone==='Y'?'날짜 입력':'—'}/></td>
+              {isClaude&&<td data-label="성사일"><Cell value={r.dealDate} onChange={v=>H.current.up(r.id,'dealDate',v)} type="date" style={{width:85}} placeholder={r.dealDone==='Y'?'날짜 입력':'—'}/></td>}
               <td data-label="최종완료" style={{textAlign:'center'}}><YN value={r.finalDone} onChange={v=>H.current.setFinal(r,v)}/></td>
               <td data-label="완료일"><Cell value={r.finalDate} onChange={v=>H.current.up(r.id,'finalDate',v)} type="date" style={{width:85}} placeholder={r.finalDone==='Y'?'날짜 입력':'—'}/></td>
               <td data-label="단가"><Cell value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80,color:'var(--yellow)'}}/></td>
-              {!IS_STAFF&&!isClaude&&<td data-label="DM수당" style={{color:pay.dm>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.dm)}</td>}
-              {(!IS_STAFF||isClaude)&&<td data-label="완료수당" style={{color:pay.deal>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.deal)}</td>}
-              {!IS_STAFF&&!isClaude&&<td data-label="소계" style={{color:'var(--yellow)',fontWeight:700,fontSize:11}}>{fmtMoney(pay.subtotal)}</td>}
+              {isClaude&&<td data-label="완료수당" style={{color:pay.deal>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.deal)}</td>}
               <td data-label="메모"><Cell value={r.memo} onChange={v=>H.current.up(r.id,'memo',v)} type="textarea" placeholder="메모…"/></td>
               <td data-label="개인정보" style={{textAlign:'center'}}>
                 {r.dealDone==='Y'
