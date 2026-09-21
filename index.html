@@ -1172,6 +1172,7 @@ function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUp
   const [msHow,setMsHow]=useState('KAKAO');   // 모두싸인 받는 방법: 카카오톡(전화번호) / 이메일
   const [msItems,setMsItems]=useState(null);  // 보낸 서명 요청 목록(null=아직 안 읽음)
   const [msLoading,setMsLoading]=useState(false);
+  const [msAsk,setMsAsk]=useState(''); // 보내기 전 확인(창 안에서 — 브라우저 확인창이 안 뜨는 환경도 있어서)
   const tplRef=useRef(null);
   const hasCfg = !!(window.CONTRACT_BRANDS && window.CONTRACT_BRANDS[brandId]);
   const company = window.CONTRACT_BRANDS?.[brandId]?.company || '';
@@ -1240,8 +1241,9 @@ function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUp
     const to=msHow==='KAKAO'?phone.trim():email.trim();
     if(msHow==='KAKAO'&&!/^010\d{8}$/.test(to.replace(/[^0-9]/g,''))){ setErr('카카오톡으로 받을 010 휴대폰 번호를 전화번호 칸에 입력하세요.'); return; }
     if(msHow==='EMAIL'&&!isEmail(to)){ setErr('받는 사람 이메일을 정확히 입력하세요.'); return; }
-    if(!confirm(`${name.trim()} 님에게 모두싸인 서명 요청을 보낼까요?\n(${msHow==='KAKAO'?'카카오톡 '+to:'이메일 '+to})`)) return;
-    setBusy(true); setErr(''); setSent('');
+    const ask=`${name.trim()} 님 · ${msHow==='KAKAO'?'카카오톡 '+to:'이메일 '+to}`;
+    if(msAsk!==ask){ setMsAsk(ask); setErr(''); setSent(''); return; }   // 첫 클릭은 확인만, 같은 내용으로 한 번 더 누르면 발송
+    setMsAsk(''); setBusy(true); setErr(''); setSent('');
     try{
       const built=await buildDocx();
       const dataUrl=await bytesToDataUrl(built.bytes, built.type);
@@ -1388,10 +1390,11 @@ function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUp
 
       {err&&<div style={{color:'var(--red)',fontSize:12,marginTop:10}}>{err}</div>}
       {sent&&<div style={{color:'var(--green,#15803d)',fontSize:12,marginTop:10}}>✅ {sent}</div>}
+      {via==='ms'&&msAsk&&!busy&&<div className="ms-ask" style={{fontSize:12,marginTop:10,lineHeight:1.5}}>{msAsk} 에게 서명 요청을 보냅니다. 맞으면 아래 버튼을 한 번 더 누르세요.</div>}
       {failed&&via==='mail'&&<button onClick={manualMail} disabled={busy} style={{width:'100%',marginTop:8,padding:'9px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',fontSize:12,cursor:'pointer'}}>대신 Gmail 작성창 열기 (파일은 직접 첨부)</button>}
       <div style={{marginTop:18,display:'flex',gap:8}}>
         {via==='ms'
-          ? <button onClick={sendMs} disabled={busy} style={{flex:1,padding:'11px',border:0,borderRadius:8,background:busy?'#6b7280':'var(--blue)',color:'#fff',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer'}} title="계약서를 모두싸인으로 보내 서명을 받습니다">{busy?'처리 중…':'✍️ 서명 요청 보내기'}</button>
+          ? <button onClick={sendMs} disabled={busy} style={{flex:1,padding:'11px',border:0,borderRadius:8,background:busy?'#6b7280':'var(--blue)',color:'#fff',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer'}} title="계약서를 모두싸인으로 보내 서명을 받습니다">{busy?'모두싸인에서 보내는 중…':msAsk?'✅ 확인 — 보내기':'✍️ 서명 요청 보내기'}</button>
           : <button onClick={sendMail} disabled={busy} style={{flex:1,padding:'11px',border:0,borderRadius:8,background:busy?'#6b7280':'var(--blue)',color:'#fff',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer'}} title="계약서를 만들어 입력한 주소로 첨부 발송합니다">{busy?'처리 중…':'📧 메일 보내기'}</button>}
         <button onClick={go} disabled={busy} style={{flex:'none',padding:'11px 14px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',fontSize:13,fontWeight:700,cursor:busy?'default':'pointer'}} title="메일 없이 워드 파일만 내려받기">📝 내려받기</button>
       </div>

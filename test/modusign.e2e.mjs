@@ -98,6 +98,7 @@ let fail = 0;
 const chk = (c, m, extra) => { console.log((c ? '  PASS ' : '  FAIL ') + m + (c || extra === undefined ? '' : '  -> ' + JSON.stringify(extra))); if (!c) fail++; };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const clickBtn = t => evalJs(`[...document.querySelectorAll('button')].find(b=>b.textContent.includes(${JSON.stringify(t)})).click(), 1`);
+const sendMs = async () => { await clickBtn('서명 요청 보내기'); await wait(300); await clickBtn('확인 — 보내기'); };
 const txt = () => evalJs(`document.body.innerText`);
 const fill = (o) => evalJs(`(()=>{
   const set=(el,v)=>{ Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(el,v); el.dispatchEvent(new Event('input',{bubbles:true})); };
@@ -131,7 +132,7 @@ await clickBtn('✍️ 모두싸인'); await waitFor(`document.querySelector('.m
 await waitFor(`document.body.innerText.includes('모두싸인_시작.bat')`, '브리지 꺼짐 안내');
 chk(true, '목록을 못 읽으면 「모두싸인_시작.bat」 안내');
 await fill({ name: '김하늘', phone: '010-9999-8888', addr: '서울특별시 강남구 테헤란로 1', fee: '800000' });
-await clickBtn('서명 요청 보내기');
+await sendMs();
 await waitFor(`document.body.innerText.includes('모두싸인 요청 실패')`, '발송 실패 안내');
 chk((await txt()).includes('모두싸인_시작.bat'), '보내기 눌러도 브리지 꺼져 있으면 안내');
 
@@ -142,10 +143,11 @@ chk((await evalJs(`document.querySelector('.ms-list').innerText`)).includes('아
 await fill({ phone: '' }); await clickBtn('서명 요청 보내기'); await wait(400);
 chk((await txt()).includes('010 휴대폰 번호를 전화번호 칸에') && bridgeCalls.length === 0, '전화번호 없으면 막음');
 await fill({ phone: '010-9999-8888' });
-await clickBtn('서명 요청 보내기');
+await clickBtn('서명 요청 보내기'); await wait(300);
+chk(/김하늘 님 · 카카오톡 010-9999-8888/.test(await evalJs("(document.querySelector('.ms-ask')||{}).innerText||''")) && bridgeCalls.length === 0, '첫 클릭은 창 안에서 받는 곳 확인만(아직 안 보냄)');
+await clickBtn('확인 — 보내기');
 await waitFor(`document.body.innerText.includes('김하늘 님에게 서명 요청을 보냈습니다')`, '발송 안내');
 const c0 = bridgeCalls[0] || {};
-chk(/카카오톡 010-9999-8888/.test(await evalJs('window.__cf[0]||""')), '보내기 전 확인창(받는 곳)');
 chk(c0.name === '김하늘' && c0.method === 'KAKAO' && c0.to === '010-9999-8888' && c0.by === '테스터', '브리지에 이름·카카오톡·번호·보낸 사람', c0);
 chk(c0.needRrn === true, '주민번호 비워 보내면 모델 입력칸 요청');
 chk(/광고모델계약서_김하늘/.test(c0.title || '') && !/\.docx$/.test(c0.title), '제목 = 계약서 파일명(.docx 뗌)', c0.title);
@@ -159,7 +161,7 @@ chk(/김하늘.*테스터.*카카오톡 보냄/.test(await evalJs(`document.quer
 console.log('\n[발송] 이메일 · 주민번호 채움');
 await evalJs(`[...document.querySelectorAll('input[name=ms-how]')][1].click(),1`); await wait(200);
 await fill({ name: '박바다', email: 'sea@example.com', rrn: '900101-1234567' });
-await clickBtn('서명 요청 보내기');
+await sendMs();
 await waitFor(`document.body.innerText.includes('박바다 님에게 서명 요청을 보냈습니다')`, '이메일 발송 안내');
 const c1 = bridgeCalls[1] || {};
 chk(c1.method === 'EMAIL' && c1.to === 'sea@example.com' && c1.needRrn === false, '이메일·주민번호칸 없음', { m: c1.method, to: c1.to, r: c1.needRrn });
