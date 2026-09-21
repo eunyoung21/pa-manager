@@ -1146,11 +1146,31 @@ function contractMailDefaults({ brandName, company, name, fee, date, phone, rrn,
 // 모두싸인 자동 발송 브리지(관리자 PC, D:\Git\pa-modusign-bridge) — 테스트는 window.MS_BRIDGE 로 바꿔 끼운다
 const MS_BRIDGE = window.MS_BRIDGE || 'http://localhost:8791';
 const MS_BRIDGE_DOWN = '모두싸인 브리지가 꺼져 있습니다 — 이 PC에서 「모두싸인_시작.bat」을 켜 주세요.';
-// 등록된 브랜드 계약서 양식(📄 계약서 생성 ⚙에서 올린 .docx)으로만 만든다 — 없으면 보내지 않는다.
-async function buildBrandContract(brand, { name, fee, date, phone, addr, rrn }){
-  if(!brand || !brand.contractTemplate) throw new Error('이 브랜드에 등록된 계약서 양식이 없습니다 — 위쪽 📄 계약서 생성 ⚙에서 양식을 올려 주세요.');
-  const bytes = await loadContractTemplate(brand.contractTemplate);
-  return window.buildContractFromTemplate(bytes, name, fee, date, { name, phone, addr, rrn }, brand.id);
+// 계약서에 쓸 양식: ① 이 건에만 첨부한 파일(r.contractFile) → ② 브랜드 등록 양식(📄 계약서 생성 ⚙) → ③ 앱 내장 양식(드래프터 등)
+function contractTplFor(brand, r){
+  if(r && r.contractFile) return { tpl:r.contractFile, kind:'이 건만 바꾼 파일' };
+  if(brand && brand.contractTemplate) return { tpl:brand.contractTemplate, kind:'기본 (등록 양식)' };
+  const cfg = brand && window.CONTRACT_BRANDS && window.CONTRACT_BRANDS[brand.id];
+  if(cfg) return { tpl:null, kind:'기본 (앱 내장 양식)', builtinName:(cfg.company||'').replace(/^주식회사\s*/,'')+'_광고모델계약서' };
+  return null;
+}
+async function buildBrandContract(brand, r, { name, fee, date, phone, addr, rrn }){
+  const t = contractTplFor(brand, r);
+  if(!t) throw new Error('이 브랜드에 쓸 계약서 양식이 없습니다 — 계약서 파일을 첨부해 주세요.');
+  const model = { name, phone, addr, rrn };
+  if(!t.tpl) return window.buildContractDocx(brand.id, name, fee, date, model);
+  const bytes = await loadContractTemplate(t.tpl);
+  return window.buildContractFromTemplate(bytes, name, fee, date, model, brand.id);
+}
+// 이 건에만 쓸 계약서 파일 첨부 — 브랜드 양식 올리기와 같은 방식(워드만, 첨부 저장소에 보관)
+async function uploadContractFile(file){
+  if(!/\.docx$/i.test(file.name)) throw new Error('워드 파일(.docx)만 첨부할 수 있습니다. PDF·한글(hwp)은 안 됩니다.');
+  if(file.size > 2*1024*1024) throw new Error('파일이 너무 큽니다(2MB 이하).');
+  const an = await window.CONTRACT_TPL.analyze(new Uint8Array(await file.arrayBuffer()));
+  const dataUrl = await bytesToDataUrl(new Uint8Array(await file.arrayBuffer()), file.type||'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  let url='';
+  try{ const d=await callApi('pfileSave',{data:dataUrl,name:file.name,type:file.type||'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}); if(d&&d.ok&&d.url) url=d.url; }catch(e){}
+  return { name:file.name, url:url||dataUrl, size:file.size, at:today(), slots:an.slots };
 }
 async function sendModusign(payload){
   let j;
@@ -4049,6 +4069,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
   const [f,setF]=useState(init);
   // 모두싸인 발송 — 첫 클릭은 받는 곳 확인, 같은 내용으로 한 번 더 누르면 보낸다(주민번호는 계약서에만 넣고 저장 안 함)
   const [msAsk,setMsAsk]=useState(''), [msBusy,setMsBusy]=useState(false), [msMsg,setMsMsg]=useState(null);
+  const ctRef=useRef(null);
   useEffect(()=>{setF(init());setMsAsk('');setMsMsg(null);},[r.id]);
   const u=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const upd=patch=>H.current.onUpdate(r.id,patch);
@@ -4108,6 +4129,18 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),contractUrl:f.contractUrl.trim(),rate:f.rate.trim()})}>계약 완료 →</button>{reject}</div></>;
   else if(st===2){
     // 관리자: 등록 양식 + 이 정보로 계약서를 만들어 모두싸인(관리자 PC 브리지)으로 보낸다
+    const ctT=contractTplFor(brand,r);
+    const ctVals=()=>({name:f.realName.trim()||'모델',fee:f.rate.replace(/[^0-9]/g,''),date:ymdFromDisp(f.contractDate)||ymdFromDisp(today()),
+      phone:f.phone.trim(),addr:f.address.trim(),rrn:f.rrn.trim()});
+    const previewCt=async()=>{
+      try{ downloadBuiltDocx(await buildBrandContract(brand,r,ctVals())); }
+      catch(e){ setMsMsg({err:'계약서 만들기 실패: '+(e&&e.message||e)}); }
+    };
+    const pickCt=async e=>{
+      const file=e.target.files&&e.target.files[0]; e.target.value=''; if(!file) return;
+      try{ const cf=await uploadContractFile(file); upd({contractFile:cf}); setMsAsk(''); setMsMsg({ok:`계약서 파일을 ${file.name} 로 바꿨습니다(이 건만).`}); }
+      catch(e2){ setMsMsg({err:'첨부 실패: '+(e2&&e2.message||e2)}); }
+    };
     const sendMs=async()=>{
       const name=f.realName.trim(), phone=f.phone.trim(), fee=f.rate.replace(/[^0-9]/g,''), date=ymdFromDisp(f.contractDate)||ymdFromDisp(today());
       if(!name) return setMsMsg({err:'실명(계약자)을 입력하세요.'});
@@ -4117,7 +4150,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
       if(msAsk!==ask){ setMsAsk(ask); setMsMsg(null); return; }
       setMsAsk(''); setMsBusy(true); setMsMsg(null);
       try{
-        const built=await buildBrandContract(brand,{name,fee,date,phone,addr:f.address.trim(),rrn:f.rrn.trim()});
+        const built=await buildBrandContract(brand,r,{name,fee,date,phone,addr:f.address.trim(),rrn:f.rrn.trim()});
         const dataUrl=await bytesToDataUrl(built.bytes, built.type);
         await sendModusign({ name, method:'KAKAO', to:phone, data:dataUrl, title:built.filename.replace(/\.docx$/i,''),
           needRrn:!f.rrn.trim(), by:(getAuth()||{}).username||'' });
@@ -4134,6 +4167,19 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
       {fld('주민등록번호 (선택 — 비우면 모델이 서명할 때 입력 · 저장 안 됨)','rrn','')}
       {fld('모델료 (진행 단가)','rate','예: 80,000')}
       {fld('계약일자','contractDate','YY.MM.DD')}
+      {/* 계약서 파일 — 기본은 등록 양식(없으면 앱 내장 드래프터 등). 이 건만 다른 파일로 바꿀 수 있다 */}
+      <div className="s2p-fg ct-file"><label>계약서 파일</label>
+        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',fontSize:12}}>
+          <span className="ct-file-name" style={{fontWeight:600}}>📄 {ctT?(ctT.tpl?ctT.tpl.name:ctT.builtinName+'.docx'):'없음'}</span>
+          <span style={{color:'var(--muted)'}}>{ctT?ctT.kind:''}</span>
+        </div>
+        <div className="s2p-btns" style={{marginTop:6}}>
+          <button className="btn s2p-outline" disabled={msBusy||!ctT} onClick={previewCt} title="지금 입력한 값을 넣은 계약서를 내려받아 확인·수정(수정한 파일은 '다른 파일로'로 다시 첨부)">⬇ 값 넣어 내려받기</button>
+          <button className="btn s2p-outline" disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 다른 파일로</button>
+          {r.contractFile&&<button className="btn s2p-outline" disabled={msBusy} onClick={()=>{upd({contractFile:null});setMsMsg(null);}}>↺ 기본으로</button>}
+          <input ref={ctRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickCt}/>
+        </div>
+      </div>
       {msAsk&&!msBusy&&<p className="s2p-help ms-ask" style={{color:'var(--text)'}}>{msAsk} 으로 보냅니다. 맞으면 버튼을 한 번 더 누르세요.</p>}
       {msMsg&&<p className="s2p-help ms-msg" style={{color:msMsg.err?'var(--red)':'var(--green,#15803d)'}}>{msMsg.err||('✅ '+msMsg.ok)}</p>}
       {r.contractSent&&!msMsg&&<p className="s2p-help">✍️ {r.contractSent} 모두싸인 발송함 — 서명되면 계약서 링크를 넣고 '계약 완료'를 누르세요.</p>}
@@ -4142,8 +4188,8 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
         <a className="s2p-help" href="https://app.modusign.co.kr/esign/documents/documents" target="_blank" rel="noopener" style={{margin:0}}>문서함 ↗</a>
       </div>
       <div className="s2p-hr"/>
-      {fld('계약서 링크','contractUrl','계약서 파일 링크')}
-      <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),contractUrl:f.contractUrl.trim(),rate:f.rate.trim(),realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()})}>계약 완료 →</button>{reject}</div></>;
+      {r.contractUrl&&<p className="s2p-help">서명본: <a href={r.contractUrl} target="_blank" rel="noopener">계약서 링크 ↗</a></p>}
+      <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),rate:f.rate.trim(),realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()})}>계약 완료 →</button>{reject}</div></>;
   }
   else if(st===3) action=<>
     <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '제품 발송 완료'를 눌러주세요. 누르면 📦 출고 탭에도 자동으로 들어가요.</p>

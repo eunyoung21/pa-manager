@@ -134,7 +134,9 @@ await load();
 await openCh('에이채널');
 console.log('\n[화면] 계약서발송/수집 단계');
 let p = await panel();
-chk(['실명 (계약자)', '연락처 (카카오톡', '주소', '주민등록번호', '모델료', '계약일자', '✍️ 모두싸인으로 계약서 보내기', '계약서 링크', '계약 완료'].every(s => p.includes(s)), '입력칸·모두싸인 버튼·계약 완료');
+chk(['실명 (계약자)', '연락처 (카카오톡', '주소', '주민등록번호', '모델료', '계약일자', '✍️ 모두싸인으로 계약서 보내기', '계약서 파일', '계약 완료'].every(s => p.includes(s)), '입력칸·모두싸인 버튼·계약 완료');
+chk(/📄 드래프터_광고계약서\.docx/.test(p) && p.includes('기본 (등록 양식)'), '계약서 파일 기본 = 등록된 드래프터 양식', (p.match(/📄[^\n]*/) || [''])[0]);
+chk(!p.includes('계약서 파일 링크'), '링크 입력칸 대신 파일 첨부');
 chk(p.includes('김하늘') || (await evalJs(`[...document.querySelectorAll('.s2p input')].some(i=>i.value==='김하늘')`)), '앞 단계에서 넣은 실명이 채워져 있음');
 
 console.log('\n[막기] 모델료 없으면 / 브리지 꺼짐');
@@ -178,14 +180,44 @@ chk(x1.includes('900101-1234567'), '주민번호는 계약서에만 들어감');
 await wait(1800);
 chk(!JSON.stringify(savedData).includes('900101'), '저장 데이터엔 여전히 없음');
 
-console.log('\n[양식 없는 브랜드]');
+console.log('\n[⬇ 값 넣어 내려받기]');
+const DL = path.join(TMP, 'dl'); fs.mkdirSync(DL, { recursive: true });
+await S('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: DL }).catch(() => {});
+await click('.s2p button', '값 넣어 내려받기');
+let dl = null; for (let i = 0; i < 40 && !dl; i++) { dl = fs.readdirSync(DL).find(n => n.endsWith('.docx')); await wait(250); }
+let xd = ''; try { xd = unzip(fs.readFileSync(path.join(DL, dl)))['word/document.xml'].toString('utf8').replace(/<[^>]+>/g, ''); } catch {}
+chk(!!dl && xd.includes('김하늘') && xd.includes('80,000'), '입력값 넣은 계약서를 내려받아 확인·수정 가능', dl);
+
+console.log('\n[📎 다른 파일로 → 이 건만]');
+const alt = await evalJs(`(async()=>{const b=await window.buildContractDocx('granny','','','',{});return await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(new Blob([b.bytes],{type:b.type}));});})()`);
+const ALT = path.join(TMP, '수정한_계약서.docx'); fs.writeFileSync(ALT, Buffer.from(alt.split(',')[1], 'base64'));
+const { root: { nodeId: rootId } } = await S('DOM.getDocument', { depth: -1 });
+const { nodeId: fileId } = await S('DOM.querySelector', { nodeId: rootId, selector: '.s2p .ct-file input[type=file]' });
+await S('DOM.setFileInputFiles', { nodeId: fileId, files: [ALT] });
+await waitFor(`document.querySelector('.s2p .ct-file').innerText.includes('수정한_계약서.docx')`, '첨부 반영');
+chk((await evalJs(`document.querySelector('.s2p .ct-file').innerText`)).includes('이 건만 바꾼 파일'), '파일 이름·이 건만 표시');
+await wait(1800);
+chk(row(0, '에이채널').contractFile?.name === '수정한_계약서.docx' && savedData.brands[0].contractTemplate?.name === '드래프터_광고계약서.docx', '이 사람 행에만 저장(브랜드 기본 양식은 그대로)');
+const nb0 = bridgeCalls.length;
+await fill('주민등록번호', '');
+await click('.s2p button', '모두싸인으로 계약서 보내기'); await wait(200);
+await click('.s2p button', '확인 — 보내기');
+for (let i = 0; i < 40 && bridgeCalls.length === nb0; i++) await wait(250);
+let x2 = ''; try { x2 = unzip(Buffer.from(String(bridgeCalls[nb0].data).split(',')[1], 'base64'))['word/document.xml'].toString('utf8').replace(/<[^>]+>/g, ''); } catch {}
+chk(x2.includes('썸웨어코드') && x2.includes('김하늘'), '바꾼 파일로 보냄(값도 채움)');
+await click('.s2p button', '기본으로'); await wait(1800);
+chk(!row(0, '에이채널').contractFile && (await evalJs(`document.querySelector('.s2p .ct-file').innerText`)).includes('드래프터_광고계약서.docx'), '↺ 기본으로 → 등록 양식');
+
+console.log('\n[등록 양식 없는 브랜드 → 앱 내장 양식]');
 const nb = bridgeCalls.length;
 await click('.brand-tab, button', '그래니'); await wait(800);
 await openCh('그래니채널');
+chk((await evalJs(`document.querySelector('.s2p .ct-file').innerText`)).includes('기본 (앱 내장 양식)'), '앱 내장 양식 표시');
 await click('.s2p button', '모두싸인으로 계약서 보내기'); await wait(200);
 await click('.s2p button', '확인 — 보내기');
-await waitFor(`/등록된 계약서 양식이 없습니다/.test((document.querySelector('.s2p .ms-msg')||{}).innerText||'')`, '양식 없음 안내');
-chk(bridgeCalls.length === nb, '양식 없으면 안 보냄');
+for (let i = 0; i < 40 && bridgeCalls.length === nb; i++) await wait(250);
+let x3 = ''; try { x3 = unzip(Buffer.from(String(bridgeCalls[nb].data).split(',')[1], 'base64'))['word/document.xml'].toString('utf8').replace(/<[^>]+>/g, ''); } catch {}
+chk(x3.includes('썸웨어코드') && x3.includes('박바다') && x3.includes('50,000'), '앱 내장 양식으로 값 채워 보냄');
 
 console.log('\n[매니저] 예전 화면');
 role = 'staff';
