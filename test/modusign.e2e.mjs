@@ -1,7 +1,8 @@
-/* 모두싸인 서명 요청 E2E (브리지 방식)
-   목 백엔드 + 가짜 브리지 + 실제 크롬으로 계약서 생성 창에서 사람이 하듯 입력·클릭한다. 실제 모두싸인엔 안 나간다.
-   확인: 관리자만 ✍️ 모두싸인 보임 → 카카오톡(전화번호)으로 보내면 브리지가 값 채운 계약서·받는 곳·주민번호칸 여부를 받음,
-        보낸 목록 표시, 브리지 꺼져 있으면 안내, 📧 메일 방식은 그대로.
+/* 모두싸인 계약서 발송 E2E — 컨택현황 상세 창 '계약서발송/수집' 단계
+   목 백엔드 + 가짜 브리지 + 실제 크롬. 실제 모두싸인엔 안 나간다.
+   확인: 관리자만 ✍️ 버튼 · 등록된 브랜드 양식으로 입력값 채운 계약서를 브리지로 보냄(첫 클릭은 확인만) ·
+        발송 기록(contractSent)·실명/연락처/주소/단가 저장, 계약 완료는 안 건드림 · 주민번호는 저장 안 함 ·
+        양식 없는 브랜드는 안 보냄 · 브리지 꺼져 있으면 안내 · 매니저는 예전 화면.
    실행: node test/modusign.e2e.mjs */
 import fs from 'fs';
 import http from 'http';
@@ -16,11 +17,19 @@ fs.rmSync(TMP, { recursive: true, force: true }); fs.mkdirSync(TMP, { recursive:
 const PORT = 8937, BPORT = 8938;
 let role = 'manager';
 
-/* ── 목 백엔드 ── */
-let savedData = { brands: [
-  { id: 'basetune', name: '베이스튠', step1Rows: [], step2Rows: [], privacyRows: [], settlements: [] },
-  { id: 'granny', name: '그래니샐러드', step1Rows: [], step2Rows: [], privacyRows: [], settlements: [] },
-] };
+const S2 = (id, name, pa, x = {}) => ({ id, step1Id: '', date: '26.09.01', name, link: 'https://instagram.com/' + id, followers: '1000', pa,
+  contactStatus: '진행중', dmSent: 'Y', dmDate: '26.09.02', dealDone: 'Y', dealDate: '26.09.03', finalDone: 'N', rate: '', shipDate: '', expectedPost: '',
+  shippingDone: '미완료', contractDone: '미완료', contractUrl: '', memo: '', ...x });
+let savedData = { paList: ['박민선', '안민영'], brands: [
+  { id: 'basetune', name: '베이스튠', step1Rows: [], claudeStep1Rows: [], claudeStep2Rows: [],
+    step2Rows: [S2('s2_a', '에이채널', '박민선', { realName: '김하늘', phone: '010-9999-8888', address: '서울시 강남구 1' })],
+    shippingRows: [], reviewRows: [], privacyRows: [] },
+  { id: 'granny', name: '그래니샐러드', step1Rows: [], claudeStep1Rows: [], claudeStep2Rows: [],
+    step2Rows: [S2('g2_a', '그래니채널', '안민영', { realName: '박바다', phone: '010-1111-2222', rate: '50000' })],
+    shippingRows: [], reviewRows: [], privacyRows: [] },
+], settlements: {} };
+savedData.brands[0].contractTemplate = { name: '드래프터_광고계약서.docx', url: '/api/pfile?id=900001', slots: { name: true, fee: true, date: true, phone: true, rrn: true, addr: true } };
+let rev = 1, tplData = '';
 const server = http.createServer((req, res) => {
   if (req.method === 'GET') {
     let html = fs.readFileSync(path.join(REPO, 'index.html'), 'utf8');
@@ -29,28 +38,30 @@ const server = http.createServer((req, res) => {
        localStorage.setItem('pa_mgr_auth', JSON.stringify({token:'T',username:'테스터',role:${JSON.stringify(role)},brand:'all'}));</script>`);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html); return;
   }
-  let body = ''; req.on('data', c => body += c);
+  let body = ''; req.setEncoding('utf8'); req.on('data', c => body += c);
   req.on('end', () => {
     const b = JSON.parse(body || '{}');
     const send = o => { res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify(o)); };
     if (b.action === 'login') return send({ ok: true, token: 'T', username: '테스터', role, brand: 'all' });
-    if (b.action === 'get') return send({ ok: true, data: savedData, rev: 1 });
-    if (b.action === 'rev') return send({ ok: true, rev: 1 });
+    if (b.action === 'get') return send({ ok: true, data: savedData, rev });
+    if (b.action === 'rev') return send({ ok: true, rev });
+    if (b.action === 'save') { savedData = b.data; rev++; return send({ ok: true, rev }); }
+    if (b.action === '_setTpl') { tplData = b.data; return send({ ok: true }); }
+    if (b.action === 'pfileGet') return send(b.id === '900001' && tplData ? { ok: true, dataUrl: tplData } : { ok: false, error: 'no file' });
     return send({ ok: true, users: [], logs: [] });
   });
 });
 await new Promise(r => server.listen(PORT, '127.0.0.1', r));
 
 /* ── 가짜 브리지 ── */
-const bridgeCalls = []; const sentLog = [];
+const bridgeCalls = [];
 let bridge = null;
 const startBridge = () => new Promise(r => {
   bridge = http.createServer((req, res) => {
     const send = o => { res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' }); res.end(JSON.stringify(o)); };
     if (req.method === 'OPTIONS') return send({});
-    if (req.url.startsWith('/list')) return send({ ok: true, items: sentLog.slice().reverse() });
     let raw = ''; req.on('data', c => raw += c);
-    req.on('end', () => { const b = JSON.parse(raw); bridgeCalls.push(b); sentLog.push({ name: b.name, to: b.to, method: b.method, title: b.title, sentAt: new Date().toISOString(), by: b.by }); send({ ok: true }); });
+    req.on('end', () => { bridgeCalls.push(JSON.parse(raw)); send({ ok: true }); });
   });
   bridge.listen(BPORT, '127.0.0.1', r);
 });
@@ -97,79 +108,91 @@ async function waitFor(expr, label, ms = 25000) {
 let fail = 0;
 const chk = (c, m, extra) => { console.log((c ? '  PASS ' : '  FAIL ') + m + (c || extra === undefined ? '' : '  -> ' + JSON.stringify(extra))); if (!c) fail++; };
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const clickBtn = t => evalJs(`[...document.querySelectorAll('button')].find(b=>b.textContent.includes(${JSON.stringify(t)})).click(), 1`);
-const sendMs = async () => { await clickBtn('서명 요청 보내기'); await wait(300); await clickBtn('확인 — 보내기'); };
-const txt = () => evalJs(`document.body.innerText`);
-const fill = (o) => evalJs(`(()=>{
-  const set=(el,v)=>{ Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(el,v); el.dispatchEvent(new Event('input',{bubbles:true})); };
-  const ins=[...document.querySelectorAll('input')].filter(i=>i.type!=='file');
-  const by=ph=>ins.find(i=>(i.placeholder||'').includes(ph));
-  const o=${JSON.stringify(o)};
-  if('name' in o) set(by('홍길동'),o.name);
-  if('phone' in o) set(by('010-1234-5678'),o.phone);
-  if('addr' in o) set(by('서울특별시'),o.addr);
-  if('fee' in o) set(by('800000'),o.fee);
-  if('rrn' in o) set(by('비워두면'),o.rrn);
-  if('email' in o) set(by('model@example.com'),o.email);
-  set(document.querySelector('input[type=date]'),'2026-09-21');
-  return 1;
-})()`);
-const openModal = async () => {
+const J = JSON.stringify;
+const click = (sel, txt) => evalJs(`(()=>{const b=[...document.querySelectorAll(${J(sel)})].find(x=>x.textContent.includes(${J(txt)}));if(!b)throw new Error('없음: '+${J(sel + ' / ' + txt)});b.click();return 1})()`);
+const panel = () => evalJs(`(document.querySelector('.s2p')||{}).innerText||''`);
+const fill = (label, v) => evalJs(`(()=>{const f=[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith(${J(label)}));const el=f.querySelector('input,textarea');
+  const proto=el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${J(v)});el.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);
+const msg = () => evalJs(`((document.querySelector('.s2p .ms-msg')||{}).innerText||'')`);
+const row = (bi, n) => savedData.brands[bi].step2Rows.find(r => r.name === n) || {};
+const load = async () => {
   await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-  await waitFor(`document.querySelector('.contract-link')`, '앱 로딩');
-  await evalJs(`(window.__cf=[],window.confirm=m=>{window.__cf.push(m);return true},1)`);
-  await evalJs(`document.querySelector('.contract-link').click(), 1`);
-  await waitFor(`[...document.querySelectorAll('div')].some(d=>d.textContent.trim()==='📝 계약서 생성 (워드)')`, '계약서 생성 창');
+  await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('STEP2'))`, '앱 로딩');
+  await evalJs(`(window.confirm=()=>true,window.alert=()=>{},1)`);
+};
+const openCh = async n => {
+  await click('.step-tab', 'STEP2'); await waitFor(`document.querySelector('.ch-link')`, '컨택현황'); await wait(300);
+  await evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent===${J(n)});s.click();return 1})()`); await wait(400);
 };
 
-await openModal();
-console.log('\n[기본] 📧 메일이 기본 · 기존 화면 그대로');
-chk((await txt()).includes('받는 사람 이메일') && (await txt()).includes('메일 보내기'), '메일 방식: 이메일 칸·메일 보내기');
-chk(await evalJs(`!!document.querySelector('.ct-via')`), '관리자는 📧/✍️ 선택이 보임');
+// 등록 양식 준비 — 앱 기본 양식을 빈 값으로 만들어 '올린 양식'처럼 쓴다
+await load();
+const blank = await evalJs(`(async()=>{const b=await window.buildContractDocx('basetune','','','',{});return await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(new Blob([b.bytes],{type:b.type}));});})()`);
+await fetch(`http://127.0.0.1:${PORT}/api`, { method: 'POST', body: J({ action: '_setTpl', data: blank }) });
 
-console.log('\n[브리지 꺼짐] 안내');
-await clickBtn('✍️ 모두싸인'); await waitFor(`document.querySelector('.ms-list')`, '모두싸인 화면');
-await waitFor(`document.body.innerText.includes('모두싸인_시작.bat')`, '브리지 꺼짐 안내');
-chk(true, '목록을 못 읽으면 「모두싸인_시작.bat」 안내');
-await fill({ name: '김하늘', phone: '010-9999-8888', addr: '서울특별시 강남구 테헤란로 1', fee: '800000' });
-await sendMs();
-await waitFor(`document.body.innerText.includes('모두싸인 요청 실패')`, '발송 실패 안내');
-chk((await txt()).includes('모두싸인_시작.bat'), '보내기 눌러도 브리지 꺼져 있으면 안내');
+await load();
+await openCh('에이채널');
+console.log('\n[화면] 계약서발송/수집 단계');
+let p = await panel();
+chk(['실명 (계약자)', '연락처 (카카오톡', '주소', '주민등록번호', '모델료', '계약일자', '✍️ 모두싸인으로 계약서 보내기', '계약서 링크', '계약 완료'].every(s => p.includes(s)), '입력칸·모두싸인 버튼·계약 완료');
+chk(p.includes('김하늘') || (await evalJs(`[...document.querySelectorAll('.s2p input')].some(i=>i.value==='김하늘')`)), '앞 단계에서 넣은 실명이 채워져 있음');
 
-console.log('\n[발송] 카카오톡');
+console.log('\n[막기] 모델료 없으면 / 브리지 꺼짐');
+await click('.s2p button', '모두싸인으로 계약서 보내기'); await wait(300);
+chk(/모델료/.test(await msg()) && bridgeCalls.length === 0, '모델료 없으면 안내');
+await fill('모델료', '80,000'); await fill('주소', '서울특별시 강남구 테헤란로 1');
+await click('.s2p button', '모두싸인으로 계약서 보내기'); await wait(300);
+chk(/김하늘 님 · 카카오톡 010-9999-8888 · 80,000원/.test(await evalJs(`(document.querySelector('.s2p .ms-ask')||{}).innerText||''`)), '첫 클릭은 받는 곳·금액 확인만');
+await click('.s2p button', '확인 — 보내기');
+await waitFor(`document.querySelector('.s2p .ms-msg')`, '실패 안내');
+chk(/모두싸인_시작\.bat/.test(await msg()), '브리지 꺼져 있으면 「모두싸인_시작.bat」 안내', await msg());
+chk(!row(0, '에이채널').contractSent, '실패하면 발송 기록 안 남음');
+
+console.log('\n[발송]');
 await startBridge();
-await clickBtn('↻ 새로고침'); await wait(500);
-chk((await evalJs(`document.querySelector('.ms-list').innerText`)).includes('아직 없음'), '브리지 켜면 빈 목록');
-await fill({ phone: '' }); await clickBtn('서명 요청 보내기'); await wait(400);
-chk((await txt()).includes('010 휴대폰 번호를 전화번호 칸에') && bridgeCalls.length === 0, '전화번호 없으면 막음');
-await fill({ phone: '010-9999-8888' });
-await clickBtn('서명 요청 보내기'); await wait(300);
-chk(/김하늘 님 · 카카오톡 010-9999-8888/.test(await evalJs("(document.querySelector('.ms-ask')||{}).innerText||''")) && bridgeCalls.length === 0, '첫 클릭은 창 안에서 받는 곳 확인만(아직 안 보냄)');
-await clickBtn('확인 — 보내기');
-await waitFor(`document.body.innerText.includes('김하늘 님에게 서명 요청을 보냈습니다')`, '발송 안내');
+await click('.s2p button', '모두싸인으로 계약서 보내기'); await wait(200);
+await click('.s2p button', '확인 — 보내기');
+await waitFor(`/서명 요청을 보냈습니다/.test((document.querySelector('.s2p .ms-msg')||{}).innerText||'')`, '발송 안내');
 const c0 = bridgeCalls[0] || {};
-chk(c0.name === '김하늘' && c0.method === 'KAKAO' && c0.to === '010-9999-8888' && c0.by === '테스터', '브리지에 이름·카카오톡·번호·보낸 사람', c0);
-chk(c0.needRrn === true, '주민번호 비워 보내면 모델 입력칸 요청');
-chk(/광고모델계약서_김하늘/.test(c0.title || '') && !/\.docx$/.test(c0.title), '제목 = 계약서 파일명(.docx 뗌)', c0.title);
+chk(c0.name === '김하늘' && c0.method === 'KAKAO' && c0.to === '010-9999-8888' && c0.by === '테스터', '브리지: 실명·카카오톡·번호·보낸 사람', { n: c0.name, m: c0.method, to: c0.to, by: c0.by });
+chk(c0.needRrn === true, '주민번호 비우면 모델이 서명할 때 입력');
+chk(/광고모델계약서_김하늘/.test(c0.title || ''), '제목 = 계약서 파일명', c0.title);
 let xml = '';
 try { xml = unzip(Buffer.from(String(c0.data).split(',')[1], 'base64'))['word/document.xml'].toString('utf8').replace(/<[^>]+>/g, ''); } catch (e) { chk(false, '보낸 파일 풀기: ' + e.message); }
-chk(xml.includes('김하늘') && xml.includes('800,000') && xml.includes('010-9999-8888') && xml.includes('서울특별시 강남구 테헤란로 1'), '보낸 파일 = 입력값 채운 계약서');
-chk(xml.includes('(인)') && xml.includes('주민등록번호'), '서명 자리 기준 글자가 계약서에 있음');
-await waitFor(`document.querySelectorAll('.ms-item').length===1`, '목록 갱신');
-chk(/김하늘.*테스터.*카카오톡 보냄/.test(await evalJs(`document.querySelector('.ms-item').innerText.replace(/\\s+/g,' ')`)), '목록: 김하늘 · 테스터 · 카카오톡 보냄');
+chk(xml.includes('김하늘') && xml.includes('80,000') && xml.includes('010-9999-8888') && xml.includes('서울특별시 강남구 테헤란로 1'), '보낸 파일 = 등록 양식에 실명·모델료·연락처·주소');
+await wait(1800);
+const r0 = row(0, '에이채널');
+chk(!!r0.contractSent && r0.rate === '80,000' && r0.address === '서울특별시 강남구 테헤란로 1', '발송 기록·단가·주소 저장', { s: r0.contractSent, rate: r0.rate, a: r0.address });
+chk(r0.contractDone === '미완료', '계약 완료는 그대로(서명 후 직접)');
+chk(!JSON.stringify(savedData).includes('900101'), '주민번호는 어디에도 저장 안 됨');
 
-console.log('\n[발송] 이메일 · 주민번호 채움');
-await evalJs(`[...document.querySelectorAll('input[name=ms-how]')][1].click(),1`); await wait(200);
-await fill({ name: '박바다', email: 'sea@example.com', rrn: '900101-1234567' });
-await sendMs();
-await waitFor(`document.body.innerText.includes('박바다 님에게 서명 요청을 보냈습니다')`, '이메일 발송 안내');
+console.log('\n[주민번호 채워 보내기]');
+await fill('주민등록번호', '900101-1234567');
+await click('.s2p button', '모두싸인으로 계약서 보내기'); await wait(200);
+await click('.s2p button', '확인 — 보내기');
+for (let i = 0; i < 40 && bridgeCalls.length < 2; i++) await wait(250);
 const c1 = bridgeCalls[1] || {};
-chk(c1.method === 'EMAIL' && c1.to === 'sea@example.com' && c1.needRrn === false, '이메일·주민번호칸 없음', { m: c1.method, to: c1.to, r: c1.needRrn });
+chk(c1.needRrn === false, '주민번호 넣으면 모델 입력칸 없음');
+let x1 = ''; try { x1 = unzip(Buffer.from(String(c1.data).split(',')[1], 'base64'))['word/document.xml'].toString('utf8').replace(/<[^>]+>/g, ''); } catch {}
+chk(x1.includes('900101-1234567'), '주민번호는 계약서에만 들어감');
+await wait(1800);
+chk(!JSON.stringify(savedData).includes('900101'), '저장 데이터엔 여전히 없음');
 
-console.log('\n[매니저] 모두싸인 선택이 안 보임');
+console.log('\n[양식 없는 브랜드]');
+const nb = bridgeCalls.length;
+await click('.brand-tab, button', '그래니'); await wait(800);
+await openCh('그래니채널');
+await click('.s2p button', '모두싸인으로 계약서 보내기'); await wait(200);
+await click('.s2p button', '확인 — 보내기');
+await waitFor(`/등록된 계약서 양식이 없습니다/.test((document.querySelector('.s2p .ms-msg')||{}).innerText||'')`, '양식 없음 안내');
+chk(bridgeCalls.length === nb, '양식 없으면 안 보냄');
+
+console.log('\n[매니저] 예전 화면');
 role = 'staff';
-await openModal();
-chk(!(await evalJs(`!!document.querySelector('.ct-via')`)) && (await txt()).includes('메일 보내기'), '매니저는 메일만');
+await load();
+await openCh('에이채널');
+p = await panel();
+chk(!p.includes('모두싸인') && p.includes('계약 완료일') && p.includes('계약 완료'), '매니저는 모두싸인 버튼 없이 계약 완료만');
 
 console.log('\n' + (fail ? ('❌ 실패 ' + fail + '건') : '✅ 전부 통과'));
 try { chrome.kill(); } catch {}

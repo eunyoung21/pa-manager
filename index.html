@@ -1145,6 +1145,21 @@ function contractMailDefaults({ brandName, company, name, fee, date, phone, rrn,
 
 // 모두싸인 자동 발송 브리지(관리자 PC, D:\Git\pa-modusign-bridge) — 테스트는 window.MS_BRIDGE 로 바꿔 끼운다
 const MS_BRIDGE = window.MS_BRIDGE || 'http://localhost:8791';
+const MS_BRIDGE_DOWN = '모두싸인 브리지가 꺼져 있습니다 — 이 PC에서 「모두싸인_시작.bat」을 켜 주세요.';
+// 등록된 브랜드 계약서 양식(📄 계약서 생성 ⚙에서 올린 .docx)으로만 만든다 — 없으면 보내지 않는다.
+async function buildBrandContract(brand, { name, fee, date, phone, addr, rrn }){
+  if(!brand || !brand.contractTemplate) throw new Error('이 브랜드에 등록된 계약서 양식이 없습니다 — 위쪽 📄 계약서 생성 ⚙에서 양식을 올려 주세요.');
+  const bytes = await loadContractTemplate(brand.contractTemplate);
+  return window.buildContractFromTemplate(bytes, name, fee, date, { name, phone, addr, rrn }, brand.id);
+}
+async function sendModusign(payload){
+  let j;
+  try{ j = await (await fetch(MS_BRIDGE+'/send', { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload) })).json(); }
+  catch(e){ throw new Error(MS_BRIDGE_DOWN); }
+  if(!j || j.error) throw new Error((j && j.error) || '요청 실패');
+  return j;
+}
+const ymdFromDisp = s => { const m = String(s||'').match(/(\d{2,4})[.\-/](\d{1,2})[.\-/](\d{1,2})/); if(!m) return ''; const y = m[1].length===2 ? '20'+m[1] : m[1]; return `${y}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`; };
 /* ─── 계약서 생성 모달 (모델명·모델료·계약일자 입력 → 워드 다운로드)
    양식은 브랜드별로 업로드해 쓴다 — 계약서 문구가 바뀌면 새 파일만 올리면 되고 코드는 안 고친다.
    업로드한 양식이 없으면 앱에 내장된 기본 양식으로 만든다(종전과 동일). ─── */
@@ -1166,13 +1181,6 @@ function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUp
   const [tplOpen,setTplOpen]=useState(false);  // 양식 교체 패널(⚙)
   const [subject,setSubject]=useState('');  // 비우면 기본 문구 사용
   const [body,setBody]=useState('');
-  // 보내는 방식 — 📧 메일(계약서 첨부) / ✍️ 모두싸인(전자서명, 관리자 PC에서만). 마지막 선택을 기억한다.
-  const [via,setViaRaw]=useState(()=>{ if(!canEdit) return 'mail'; try{ return localStorage.getItem('pa_ct_via')==='ms'?'ms':'mail'; }catch{ return 'mail'; } });
-  const setVia=v=>{ setViaRaw(v); setErr(''); setSent(''); setFailed(false); try{ localStorage.setItem('pa_ct_via',v); }catch{} };
-  const [msHow,setMsHow]=useState('KAKAO');   // 모두싸인 받는 방법: 카카오톡(전화번호) / 이메일
-  const [msItems,setMsItems]=useState(null);  // 보낸 서명 요청 목록(null=아직 안 읽음)
-  const [msLoading,setMsLoading]=useState(false);
-  const [msAsk,setMsAsk]=useState(''); // 보내기 전 확인(창 안에서 — 브라우저 확인창이 안 뜨는 환경도 있어서)
   const tplRef=useRef(null);
   const hasCfg = !!(window.CONTRACT_BRANDS && window.CONTRACT_BRANDS[brandId]);
   const company = window.CONTRACT_BRANDS?.[brandId]?.company || '';
@@ -1222,41 +1230,6 @@ function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUp
       setErr('메일 발송 실패: '+(e&&e.message||e));
       setFailed(true);
     }
-    finally{ setBusy(false); }
-  };
-  // 모두싸인 — 같은 계약서 파일을 관리자 PC의 모두싸인 창으로 보내 서명을 받는다.
-  // 관리자 PC에서 '모두싸인_시작.bat'(pa-modusign-bridge)이 켜져 있어야 한다 — API 키·요금 없이 내 계정 그대로.
-  const bridgeDown='모두싸인 브리지가 꺼져 있습니다 — 이 PC에서 「모두싸인_시작.bat」을 켜 주세요.';
-  const loadMs=async()=>{
-    setMsLoading(true);
-    try{
-      const j=await (await fetch(MS_BRIDGE+'/list')).json();
-      setMsItems(j.items||[]);
-    }catch(e){ setMsItems([]); setErr(bridgeDown); }
-    finally{ setMsLoading(false); }
-  };
-  useEffect(()=>{ if(via==='ms'&&msItems===null) loadMs(); },[via]);
-  const sendMs=async()=>{
-    if(!check()) return;
-    const to=msHow==='KAKAO'?phone.trim():email.trim();
-    if(msHow==='KAKAO'&&!/^010\d{8}$/.test(to.replace(/[^0-9]/g,''))){ setErr('카카오톡으로 받을 010 휴대폰 번호를 전화번호 칸에 입력하세요.'); return; }
-    if(msHow==='EMAIL'&&!isEmail(to)){ setErr('받는 사람 이메일을 정확히 입력하세요.'); return; }
-    const ask=`${name.trim()} 님 · ${msHow==='KAKAO'?'카카오톡 '+to:'이메일 '+to}`;
-    if(msAsk!==ask){ setMsAsk(ask); setErr(''); setSent(''); return; }   // 첫 클릭은 확인만, 같은 내용으로 한 번 더 누르면 발송
-    setMsAsk(''); setBusy(true); setErr(''); setSent('');
-    try{
-      const built=await buildDocx();
-      const dataUrl=await bytesToDataUrl(built.bytes, built.type);
-      let j;
-      try{
-        j=await (await fetch(MS_BRIDGE+'/send',{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body:JSON.stringify({ name:name.trim(), method:msHow, to, data:dataUrl, title:built.filename.replace(/\.docx$/i,''),
-            needRrn:!rrn.trim(), by:(getAuth()||{}).username||'' })})).json();
-      }catch(e2){ throw new Error(bridgeDown); }
-      if(!j || j.error) throw new Error((j&&j.error)||'요청 실패');
-      setSent(`${name.trim()} 님에게 서명 요청을 보냈습니다.`);
-      loadMs();
-    }catch(e){ setErr('모두싸인 요청 실패: '+(e&&e.message||e)); }
     finally{ setBusy(false); }
   };
   // 발송이 막혔을 때의 수동 경로 — 파일을 내려받고 Gmail 작성창을 띄운다(첨부만 직접).
@@ -1351,28 +1324,6 @@ function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUp
       <input style={I} value={fee} onChange={e=>setFee(e.target.value)} placeholder="800000" inputMode="numeric" onKeyDown={e=>e.key==='Enter'&&go()}/>
       <label style={L}>계약일자</label>
       <input style={I} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
-      {/* 보내는 방식 — 모두싸인은 관리자 PC에서만 */}
-      {canEdit&&<div className="ct-via" style={{display:'flex',marginTop:16,border:'1px solid var(--border)',borderRadius:8,overflow:'hidden'}}>
-        {[['mail','📧 메일'],['ms','✍️ 모두싸인']].map(([k,l])=>(
-          <button key={k} onClick={()=>setVia(k)} style={{flex:1,padding:'8px 0',border:0,fontSize:13,fontWeight:via===k?700:500,cursor:'pointer',
-            background:via===k?'var(--text)':'transparent',color:via===k?'var(--surface)':'var(--muted)'}}>{l}</button>
-        ))}
-      </div>}
-
-      {via==='ms'&&<>
-        <label style={L}>받는 방법</label>
-        <div style={{display:'flex',gap:14,fontSize:13}}>
-          {[['KAKAO','카카오톡 (전화번호)'],['EMAIL','이메일']].map(([k,l])=>(
-            <label key={k} style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer'}}>
-              <input type="radio" name="ms-how" checked={msHow===k} onChange={()=>{setMsHow(k);setErr('');}}/>{l}</label>
-          ))}
-        </div>
-        {msHow==='KAKAO'
-          ? <div style={{fontSize:11,color:'var(--muted)',marginTop:5}}>위 전화번호로 카카오톡 서명 요청이 갑니다{phone.trim()?` — ${phone.trim()}`:' (전화번호를 입력하세요)'}.</div>
-          : <input style={{...I,marginTop:6}} value={email} onChange={e=>{setEmail(e.target.value);setSent('');}} placeholder="model@example.com" inputMode="email"/>}
-      </>}
-
-      {via==='mail'&&<>
       <label style={L}>받는 사람 이메일 <span style={{color:'var(--muted)',fontWeight:400}}>(메일 발송용)</span></label>
       <input style={I} value={email} onChange={e=>{setEmail(e.target.value);setSent('');setFailed(false);}} placeholder="model@example.com" inputMode="email" onKeyDown={e=>e.key==='Enter'&&sendMail()}/>
 
@@ -1386,37 +1337,15 @@ function ContractGenModal({ brandId, brandName, onClose, template, canEdit, onUp
         <input style={{...I,fontSize:12}} value={subject} onChange={e=>setSubject(e.target.value)} placeholder="제목"/>
         <textarea style={{...I,fontSize:12,marginTop:6,height:150,resize:'vertical',fontFamily:'inherit',lineHeight:1.5}} value={body} onChange={e=>setBody(e.target.value)} placeholder="본문"/>
       </div>}
-      </>}
 
       {err&&<div style={{color:'var(--red)',fontSize:12,marginTop:10}}>{err}</div>}
       {sent&&<div style={{color:'var(--green,#15803d)',fontSize:12,marginTop:10}}>✅ {sent}</div>}
-      {via==='ms'&&msAsk&&!busy&&<div className="ms-ask" style={{fontSize:12,marginTop:10,lineHeight:1.5}}>{msAsk} 에게 서명 요청을 보냅니다. 맞으면 아래 버튼을 한 번 더 누르세요.</div>}
-      {failed&&via==='mail'&&<button onClick={manualMail} disabled={busy} style={{width:'100%',marginTop:8,padding:'9px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',fontSize:12,cursor:'pointer'}}>대신 Gmail 작성창 열기 (파일은 직접 첨부)</button>}
+      {failed&&<button onClick={manualMail} disabled={busy} style={{width:'100%',marginTop:8,padding:'9px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',fontSize:12,cursor:'pointer'}}>대신 Gmail 작성창 열기 (파일은 직접 첨부)</button>}
       <div style={{marginTop:18,display:'flex',gap:8}}>
-        {via==='ms'
-          ? <button onClick={sendMs} disabled={busy} style={{flex:1,padding:'11px',border:0,borderRadius:8,background:busy?'#6b7280':'var(--blue)',color:'#fff',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer'}} title="계약서를 모두싸인으로 보내 서명을 받습니다">{busy?'모두싸인에서 보내는 중…':msAsk?'✅ 확인 — 보내기':'✍️ 서명 요청 보내기'}</button>
-          : <button onClick={sendMail} disabled={busy} style={{flex:1,padding:'11px',border:0,borderRadius:8,background:busy?'#6b7280':'var(--blue)',color:'#fff',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer'}} title="계약서를 만들어 입력한 주소로 첨부 발송합니다">{busy?'처리 중…':'📧 메일 보내기'}</button>}
+        <button onClick={sendMail} disabled={busy} style={{flex:1,padding:'11px',border:0,borderRadius:8,background:busy?'#6b7280':'var(--blue)',color:'#fff',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer'}} title="계약서를 만들어 입력한 주소로 첨부 발송합니다">{busy?'처리 중…':'📧 메일 보내기'}</button>
         <button onClick={go} disabled={busy} style={{flex:'none',padding:'11px 14px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',fontSize:13,fontWeight:700,cursor:busy?'default':'pointer'}} title="메일 없이 워드 파일만 내려받기">📝 내려받기</button>
       </div>
-      {via==='ms'
-        ? <div style={{fontSize:11,color:'var(--muted)',marginTop:8,lineHeight:1.5}}>이 PC의 모두싸인 창이 계약서를 올려 모델 (인) 자리에 서명칸을 놓고 보냅니다. 모델은 휴대폰에서 바로 서명합니다{rrn.trim()?'':'(주민등록번호도 그 화면에서 입력)'}. 서명 진행은 모두싸인 문서함에서 확인하세요.</div>
-        : <div style={{fontSize:11,color:'var(--muted)',marginTop:8,lineHeight:1.5}}>이름·전화번호·주소가 모델란에 자동 반영됩니다. 주민등록번호·서명은 모델이 워드에서 직접 채웁니다. 메일은 {TEAM_EMAIL} 에서 계약서 파일을 첨부해 나갑니다.</div>}
-
-      {/* 이 PC에서 보낸 서명 요청 기록 */}
-      {via==='ms'&&<div className="ms-list" style={{marginTop:14,borderTop:'1px solid var(--border)',paddingTop:10}}>
-        <div style={{display:'flex',alignItems:'center',fontSize:12,fontWeight:700}}>
-          <span style={{flex:1}}>보낸 서명 요청</span>
-          <a href="https://app.modusign.co.kr/esign/documents/documents" target="_blank" rel="noopener" style={{fontSize:11,color:'var(--muted)',marginRight:10}}>문서함 ↗</a>
-          <button onClick={loadMs} disabled={msLoading} style={{padding:0,border:0,background:'transparent',color:'var(--muted)',fontSize:11,cursor:'pointer'}}>{msLoading?'확인 중…':'↻ 새로고침'}</button>
-        </div>
-        {(msItems||[]).length===0
-          ? <div style={{fontSize:11,color:'var(--muted)',marginTop:6}}>{msItems===null||msLoading?'불러오는 중…':'아직 없음'}</div>
-          : <div style={{maxHeight:150,overflowY:'auto',marginTop:4}}>{msItems.slice(0,20).map(it=>(
-              <div key={(it.sentAt||'')+it.name} className="ms-item" style={{display:'flex',alignItems:'center',gap:8,fontSize:12,padding:'5px 0',borderBottom:'1px solid var(--border)'}}>
-                <span style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{it.name} <span style={{color:'var(--muted)',fontSize:11}}>{String(it.sentAt||'').slice(5,10).replace('-','/')}{it.by?` · ${it.by}`:''}</span></span>
-                <span className="ms-st" style={{fontSize:11,color:'var(--muted)',whiteSpace:'nowrap'}}>{it.method==='EMAIL'?'이메일':'카카오톡'} 보냄</span>
-              </div>))}</div>}
-      </div>}
+      <div style={{fontSize:11,color:'var(--muted)',marginTop:8,lineHeight:1.5}}>이름·전화번호·주소가 모델란에 자동 반영됩니다. 주민등록번호·서명은 모델이 워드에서 직접 채웁니다. 메일은 {TEAM_EMAIL} 에서 계약서 파일을 첨부해 나갑니다.</div>
       <button onClick={onClose} style={{width:'100%',marginTop:10,padding:'9px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',cursor:'pointer'}}>닫기</button>
     </div>
   </div>;
@@ -4116,9 +4045,11 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
   const handle=igHandle(r.link);
   const init=()=>({name:r.name||'',followers:r.followers||'',date:r.date||'',memo:r.memo||'',
     realName:r.realName||(rv&&rv.realName)||'',phone:r.phone||'',address:r.address||'',
-    contractDate:r.contractDate||today(),contractUrl:r.contractUrl||'',rate:r.rate||'',adCode:(rv&&rv.paCode)||''});
+    contractDate:r.contractDate||today(),contractUrl:r.contractUrl||'',rate:r.rate||'',adCode:(rv&&rv.paCode)||'',rrn:''});
   const [f,setF]=useState(init);
-  useEffect(()=>{setF(init());},[r.id]);
+  // 모두싸인 발송 — 첫 클릭은 받는 곳 확인, 같은 내용으로 한 번 더 누르면 보낸다(주민번호는 계약서에만 넣고 저장 안 함)
+  const [msAsk,setMsAsk]=useState(''), [msBusy,setMsBusy]=useState(false), [msMsg,setMsMsg]=useState(null);
+  useEffect(()=>{setF(init());setMsAsk('');setMsMsg(null);},[r.id]);
   const u=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const upd=patch=>H.current.onUpdate(r.id,patch);
   const dates=[r.date,r.dmDate,r.dealDate,r.contractDate||(rv&&rv.contractDate),r.shipDate,r.finalDate];
@@ -4170,11 +4101,50 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     <div className="s2p-btns">
       <button className="btn btn-primary" onClick={()=>{upd({realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()});H.current.setDeal(r,'Y');}}>협찬 성사 완료</button>{reject}
     </div></>;
-  else if(st===2) action=<>
+  else if(st===2&&IS_STAFF) action=<>
     {fld('계약 완료일','contractDate','YY.MM.DD')}
     {fld('계약서 링크','contractUrl','계약서 파일 링크')}
     {fld('특이사항 (진행 단가 등)','rate','예: 80,000')}
     <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),contractUrl:f.contractUrl.trim(),rate:f.rate.trim()})}>계약 완료 →</button>{reject}</div></>;
+  else if(st===2){
+    // 관리자: 등록 양식 + 이 정보로 계약서를 만들어 모두싸인(관리자 PC 브리지)으로 보낸다
+    const sendMs=async()=>{
+      const name=f.realName.trim(), phone=f.phone.trim(), fee=f.rate.replace(/[^0-9]/g,''), date=ymdFromDisp(f.contractDate)||ymdFromDisp(today());
+      if(!name) return setMsMsg({err:'실명(계약자)을 입력하세요.'});
+      if(!/^010\d{8}$/.test(phone.replace(/[^0-9]/g,''))) return setMsMsg({err:'카카오톡으로 받을 010 휴대폰 번호를 입력하세요.'});
+      if(!fee) return setMsMsg({err:'모델료(진행 단가)를 입력하세요.'});
+      const ask=`${name} 님 · 카카오톡 ${phone} · ${Number(fee).toLocaleString()}원`;
+      if(msAsk!==ask){ setMsAsk(ask); setMsMsg(null); return; }
+      setMsAsk(''); setMsBusy(true); setMsMsg(null);
+      try{
+        const built=await buildBrandContract(brand,{name,fee,date,phone,addr:f.address.trim(),rrn:f.rrn.trim()});
+        const dataUrl=await bytesToDataUrl(built.bytes, built.type);
+        await sendModusign({ name, method:'KAKAO', to:phone, data:dataUrl, title:built.filename.replace(/\.docx$/i,''),
+          needRrn:!f.rrn.trim(), by:(getAuth()||{}).username||'' });
+        upd({realName:name,phone,address:f.address.trim(),rate:f.rate.trim(),contractDate:f.contractDate.trim()||today(),contractSent:today()});
+        setMsMsg({ok:`${name} 님에게 모두싸인 서명 요청을 보냈습니다.`});
+      }catch(e){ setMsMsg({err:'모두싸인 발송 실패: '+(e&&e.message||e)}); }
+      finally{ setMsBusy(false); }
+    };
+    action=<>
+      <p className="s2p-help">아래 정보로 등록된 {(brand&&brand.name)||''} 계약서 양식을 채워 모두싸인(카카오톡)으로 보냅니다. 모델은 휴대폰에서 서명해요.</p>
+      {fld('실명 (계약자)','realName','홍길동')}
+      {fld('연락처 (카카오톡 받을 번호)','phone','010-0000-0000')}
+      {fld('주소','address','주소 입력',true)}
+      {fld('주민등록번호 (선택 — 비우면 모델이 서명할 때 입력 · 저장 안 됨)','rrn','')}
+      {fld('모델료 (진행 단가)','rate','예: 80,000')}
+      {fld('계약일자','contractDate','YY.MM.DD')}
+      {msAsk&&!msBusy&&<p className="s2p-help ms-ask" style={{color:'var(--text)'}}>{msAsk} 으로 보냅니다. 맞으면 버튼을 한 번 더 누르세요.</p>}
+      {msMsg&&<p className="s2p-help ms-msg" style={{color:msMsg.err?'var(--red)':'var(--green,#15803d)'}}>{msMsg.err||('✅ '+msMsg.ok)}</p>}
+      {r.contractSent&&!msMsg&&<p className="s2p-help">✍️ {r.contractSent} 모두싸인 발송함 — 서명되면 계약서 링크를 넣고 '계약 완료'를 누르세요.</p>}
+      <div className="s2p-btns" style={{marginBottom:10}}>
+        <button className="btn btn-primary ms-send" disabled={msBusy} onClick={sendMs}>{msBusy?'모두싸인에서 보내는 중…':msAsk?'✅ 확인 — 보내기':'✍️ 모두싸인으로 계약서 보내기'}</button>
+        <a className="s2p-help" href="https://app.modusign.co.kr/esign/documents/documents" target="_blank" rel="noopener" style={{margin:0}}>문서함 ↗</a>
+      </div>
+      <div className="s2p-hr"/>
+      {fld('계약서 링크','contractUrl','계약서 파일 링크')}
+      <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),contractUrl:f.contractUrl.trim(),rate:f.rate.trim(),realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()})}>계약 완료 →</button>{reject}</div></>;
+  }
   else if(st===3) action=<>
     <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '제품 발송 완료'를 눌러주세요. 누르면 📦 출고 탭에도 자동으로 들어가요.</p>
     {editCopy('실명 (받는 분)','realName','홍길동',r.realName,v=>upd({realName:v}))}

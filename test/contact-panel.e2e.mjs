@@ -123,7 +123,7 @@ chk(r.dealDone==='Y'&&!!r.dealDate&&r.realName==='홍길동'&&r.phone==='010-123
 chk(await curStage()==='계약서발송/수집','현재 단계 계약서발송/수집',await curStage());
 
 console.log('\n[3→4] 계약 완료');
-await fill('특이사항','80,000');
+await fill('모델료','80,000');
 await pbtn('계약 완료');
 r=await saved('에이');
 chk(r.contractDone==='✅ 완료'&&!!r.contractDate&&r.rate==='80,000','계약 완료·계약일·단가',r);
