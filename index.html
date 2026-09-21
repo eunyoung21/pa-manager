@@ -3980,16 +3980,12 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
           {isClaude&&<th style={{width:60}}>답장</th>}
           {isClaude&&<th style={{width:70}}>승인</th>}
           <th style={{width:65}}>협업성사</th>
-          {isClaude&&<th style={{width:85}}>성사일</th>}
           <th style={{width:70}}>최종완료</th>
           <th style={{width:85}}>완료일</th>
           <th style={{width:90}}>단가</th>
-          {isClaude&&<th style={{width:80}}>완료수당</th>}
-          <th style={{minWidth:100}}>메모</th>
-          <th style={{width:70,textAlign:'center'}}>개인정보</th>
         </tr>
         {showColF&&<tr className="colf-row">
-          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent',...(isClaude?['replied','approved']:[]),'dealDone',...(isClaude?['dealDate']:[]),'finalDone','finalDate','rate',...(isClaude?[null]:[]),'memo',null].map((f,i)=>(
+          {[null,'date','name','link','followers',...(isClaude?['category']:[]),'pa','contactStatus','dmSent',...(isClaude?['replied','approved']:[]),'dealDone','finalDone','finalDate','rate'].map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
           ))}
         </tr>}
@@ -4029,7 +4025,11 @@ function s2Stage(r,rv){
   return 0;
 }
 function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship }){
-  const rv=s2Review(brand,r), st=s2Stage(r,rv);
+  const rv=s2Review(brand,r);
+  // 🤖 자동화 행의 정산(입금) 기록은 기존 규칙대로 컨택현황 행에 남으므로 그쪽도 본다
+  const settledElsewhere=(brand&&brand.step2Rows||[]).some(x=>x.id!==r.id&&x.infSettled==='Y'&&s2nz(x.name)===s2nz(r.name));
+  const st=s2Stage(settledElsewhere?{...r,infSettled:'Y'}:r,rv);
+  const privDone=(brand&&brand.privacyRows||[]).some(p=>s2nz(p.channelName)&&s2nz(p.channelName)===s2nz(r.name));
   const handle=igHandle(r.link);
   const init=()=>({name:r.name||'',followers:r.followers||'',date:r.date||'',memo:r.memo||'',
     realName:r.realName||(rv&&rv.realName)||'',phone:r.phone||'',address:r.address||'',
@@ -4143,6 +4143,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
         {fld('메모','memo','',true)}
         <div className="s2p-btns">
           <button className="btn s2p-outline" onClick={()=>upd({name:f.name.trim()||r.name,followers:f.followers.trim(),date:f.date.trim(),memo:f.memo})}>저장</button>
+          <button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 개인정보 {privDone?'✅ 보기·수정':'제출'}</button>
           <button className="btn s2p-danger" onClick={()=>{if(confirm(`'${r.name}' 을(를) 삭제할까요?\n복구할 수 없습니다.`)){H.current.onDelete(r.id);onClose();}}}>🗑 삭제</button>
         </div>
         <div className="s2p-hr"/>
@@ -4171,7 +4172,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                 <RowDelBtn name={r.name} onDelete={()=>H.current.onDelete(r.id)}/>
               </span></td>
               <td data-label="날짜"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
-              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}>{isClaude?<Cell value={r.name} onChange={v=>H.current.up(r.id,'name',v)} style={{whiteSpace:'nowrap',minWidth:'auto'}}/>:<span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>}</td>
+              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}>{<span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>}</td>
               <td data-label="링크" style={{textAlign:'center'}}>
                 {r.link?<a href={r.link} target="_blank" rel="noopener" style={{color:'var(--blue)',fontSize:13}}>↗</a>
                 :<Cell value={r.link} onChange={v=>H.current.up(r.id,'link',v)} placeholder="URL" style={{width:50}}/>}
@@ -4197,21 +4198,9 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                     </span>}
               </td>}
               <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>H.current.setDeal(r,v)}/></td>
-              {isClaude&&<td data-label="성사일"><Cell value={r.dealDate} onChange={v=>H.current.up(r.id,'dealDate',v)} type="date" style={{width:85}} placeholder={r.dealDone==='Y'?'날짜 입력':'—'}/></td>}
               <td data-label="최종완료" style={{textAlign:'center'}}><YN value={r.finalDone} onChange={v=>H.current.setFinal(r,v)}/></td>
               <td data-label="완료일"><Cell value={r.finalDate} onChange={v=>H.current.up(r.id,'finalDate',v)} type="date" style={{width:85}} placeholder={r.finalDone==='Y'?'날짜 입력':'—'}/></td>
               <td data-label="단가"><Cell value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80,color:'var(--yellow)'}}/></td>
-              {isClaude&&<td data-label="완료수당" style={{color:pay.deal>0?'var(--green)':'var(--dim)',fontWeight:600,fontSize:11}}>{fmtMoney(pay.deal)}</td>}
-              <td data-label="메모"><Cell value={r.memo} onChange={v=>H.current.up(r.id,'memo',v)} type="textarea" placeholder="메모…"/></td>
-              <td data-label="개인정보" style={{textAlign:'center'}}>
-                {r.dealDone==='Y'
-                  ? <button className="btn btn-ghost" title={privSubmitted?'제출된 개인정보 수정':'개인정보 제출'}
-                      style={{fontSize:10,padding:'3px 10px',whiteSpace:'nowrap',color:privSubmitted?'var(--green)':'var(--text)',borderColor:privSubmitted?'#22c55e55':'var(--border)'}}
-                      onClick={()=>H.current.onAddPrivacy&&H.current.onAddPrivacy(r)}>
-                      {privSubmitted?'✅ 제출됨 · 수정':'📝 제출'}
-                    </button>
-                  : <span style={{color:'var(--dim)',fontSize:11}}>—</span>}
-              </td>
             </tr>;
 });
 
@@ -7016,7 +7005,8 @@ function AppMain({ authInfo, onLogout }) {
           onUpdate={updateClaudeS2Row}
           onDelete={deleteClaudeS2Row}
           onDeleteMany={ids=>deleteRowsMany('claudeStep2Rows',ids)}
-          onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:'',phone:r.phone,pa:sanitizePA(r.pa)})}
+          onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:r.realName||'',phone:r.phone,pa:sanitizePA(r.pa)})}
+          onSetAdCode={setReviewCode} onSettle={setInfSettledByName} onShip={shipFromContact} onUnship={unshipFromContact}
           filter={filter} setFilter={setFilter}
           search={search} setSearch={setSearch}
         />

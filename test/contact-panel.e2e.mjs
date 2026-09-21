@@ -248,9 +248,31 @@ r=await saved('디디 새이름');
 chk(!r.id&&!(await evalJs(`!!document.querySelector('.s2p')`)),'삭제하면 행이 지워지고 창 닫힘');
 chk(B().step2Rows.length===4&&['에이','비비','씨씨','이이'].every(n=>row(n).id),'다른 행은 그대로(5→4)',B().step2Rows.map(x=>x.name));
 
-console.log('\n[자동화 탭] 채널명은 전처럼 바로 수정');
+console.log('\n[표 칸] 메모·개인정보·성사일·수당 칸은 화면에서만 숨김');
+const HIDE=['성사일','DM수당','완료수당','소계','메모','개인정보'];
+let heads=await evalJs(`[...document.querySelectorAll('thead th')].map(t=>t.textContent.trim())`);
+chk(!heads.some(x=>HIDE.includes(x))&&heads.includes('단가')&&heads.includes('최종완료'),'컨택현황: 숨김 칸 없음 · 단가·최종완료는 그대로',heads);
+chk(row('씨씨').memo!==undefined,'메모 데이터는 그대로 남음');
+
+console.log('\n[상세 창] 개인정보 버튼(표에서 빠진 대신)');
+await openCh('씨씨'); await wait(300);
+await pbtn('개인정보'); await wait(400);
+chk(await evalJs(`[...document.querySelectorAll('.overlay .modal')].some(m=>m.innerText.includes('개인정보')||m.innerText.includes('실명'))`),'🔒 개인정보 버튼 → 개인정보 입력 창 열림');
+await evalJs(`(()=>{const o=[...document.querySelectorAll('.overlay')].pop();o&&o.dispatchEvent(new MouseEvent('click',{bubbles:true}));return 1})()`); await wait(300);
+await evalJs(`(()=>{const b=[...document.querySelectorAll('.overlay .modal button')].find(x=>/취소|닫기/.test(x.textContent));b&&b.click();return 1})()`); await wait(300);
+await pbtn('닫기'); await wait(200);
+
+console.log('\n[자동화 탭] 같은 상세 창 · 기록은 자동화 목록에');
 await evalJs(`(()=>{const m=[...document.querySelectorAll('.step-tab')].find(e=>e.textContent.includes('자동화'));m.click();return 1})()`); await wait(500);
-chk(!(await evalJs(`!!document.querySelector('.ch-link')`))&&(await evalJs(`!!document.querySelector('td[data-label="채널명"] .cell-val')`)),'자동화 탭엔 상세 창 링크 없음');
+heads=await evalJs(`[...document.querySelectorAll('thead th')].map(t=>t.textContent.trim())`);
+chk(!heads.some(x=>HIDE.includes(x))&&heads.includes('답장')&&heads.includes('승인'),'자동화: 성사일·완료수당·메모·개인정보 숨김 · 답장·승인 그대로',heads);
+await openCh('제이'); await wait(300);
+chk(await curStage()==='DM 발송 완료/ 진행 대기','자동화 행도 상세 창(현재 DM 발송 완료)',await curStage());
+await fill('실명','제이본명');
+await pbtn('협찬 성사 완료'); await wait(1600);
+const cj=B().claudeStep2Rows.find(x=>x.name==='제이');
+chk(cj&&cj.dealDone==='Y'&&cj.realName==='제이본명'&&!B().step2Rows.some(x=>x.name==='제이'),'자동화 목록 행에 기록(컨택현황에 안 생김)',cj);
+chk(await curStage()==='계약서발송/수집','다음 단계로',await curStage());
 
 console.log('\n'+(fail?`❌ 실패 ${fail}건`:'✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close();
