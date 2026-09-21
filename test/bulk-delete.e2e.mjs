@@ -147,14 +147,14 @@ console.log('\n[필터 범위] 승인 1건만 보이게 하고 전체선택');
 await clickText('📋 STEP1 리스트업');
 await waitFor(`document.querySelector('thead th.del-col input.sel-box')`,'리스트업 표');
 await wait(300);
-chk(await nRows()===3, '진행 중 3행', await nRows());
+chk(await nRows()===2, '리스트업 칩 = 승인 뺀 2행', await nRows());
 await evalJs(`(()=>{const b=[...document.querySelectorAll('.fchip')].find(x=>x.textContent.includes('승인'));b.click();return 1})()`);
 await wait(400);
 chk(await nRows()===1, '승인 필터 → 1행만 보임', await nRows());
 await selAll(); await wait(250);
 chk((await barTxt()).includes('1명 선택됨'), '전체선택해도 보이는 1명만', await barTxt());
 await bulkDel(); await wait(600);
-await evalJs(`(()=>{const b=[...document.querySelectorAll('.fchip')].find(x=>x.textContent.includes('진행 중'));b.click();return 1})()`);
+await evalJs(`(()=>{const b=[...document.querySelectorAll('.fchip')].find(x=>x.textContent.includes('리스트업'));b.click();return 1})()`);
 await wait(400);
 const left=await bodyTxt();
 chk(await nRows()===2 && left.includes('리스트1') && left.includes('리스트2'),

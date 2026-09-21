@@ -3734,10 +3734,10 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
       if(filter==='ap') return r.reviewStatus==='승인';
       if(filter==='wt') return r.reviewStatus==='검수대기';
       if(filter==='rj') return r.reviewStatus==='반려';
-      return r.reviewStatus!=='반려'; // '진행 중' = 반려 제외(반려는 칩에서만 모아 봄)
+      return r.reviewStatus!=='반려'&&r.reviewStatus!=='승인'; // '리스트업' = 아직 승인·반려 안 된 사람(승인·반려는 각 칩에서만 모아 봄)
     });
   },[rows,dayFilter,monthFilter,colFKey,cat,q,filter]);
-  const cnt=useMemo(()=>({all:rows.filter(r=>r.name&&r.reviewStatus!=='반려').length,ap:rows.filter(r=>r.reviewStatus==='승인').length,wt:rows.filter(r=>r.reviewStatus==='검수대기').length,rj:rows.filter(r=>r.reviewStatus==='반려').length}),[rows]);
+  const cnt=useMemo(()=>({all:rows.filter(r=>r.name&&r.reviewStatus!=='반려'&&r.reviewStatus!=='승인').length,ap:rows.filter(r=>r.reviewStatus==='승인').length,wt:rows.filter(r=>r.reviewStatus==='검수대기').length,rj:rows.filter(r=>r.reviewStatus==='반려').length}),[rows]);
   function up(id,k,v){onUpdate(id,{[k]:v});}
   const sel=useRowSelect(shown);
   const pg=useProgressive(shown);   // 화면에 보이는 만큼만 그린다
@@ -3745,7 +3745,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
   return <div className="view-wrap">
     <div className="view-main">
     <div className="toolbar">
-      {[{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'ap',l:`✅ 승인 (${cnt.ap})`,c:'f-ap'},{k:'wt',l:`검수대기 (${cnt.wt})`,c:'f-wt'},{k:'rj',l:`📦 반려 (${cnt.rj})`,c:'f-rj'}]
+      {[{k:'all',l:`리스트업 (${cnt.all})`,c:''},{k:'ap',l:`✅ 승인 (${cnt.ap})`,c:'f-ap'},{k:'wt',l:`검수대기 (${cnt.wt})`,c:'f-wt'},{k:'rj',l:`📦 반려 (${cnt.rj})`,c:'f-rj'}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
       <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
