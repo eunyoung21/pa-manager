@@ -3335,12 +3335,13 @@ const activePas=paList=>(paList||[]).filter(p=>p&&p!=='기타');
 // 담당자 탭 — 준섭 앱의 '제품 탭' 자리
 function PaTabs({infs,paFocus,setPaFocus,paList}){
   const cnt={}; infs.forEach(i=>{const k=i.pa||'미지정'; cnt[k]=(cnt[k]||0)+1;});
-  const names=[...(paList||[]).filter(p=>cnt[p]), ...Object.keys(cnt).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
+  // 담당자 관리에서 새로 추가한 사람도 바로 보이게 — 등록된 담당자('기타' 제외)는 0건이어도 표시
+  const names=[...(paList||[]).filter(p=>cnt[p]||activePas(paList).includes(p)), ...Object.keys(cnt).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
   return <div className="product-tabs">
     <div className={'ptab ptab-all'+(!paFocus?' active':'')} onClick={()=>setPaFocus(null)}>전체 ({infs.length})</div>
     {names.map(p=>{const on=paFocus===p, c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
       return <div key={p} className={'ptab'+(on?' active':'')} style={on?{background:c,borderColor:c}:undefined} onClick={()=>setPaFocus(on?null:p)}>
-        <span style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:on?'#fff':c,marginRight:6,verticalAlign:'middle'}}/>{p} ({cnt[p]})</div>;})}
+        <span style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:on?'#fff':c,marginRight:6,verticalAlign:'middle'}}/>{p} ({cnt[p]||0})</div>;})}
   </div>;
 }
 
@@ -3452,7 +3453,8 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const empty=<div className="todo-none">할 일 없음 ✓</div>;
 
   // 관리자 할 일 — 단계별로 묶어서
-  const bossStages=INF_STAGES.filter(s=>s.role==='boss');
+  // 이미 다 처리된 건(최종완료 = 영상·광고코드까지 끝, 광고세팅·입금완료 단계)은 할 일에 안 띄운다 — 카드 숫자에는 그대로 둠
+  const bossStages=INF_STAGES.filter(s=>s.role==='boss'&&s.key!=='adset');
   const bossTodo=bossStages.map(s=>{const l=byStage(s.id); if(!l.length) return null;
     return <div key={s.id} className="todo-group">
       <div className="todo-group-h" style={{color:s.color}}>{s.name} <span>{l.length}</span></div>
@@ -3475,7 +3477,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       push(i.pa||pa,i,k);
     }));
   }
-  const talkOrder=[...(paList||[]).filter(p=>talkBy[p]), ...Object.keys(talkBy).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
+  const talkOrder=[...(paList||[]).filter(p=>talkBy[p]||(activePas(paList).includes(p)&&(!paFocus||p===paFocus))), ...Object.keys(talkBy).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
   // 같은 인플루언서를 두 사람이 동시에 맡고 있으면(리스트업/컨택 담당이 다르거나 자동화와 겹침) 알려준다
   const dupTalk=useMemo(()=>{
     const m={}; const add=(name,pa,st)=>{const k=nzName(name); if(!k) return; (m[k]=m[k]||{name,pas:new Set()}).pas.add(pa||'미지정');};
@@ -3484,17 +3486,17 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     (brand.claudeStep2Rows||[]).filter(live).forEach(r=>add(r.name,r.pa?((paList||[]).includes(r.pa)?r.pa:(sanitizePA(r.pa)||r.pa)):AUTO_PA));
     return Object.values(m).filter(x=>x.pas.size>1).map(x=>({name:x.name,pas:[...x.pas]}));
   },[brand,paList]);
-  const partItems=active.filter(i=>INF_STAGES[i.stage].role==='part');
+  const partItems=active.filter(i=>INF_STAGES[i.stage].role==='part'&&INF_STAGES[i.stage].key!=='adset');
   const groups={}; partItems.forEach(i=>{const k=i.pa||'미지정'; (groups[k]=groups[k]||[]).push(i);});
-  const order=[...(paList||[]).filter(p=>groups[p]), ...Object.keys(groups).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
-  const partTodo=order.map(p=>{const l=groups[p].sort((a,b)=>b.stage-a.stage); const c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
+  const order=[...(paList||[]).filter(p=>groups[p]||(activePas(paList).includes(p)&&(!paFocus||p===paFocus))), ...Object.keys(groups).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
+  const partTodo=order.map(p=>{const l=(groups[p]||[]).sort((a,b)=>b.stage-a.stage); const c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
     const perStage=[5,2,1,0].map(id=>[id,l.filter(i=>i.stage===id).length]).filter(x=>x[1]);
     return <div key={p} className="todo-group">
       <div className="todo-group-h" style={{color:c}}>
         <span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:c,marginRight:6}}/>{p} <span>{l.length}</span>
         <span className="todo-group-sub">{perStage.map(([id,n])=>INF_STAGES[id].short+' '+n).join(' · ')}</span>
       </div>
-      {l.slice(0,MAX).map(item)}{moreRow(l.length,()=>go('manage','all',p))}
+      {l.length?l.slice(0,MAX).map(item):<div className="todo-none" style={{paddingLeft:16}}>할 일 없음 ✓</div>}{moreRow(l.length,()=>go('manage','all',p))}
     </div>;});
 
   return (
@@ -3520,7 +3522,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       <div className="talk-grid">
         {talkOrder.map(p=>{const q=String(talkQ[p]||'').trim().toLowerCase();
           const hit=({inf:i})=>!q||[i.name,i.realName,i.contact&&i.contact.memo].some(v=>String(v||'').toLowerCase().includes(q));
-          const l=talkBy[p].slice().sort((a,b)=>b.inf.stage-a.inf.stage||String(b.k).localeCompare(String(a.k)));
+          const l=(talkBy[p]||[]).slice().sort((a,b)=>b.inf.stage-a.inf.stage||String(b.k).localeCompare(String(a.k)));
           const c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
           const lbl=i=>i.stage===1?'답장 전':INF_STAGES[i.stage].short;
           const per={}; l.forEach(({inf})=>{const b=lbl(inf); per[b]=(per[b]||0)+1;});
@@ -3533,7 +3535,8 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
             </div>
             <div className="talk-sub">{Object.entries(per).map(([k,n])=>k+' '+n).join(' · ')}</div>
             <div className="talk-list">
-              {q&&!l.some(hit)&&<div className="todo-none" style={{padding:'6px 8px'}}>'{talkQ[p]}' 없음</div>}
+              {!l.length&&<div className="todo-none" style={{padding:'6px 8px'}}>소통 중인 사람 없음</div>}
+              {q&&l.length>0&&!l.some(hit)&&<div className="todo-none" style={{padding:'6px 8px'}}>'{talkQ[p]}' 없음</div>}
               {l.filter(hit).map(({inf:i,k})=>{const s=INF_STAGES[i.stage];
                 return <div key={i.id} className="talk-item" onClick={()=>go('manage','all',paFocus,'',i)} title={i.name}>
                   <span className="nm">{i.name}</span>

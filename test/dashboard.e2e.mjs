@@ -147,6 +147,30 @@ await waitFor(`document.querySelector('td[data-label="협업성사"]')`,'컨택�
 chk((await activeTab()).includes('STEP2')&&await searchVal()==='비비','답장 전 사람 클릭 → 컨택현황에서 검색',[await activeTab(),await searchVal()]);
 await backToDash();
 
+console.log('\n[할 일] 이미 다 처리된 건(최종완료)은 안 띄움');
+const todoTxt=await evalJs(`[...document.querySelectorAll('.todo-box')].map(x=>x.innerText.replace(/\\s+/g,' '))`);
+chk(!todoTxt[0].includes('지지')&&!todoTxt[0].includes('광고세팅·입금완료'),'관리자 할 일: 최종완료(지지)·광고세팅 묶음 없음',todoTxt[0]);
+chk(!todoTxt[1].includes('지지')&&!todoTxt[0].includes('에이치')&&!todoTxt[1].includes('에이치'),'매니저 할 일에도 없음 · 정산 끝난 에이치도 없음',todoTxt[1]);
+chk(todoTxt[0].includes('디디')&&todoTxt[1].includes('씨씨'),'아직 할 일(디디 계약서·씨씨 답장옴)은 그대로',todoTxt);
+const cardAdset=await evalJs(`(()=>{const c=[...document.querySelectorAll('.card')].find(x=>x.innerText.includes('광고세팅'));return c?c.querySelector('.card-count').textContent:''})()`);
+chk(cardAdset==='1','단계 카드 숫자는 그대로(광고세팅 1)',cardAdset);
+
+console.log('\n[담당자 추가] 👥 담당자 관리에서 추가하면 대시보드에 바로 뜸');
+await click('button','관리 ▾'); await wait(200);
+await click('.menu-item','담당자 관리'); await waitFor(`document.querySelector('.modal input.modal-inp')`,'담당자 관리 창');
+await evalJs(`(()=>{const i=document.querySelector('.modal input.modal-inp');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'신입매니저');i.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`); await wait(150);
+await click('.modal button','＋ 추가'); await wait(150);
+await click('.modal .modal-foot button','완료'); await wait(400);
+const tabs2=await evalJs(`[...document.querySelectorAll('.ptab')].map(x=>x.textContent).join('|')`);
+chk(tabs2.includes('신입매니저 (0)'),'담당자 탭에 새 사람(0건)',tabs2);
+const newCol=await evalJs(`(()=>{const c=[...document.querySelectorAll('.talk-col')].find(x=>x.innerText.trim().startsWith('신입매니저'));return c?c.innerText.replace(/\\s+/g,' '):''})()`);
+chk(newCol.includes('소통 중인 사람 없음'),'소통 중에 새 사람 칸(비어 있음 안내)',newCol);
+const partBox2=await evalJs(`document.querySelectorAll('.todo-box')[1].innerText.replace(/\\s+/g,' ')`);
+chk(/신입매니저 0 할 일 없음/.test(partBox2),'매니저 할 일에 새 사람 · 할 일 없음',partBox2);
+chk(!tabs2.includes('기타'),'기타는 건수 없으면 안 뜸',tabs2);
+await wait(1800);
+chk((savedData.paList||[]).includes('신입매니저'),'담당자 목록이 저장됨',savedData.paList);
+
 console.log('\n[이동] 이름 클릭 → 기존 탭 + 이름 검색');
 await evalJs(`(()=>{[...document.querySelectorAll('.talk-item')].find(x=>x.textContent.includes('씨씨')).click();return 1})()`);
 await waitFor(`document.querySelector('td[data-label="협업성사"]')`,'컨택현황'); await wait(300);
