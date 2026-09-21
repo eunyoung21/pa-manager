@@ -4,7 +4,6 @@
 import fs from 'fs';
 import http from 'http';
 import path from 'path';
-import { makeModusign } from './modusign-dev.mjs';
 
 const ROOT = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\//, ''));
 const LOCAL = process.env.LOCAL_DIR ? path.resolve(process.env.LOCAL_DIR) : path.join(ROOT, '_local'); // 테스트는 임시 폴더로
@@ -14,8 +13,11 @@ const DEV = path.join(LOCAL, process.env.SITE ? 'dev-data-site.json' : 'dev-data
 
 let data = JSON.parse(fs.readFileSync(fs.existsSync(DEV) ? DEV : path.join(LOCAL, 'live-snapshot.json'), 'utf8'));
 if (data.data) data = data.data;           // 스냅샷 형식 {meta,data}
+// 브랜드 계약서 양식(.docx)은 라이브 드라이브에 있어 여기선 못 읽는다 — _local/pfiles/<id> 에 받아둔 것만 쓰고,
+// 없으면 양식 지정을 빼서 앱 기본 양식으로 만들게 한다(개발 서버 화면에서만. 라이브 데이터는 그대로).
+const PF = path.join(LOCAL, 'pfiles');
+for (const b of data.brands || []) { const id = String(b.contractTemplate?.url || '').match(/id=(\d+)/)?.[1]; if (id && !fs.existsSync(path.join(PF, id))) b.contractTemplate = null; }
 let rev = 1;
-const MS = makeModusign(LOCAL);
 
 const server = http.createServer((req, res) => {
   if (req.method === 'GET') {
@@ -46,12 +48,13 @@ const server = http.createServer((req, res) => {
         return send({ ok: true, rev });
       case 'users': return send({ ok: true, users: [] });
       case 'logs': return send({ ok: true, logs: [] });
-      case 'modusignSend': return send(await MS.send(b).catch(e => ({ error: String(e.message || e) })));
-      case 'modusignList': return send(await MS.list(b).catch(e => ({ error: String(e.message || e) })));
-      case '_msMockSign': return send(MS.mockSign(b));
-      case 'pfileGet': return send({ ok: false, error: '개발 서버: 첨부 미리보기 없음' });
+      case 'pfileGet': {
+        const f = path.join(PF, String(b.id || '').replace(/[^0-9]/g, ''));
+        if (fs.existsSync(f)) return send({ ok: true, dataUrl: 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + fs.readFileSync(f).toString('base64') });
+        return send({ ok: false, error: '개발 서버: 첨부 미리보기 없음' });
+      }
       default: return send({ ok: true });
     }
   });
 });
-server.listen(PORT, '127.0.0.1', () => console.log(`PA Manager v2 dev → http://127.0.0.1:${PORT}  (라이브 쓰기 없음)` + (MS.isReal() ? ' · 모두싸인 실제 발송 켜짐' : '')));
+server.listen(PORT, '127.0.0.1', () => console.log(`PA Manager v2 dev → http://127.0.0.1:${PORT}  (라이브 쓰기 없음)`));
