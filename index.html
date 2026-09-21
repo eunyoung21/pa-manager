@@ -2879,36 +2879,92 @@ function PaManageModal({ paList, setPaList, onClose }) {
 
 /* ─── ADD ROW MODAL (Step1) ─── */
 function AddStep1Modal({ onConfirm, onCancel, brand }) {
-  const [f,setF]=useState({date:today(),name:'',link:'',followers:'',persona:'',memo:'',pa:'',reviewStatus:'검수대기'});
-  // 입력하는 동안 바로 중복 확인 — 진행 중인 사람이면 추가 버튼을 잠근다
-  const dup=useMemo(()=>brand&&(f.name.trim()||f.link.trim())?findListupDup(brand,f):null,[brand,f.name,f.link]);
-  const u=k=>e=>setF(p=>({...p,[k]:typeof e==='string'?e:e.target.value}));
+  // 한 번에 여러 명 — 등록일·담당 PA·검수 상태는 공통, 사람마다 한 줄(2026-09-21)
+  const blank=()=>({key:makeId(),name:'',link:'',followers:'',persona:'',memo:''});
+  const [c,setC]=useState({date:today(),pa:'',reviewStatus:'검수대기'});
+  const [rows,setRows]=useState(()=>[blank(),blank(),blank()]);
+  const uc=k=>e=>setC(p=>({...p,[k]:e.target.value}));
+  const ur=(key,k)=>e=>setRows(rs=>rs.map(r=>r.key===key?{...r,[k]:e.target.value}:r));
+  // 채널명을 비워 두면 링크의 인스타 아이디를 채널명으로 쓴다
+  const nameOf=r=>r.name.trim()||igHandle(r.link)||'';
+  // 링크 칸에 여러 줄을 붙여넣으면 한 줄에 한 명씩 나눠 넣는다
+  const onPasteLinks=key=>e=>{
+    const t=(e.clipboardData||window.clipboardData).getData('text')||'';
+    const lines=t.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    if(lines.length<2) return;
+    e.preventDefault();
+    setRows(rs=>{
+      const i=rs.findIndex(r=>r.key===key); const out=rs.slice(0,i);
+      lines.forEach(l=>out.push({...blank(),link:l}));
+      rs.slice(i+1).forEach(r=>{ if(r.name.trim()||r.link.trim()) out.push(r); });
+      out.push(blank()); return out;
+    });
+  };
+  // 줄마다 중복 확인 — 기존 데이터(findListupDup) + 이 창 안에서 위 줄과 같은 사람
+  const checks=useMemo(()=>{
+    const seen=[];
+    return rows.map(r=>{
+      const cand={name:nameOf(r),link:r.link};
+      if(!cand.name&&!r.link.trim()) return {filled:false};
+      const h=igHandle(r.link), n=dupName(cand.name);
+      if(seen.some(s=>(h&&s.h===h)||(!h||!s.h)&&n&&s.n===n)) return {filled:true,self:true,level:'block'};
+      seen.push({h,n});
+      const d=brand?findListupDup(brand,cand):{level:null,hits:[]};
+      return {filled:true,level:d.level,dup:d};
+    });
+  },[rows,brand]);
+  const ready=rows.filter((r,i)=>checks[i].filled&&checks[i].level!=='block');
+  const nBlock=checks.filter(x=>x.filled&&x.level==='block').length, nWarn=checks.filter(x=>x.filled&&x.level==='warn').length;
+  const submit=()=>onConfirm(ready.map(r=>({date:c.date,pa:c.pa,reviewStatus:c.reviewStatus,name:nameOf(r),link:r.link.trim(),followers:r.followers.trim(),persona:r.persona.trim(),memo:r.memo.trim(),id:makeId(),promotedToStep2:false})));
+  const cell={padding:'4px 3px',borderBottom:'1px solid var(--border)',verticalAlign:'top'};
+  const inp={width:'100%',fontSize:12,padding:'5px 7px'};
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()}>
-    <div className="modal">
-      <div className="modal-title">📋 인플루언서 추가 (STEP1 리스트업)</div>
-      <div className="modal-grid">
-        <div><div className="modal-lbl">등록일</div><input className="modal-inp" value={f.date} onChange={u('date')} /></div>
-        <div><div className="modal-lbl">채널명 *</div><input className="modal-inp" value={f.name} onChange={u('name')} autoFocus placeholder="@계정명" /></div>
-        <div className="modal-full"><div className="modal-lbl">채널 링크</div><input className="modal-inp" value={f.link} onChange={u('link')} placeholder="https://www.instagram.com/..." /></div>
-        <div><div className="modal-lbl">팔로워 수</div><input className="modal-inp" value={f.followers} onChange={u('followers')} placeholder="예: 12,400" /></div>
+    <div className="modal" style={{width:980,maxWidth:'calc(100vw - 24px)'}}>
+      <div className="modal-title">📋 인플루언서 추가 (STEP1 리스트업) — 여러 명 한 번에</div>
+      <div className="modal-grid" style={{gridTemplateColumns:'1fr 1fr 1fr'}}>
+        <div><div className="modal-lbl">등록일</div><input className="modal-inp add-common" value={c.date} onChange={uc('date')} /></div>
         <div><div className="modal-lbl">담당 PA</div>
-          <select className="modal-sel" value={f.pa} onChange={u('pa')}>
+          <select className="modal-sel" value={c.pa} onChange={uc('pa')}>
             <option value="">선택</option>
             {PA_LIST.map(p=><option key={p}>{p}</option>)}
           </select>
         </div>
-        <div className="modal-full"><div className="modal-lbl">페르소나 / 카테고리</div><input className="modal-inp" value={f.persona} onChange={u('persona')} placeholder="예: 낚시/아웃도어, 40대 남성" /></div>
-        <div className="modal-full"><div className="modal-lbl">메모</div><textarea className="modal-ta" value={f.memo} onChange={u('memo')} placeholder="메모..." /></div>
-        {!IS_STAFF&&<div><div className="modal-lbl">검수 상태</div>
-          <select className="modal-sel" value={f.reviewStatus} onChange={u('reviewStatus')}>
+        {!IS_STAFF?<div><div className="modal-lbl">검수 상태</div>
+          <select className="modal-sel" value={c.reviewStatus} onChange={uc('reviewStatus')}>
             {REVIEW_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-        </div>}
+        </div>:<div/>}
       </div>
-      <DupNotice dup={dup}/>
+      <div style={{fontSize:11,color:'var(--muted)',margin:'2px 0 6px'}}>한 줄에 한 명 · 채널명을 비우면 링크의 인스타 아이디로 채워요 · 링크 칸에 여러 줄을 붙여넣으면 줄마다 나눠 들어가요</div>
+      <div style={{maxHeight:'46vh',overflow:'auto',border:'1px solid var(--border)',borderRadius:8}}>
+        <table className="add-rows" style={{width:'100%',borderCollapse:'collapse'}}>
+          <thead><tr style={{position:'sticky',top:0,background:'var(--thead-bg)',zIndex:1}}>
+            {['#','채널명','채널 링크 *','팔로워','페르소나 / 카테고리','메모','중복',''].map((t,i)=><th key={i} style={{fontSize:11,padding:'6px 4px',textAlign:'left',whiteSpace:'nowrap'}}>{t}</th>)}
+          </tr></thead>
+          <tbody>
+            {rows.map((r,i)=>{const ck=checks[i];
+              const st=!ck.filled?'':ck.self?'🚫 위 줄과 같음':ck.level==='block'?'🚫 '+(ck.dup.hits.find(x=>!x.ended)||{}).pa:ck.level==='warn'?'⚠️ 끝난 건':'✓';
+              return <tr key={r.key} className="add-row" style={ck.level==='block'?{background:'#fef2f2'}:undefined}>
+                <td style={{...cell,fontSize:11,color:'var(--muted)',paddingTop:9}}>{i+1}</td>
+                <td style={{...cell,width:'17%'}}><input className="modal-inp" style={inp} value={r.name} onChange={ur(r.key,'name')} placeholder={igHandle(r.link)||(i===0?'@계정명':'')} autoFocus={i===0}/></td>
+                <td style={{...cell,width:'27%'}}><input className="modal-inp" style={inp} value={r.link} onChange={ur(r.key,'link')} onPaste={onPasteLinks(r.key)} placeholder={i===0?'https://www.instagram.com/...':''}/></td>
+                <td style={{...cell,width:'9%'}}><input className="modal-inp" style={inp} value={r.followers} onChange={ur(r.key,'followers')} placeholder={i===0?'12,400':''}/></td>
+                <td style={{...cell,width:'17%'}}><input className="modal-inp" style={inp} value={r.persona} onChange={ur(r.key,'persona')} placeholder={i===0?'낚시/아웃도어':''}/></td>
+                <td style={{...cell,width:'15%'}}><input className="modal-inp" style={inp} value={r.memo} onChange={ur(r.key,'memo')} placeholder={i===0?'메모':''}/></td>
+                <td className="add-dup" data-level={ck.self?'block':(ck.level||'')} title={ck.dup&&ck.dup.level?dupText(ck.dup):''} style={{...cell,fontSize:11,whiteSpace:'nowrap',paddingTop:9,color:ck.level==='block'?'#b91c1c':ck.level==='warn'?'#b45309':'#15803d'}}>{st}</td>
+                <td style={{...cell,paddingTop:6}}>{rows.length>1&&<button className="btn btn-ghost" style={{padding:'2px 7px',fontSize:11}} title="이 줄 빼기" onClick={()=>setRows(rs=>rs.filter(x=>x.key!==r.key))}>✕</button>}</td>
+              </tr>;})}
+          </tbody>
+        </table>
+      </div>
+      <button className="btn btn-ghost add-more" style={{marginTop:6,fontSize:12}} onClick={()=>setRows(rs=>[...rs,blank(),blank()])}>＋ 줄 추가</button>
+      {nBlock>0&&<div className="dup-notice" data-level="block" style={{margin:'8px 0 0',padding:'8px 12px',borderRadius:8,fontSize:12,background:'#fee2e2',border:'1px solid #fca5a5',color:'#b91c1c'}}>
+        🚫 {nBlock}명은 이미 담당자가 있어 <b>추가되지 않아요</b> — 같은 인플루언서는 먼저 리스트업한 사람이 담당이에요. (🚫 칸에 마우스를 올리면 누가 언제 잡았는지 보여요)</div>}
+      {nWarn>0&&<div className="dup-notice" data-level="warn" style={{margin:'6px 0 0',padding:'8px 12px',borderRadius:8,fontSize:12,background:'#fef3c7',border:'1px solid #fcd34d',color:'#b45309'}}>
+        ⚠️ {nWarn}명은 전에 거절·완료된 인플루언서예요 — 그래도 추가돼요.</div>}
       <div className="modal-foot">
         <button className="btn btn-ghost" onClick={onCancel}>취소</button>
-        <button className="btn btn-primary" disabled={!f.name.trim()||dup?.level==='block'} onClick={()=>onConfirm({...f,id:makeId(),promotedToStep2:false})}>{dup?.level==='warn'?'그래도 추가':'추가'}</button>
+        <button className="btn btn-primary add-submit" disabled={!ready.length} onClick={submit}>{ready.length?`${ready.length}명 추가`:'추가'}</button>
       </div>
     </div>
   </div>;
@@ -3348,7 +3404,6 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   // 📨 담당자별 DM 보낸 인플루언서 — 매니저가 직접 DM 보낸 컨택현황 행(자동화 DM 제외).
   //    거절·완료(인플루언서 정산/폐기)·DM 수당이 이미 지급된 달·너무 오래된 DM 은 뺀다.
   const [dmDays,setDmDays]=useState(60);
-  const [dmQ,setDmQ]=useState({});
   const dmBy=useMemo(()=>{
     const S=(settlements||{})[brand.id]||{};
     const paName=v=>{const s=String(v||'').trim(); if(!s) return '미지정'; const r=renamePA(s); return (paList||[]).includes(r)?r:(sanitizePA(r)||r);};
@@ -3406,8 +3461,20 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
 
   // 매니저 할 일 — 매니저가 여러 명이라 사람별로 묶는다
   // 💬 담당자별 소통 중 — DM을 보내 대화가 시작된 뒤 아직 끝나지 않은 사람(완료·거절·DM 전은 뺀다)
-  const talking=active.filter(i=>i.stage>=2&&i.stage<=5); // 최종완료(정산만 남음)는 끝난 건으로 본다
-  const talkBy={}; talking.forEach(i=>{const k=i.pa||'미지정'; (talkBy[k]=talkBy[k]||[]).push(i);});
+  // + 📨 DM 보낸 인플루언서(dmBy)를 한 칸에 합친다(2026-09-21) — 같은 사람은 한 번만.
+  //   답장옴~광고코드(2~5단계)는 기간과 상관없이, DM만 보낸 사람 등은 dmBy 조건(최근 N일·DM수당 지급월·거절·정산 제외)으로.
+  const talkBy={};
+  {
+    const seen=new Set(), byId=new Map(infsAll.map(i=>[i.id,i]));
+    const dmKey=i=>{const c=i.contact||{}; return parseDateKey(c.dmDate)||parseDateKey(c.date)||'';};
+    const push=(pa,i,k)=>{ if(seen.has(i.id)) return; seen.add(i.id); (talkBy[pa]=talkBy[pa]||[]).push({inf:i,k:k||dmKey(i)}); };
+    active.filter(i=>i.stage>=2&&i.stage<=5).forEach(i=>push(i.pa||'미지정',i)); // 최종완료(정산만 남음)는 끝난 건으로 본다
+    Object.entries(dmBy).forEach(([pa,l])=>l.forEach(({r,k})=>{
+      const i=byId.get('c:'+r.id); if(!i||i.status!=='active') return;
+      if(paFocus&&(i.pa||'미지정')!==paFocus) return;
+      push(i.pa||pa,i,k);
+    }));
+  }
   const talkOrder=[...(paList||[]).filter(p=>talkBy[p]), ...Object.keys(talkBy).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
   // 같은 인플루언서를 두 사람이 동시에 맡고 있으면(리스트업/컨택 담당이 다르거나 자동화와 겹침) 알려준다
   const dupTalk=useMemo(()=>{
@@ -3441,15 +3508,22 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
         <div className="role-header boss">🔴 관리자 담당</div>
         <div className="cards">{INF_STAGES.filter(s=>s.role==='boss').map(card)}</div>
       </div>
-      <div className="role-header" style={{color:'var(--text)',marginTop:18}}>💬 담당자별 소통 중 <span className="text-muted" style={{fontWeight:400}}>— DM 보낸 뒤 진행 중인 사람만 · 최종완료·정산·거절은 뺌 · 이름을 누르면 상세</span></div>
+      <div className="role-header" style={{color:'var(--text)',marginTop:18}}>💬 담당자별 소통 중
+        <span className="text-muted" style={{fontWeight:400}}>— 답장 이후 진행 중인 사람 + 최근</span>
+        <select value={dmDays} onChange={e=>setDmDays(Number(e.target.value))} style={{fontSize:11,padding:'1px 4px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface)',color:'var(--text)'}}>
+          {[30,60,90].map(n=><option key={n} value={n}>{n}일</option>)}
+        </select>
+        <span className="text-muted" style={{fontWeight:400}}>안에 직접 DM 보낸 사람 · 거절·정산·DM수당 지급된 달은 뺌 · 이름을 누르면 상세</span>
+      </div>
       {dupTalk.length>0&&!paFocus&&<div className="talk-dup">⚠️ 두 명 이상이 동시에 연락 중: {dupTalk.slice(0,8).map(d=>d.name+' ('+d.pas.join(', ')+')').join(' · ')}{dupTalk.length>8?` 외 ${dupTalk.length-8}명`:''}</div>}
       {talkOrder.length===0?<div className="todo-box" style={{marginBottom:20}}><div className="todo-none">소통 중인 인플루언서 없음</div></div>:
       <div className="talk-grid">
         {talkOrder.map(p=>{const q=String(talkQ[p]||'').trim().toLowerCase();
-          const hit=i=>!q||[i.name,i.realName,i.contact&&i.contact.memo].some(v=>String(v||'').toLowerCase().includes(q));
-          const l=talkBy[p].slice().sort((a,b)=>b.stage-a.stage||String(b.contact&&b.contact.dmDate||'').localeCompare(String(a.contact&&a.contact.dmDate||'')));
+          const hit=({inf:i})=>!q||[i.name,i.realName,i.contact&&i.contact.memo].some(v=>String(v||'').toLowerCase().includes(q));
+          const l=talkBy[p].slice().sort((a,b)=>b.inf.stage-a.inf.stage||String(b.k).localeCompare(String(a.k)));
           const c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
-          const per=[2,3,4,5].map(id=>[id,l.filter(i=>i.stage===id).length]).filter(x=>x[1]);
+          const lbl=i=>i.stage===1?'답장 전':INF_STAGES[i.stage].short;
+          const per={}; l.forEach(({inf})=>{const b=lbl(inf); per[b]=(per[b]||0)+1;});
           return <div key={p} className="talk-col" style={{borderTop:'3px solid '+c}}>
             <div className="talk-h" onClick={()=>setPaFocus(paFocus===p?null:p)} title="이 담당자만 보기">
               <span style={{width:8,height:8,borderRadius:'50%',background:c,flexShrink:0}}/><span style={{whiteSpace:'nowrap'}}>{p}</span>
@@ -3457,53 +3531,20 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
                 onChange={e=>setTalkQ(s=>({...s,[p]:e.target.value}))} onKeyDown={e=>{if(e.key==='Escape')setTalkQ(s=>({...s,[p]:''}));}}/>
               <span className="n" style={{background:c+'22',color:c}}>{q?`${l.filter(hit).length}/`:''}{l.length}명</span>
             </div>
-            <div className="talk-sub">{per.map(([id,n])=>INF_STAGES[id].short+' '+n).join(' · ')}</div>
+            <div className="talk-sub">{Object.entries(per).map(([k,n])=>k+' '+n).join(' · ')}</div>
             <div className="talk-list">
               {q&&!l.some(hit)&&<div className="todo-none" style={{padding:'6px 8px'}}>'{talkQ[p]}' 없음</div>}
-              {l.filter(hit).map(i=>{const s=INF_STAGES[i.stage];
+              {l.filter(hit).map(({inf:i,k})=>{const s=INF_STAGES[i.stage];
                 return <div key={i.id} className="talk-item" onClick={()=>go('manage','all',paFocus,'',i)} title={i.name}>
                   <span className="nm">{i.name}</span>
-                  <span className="todo-stage" style={{background:s.color+'22',color:s.color,flexShrink:0}}>{s.short}</span>
+                  <span style={{display:'flex',gap:5,alignItems:'center',flexShrink:0}}>
+                    {k&&<span className="text-muted" style={{fontSize:10}}>{String(k).slice(5).replace('-','.')}</span>}
+                    <span className="todo-stage" style={{background:s.color+'22',color:s.color}}>{lbl(i)}</span>
+                  </span>
                 </div>;})}
             </div>
           </div>;})}
       </div>}
-      <div className="role-header" style={{color:'var(--text)',marginTop:18}}>📨 담당자별 DM 보낸 인플루언서
-        <span className="text-muted" style={{fontWeight:400}}>— 직접 DM 보낸 사람 · 거절·완료·DM수당 정산된 달은 뺌 · 최근</span>
-        <select value={dmDays} onChange={e=>setDmDays(Number(e.target.value))} style={{fontSize:11,padding:'1px 4px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface)',color:'var(--text)'}}>
-          {[30,60,90].map(n=><option key={n} value={n}>{n}일</option>)}
-        </select>
-      </div>
-      {(()=>{
-        const order=[...(paList||[]).filter(p=>dmBy[p]), ...Object.keys(dmBy).filter(k=>!(paList||[]).includes(k))].filter(p=>!paFocus||p===paFocus);
-        if(!order.length) return <div className="todo-box" style={{marginBottom:20}}><div className="todo-none">조건에 맞는 DM 없음</div></div>;
-        const badge=r=>{const st=normStatus(r.contactStatus);
-          return r.finalDone==='Y'?['최종완료','#7c3aed']:r.dealDone==='Y'?['성사','#15803d']:st==='계약서 작성'?['계약서','#0f766e']:st==='진행중'?['진행중','#1d4ed8']:['답장 전','#6b7280'];};
-        return <div className="talk-grid">{order.map(p=>{
-          const q=String(dmQ[p]||'').trim().toLowerCase();
-          const all=dmBy[p], l=q?all.filter(x=>[x.r.name,x.r.memo].some(v=>String(v||'').toLowerCase().includes(q))):all;
-          const c=p==='미지정'?'#888':paHex(p);
-          const per={}; all.forEach(x=>{const b=badge(x.r)[0]; per[b]=(per[b]||0)+1;});
-          return <div key={p} className="talk-col dm-col" style={{borderTop:'3px solid '+c}}>
-            <div className="talk-h">
-              <span style={{width:8,height:8,borderRadius:'50%',background:c,flexShrink:0}}/><span style={{whiteSpace:'nowrap'}}>{p}</span>
-              <input className="srch-in" value={dmQ[p]||''} placeholder="🔍 검색" onChange={e=>setDmQ(s=>({...s,[p]:e.target.value}))} onKeyDown={e=>{if(e.key==='Escape')setDmQ(s=>({...s,[p]:''}));}}/>
-              <span className="n" style={{background:c+'22',color:c}}>{q?`${l.length}/`:''}{all.length}명</span>
-            </div>
-            <div className="talk-sub">{Object.entries(per).map(([k,n])=>k+' '+n).join(' · ')}</div>
-            <div className="talk-list">
-              {q&&!l.length&&<div className="todo-none" style={{padding:'6px 8px'}}>'{dmQ[p]}' 없음</div>}
-              {l.map(({r,k})=>{const [bt,bc]=badge(r);
-                return <div key={r.id} className="talk-item" title={r.name} onClick={()=>go('step2','all',undefined,r.name)}>
-                  <span className="nm">{r.name}</span>
-                  <span style={{display:'flex',gap:5,alignItems:'center',flexShrink:0}}>
-                    <span className="text-muted" style={{fontSize:10}}>{k.slice(5).replace('-','.')}</span>
-                    <span className="todo-stage" style={{background:bc+'1f',color:bc}}>{bt}</span>
-                  </span>
-                </div>;})}
-            </div>
-          </div>;})}</div>;
-      })()}
       <div className="todo-grid">
         <div className="todo-box">
           <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일</h3>
@@ -6840,7 +6881,7 @@ function AppMain({ authInfo, onLogout }) {
     />}
 
     {modal==='paManage'&&<PaManageModal paList={paList} setPaList={setPaList} onClose={()=>setModal(null)}/>}
-    {modal==='addStep1'&&<AddStep1Modal brand={brand} onConfirm={r=>{if(addStep1Row(r)!==false)setModal(null);}} onCancel={()=>setModal(null)}/>}
+    {modal==='addStep1'&&<AddStep1Modal brand={brand} onConfirm={list=>{const ok=list.filter(r=>addStep1Row(r)!==false).length;setModal(null);setMsg(`📋 리스트업 ${ok}명 추가${list.length>ok?` · 🚫 ${list.length-ok}명 제외(담당자 있음)`:''}`);}} onCancel={()=>setModal(null)}/>}
     {modal==='pasteStep1'&&<PasteImportModal kind="step1" brand={brand} onConfirm={rows=>{const {added,skipped,blocked}=addStep1RowsBulk(rows);setModal(null);setMsg(`📋 ${added}명 추가${skipped>0?` · 중복 ${skipped}명 건너뜀`:''}`+(blocked.length?` · 🚫 담당자 있음 ${blocked.length}명 제외`:''));if(blocked.length)alert('🚫 이미 담당자가 있어 추가하지 않은 인플루언서 '+blocked.length+'명\n같은 인플루언서는 먼저 리스트업한 사람이 담당이에요.\n\n'+blocked.join('\n\n'));}} onCancel={()=>setModal(null)}/>}
     {modal==='pasteShip'&&<PasteImportModal kind="ship" onConfirm={rows=>{const {added,skipped}=addShipRowsBulk(rows);setModal(null);setMsg(`📋 출고 ${added}건 추가${skipped>0?` · 중복 ${skipped}건 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
     {modal==='pasteReview'&&<PasteImportModal kind="review" onConfirm={rows=>{const {added,skipped}=addReviewRowsBulk(rows);setModal(null);setMsg(`📋 영상검수 ${added}건 추가${skipped>0?` · 중복 ${skipped}건 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
