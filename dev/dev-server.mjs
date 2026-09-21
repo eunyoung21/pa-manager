@@ -4,9 +4,10 @@
 import fs from 'fs';
 import http from 'http';
 import path from 'path';
+import { makeModusign } from './modusign-dev.mjs';
 
 const ROOT = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\//, ''));
-const LOCAL = path.join(ROOT, '_local');
+const LOCAL = process.env.LOCAL_DIR ? path.resolve(process.env.LOCAL_DIR) : path.join(ROOT, '_local'); // 테스트는 임시 폴더로
 const SITE = process.env.SITE ? path.resolve(process.env.SITE) : ROOT; // 다른 저장소의 index.html 을 같은 스냅샷으로 띄울 때
 const PORT = Number(process.env.PORT || 8930);
 const DEV = path.join(LOCAL, process.env.SITE ? 'dev-data-site.json' : 'dev-data.json');
@@ -14,6 +15,7 @@ const DEV = path.join(LOCAL, process.env.SITE ? 'dev-data-site.json' : 'dev-data
 let data = JSON.parse(fs.readFileSync(fs.existsSync(DEV) ? DEV : path.join(LOCAL, 'live-snapshot.json'), 'utf8'));
 if (data.data) data = data.data;           // 스냅샷 형식 {meta,data}
 let rev = 1;
+const MS = makeModusign(LOCAL);
 
 const server = http.createServer((req, res) => {
   if (req.method === 'GET') {
@@ -31,7 +33,7 @@ const server = http.createServer((req, res) => {
     return res.end(body);
   }
   let raw = ''; req.setEncoding('utf8'); req.on('data', c => raw += c);
-  req.on('end', () => {
+  req.on('end', async () => {
     const b = JSON.parse(raw || '{}');
     const send = o => { res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify(o)); };
     switch (b.action) {
@@ -44,9 +46,12 @@ const server = http.createServer((req, res) => {
         return send({ ok: true, rev });
       case 'users': return send({ ok: true, users: [] });
       case 'logs': return send({ ok: true, logs: [] });
+      case 'modusignSend': return send(await MS.send(b).catch(e => ({ error: String(e.message || e) })));
+      case 'modusignList': return send(await MS.list(b).catch(e => ({ error: String(e.message || e) })));
+      case '_msMockSign': return send(MS.mockSign(b));
       case 'pfileGet': return send({ ok: false, error: '개발 서버: 첨부 미리보기 없음' });
       default: return send({ ok: true });
     }
   });
 });
-server.listen(PORT, '127.0.0.1', () => console.log(`PA Manager v2 dev → http://127.0.0.1:${PORT}  (라이브 쓰기 없음)`));
+server.listen(PORT, '127.0.0.1', () => console.log(`PA Manager v2 dev → http://127.0.0.1:${PORT}  (라이브 쓰기 없음)` + (MS.isReal() ? ' · 모두싸인 실제 발송 켜짐' : '')));

@@ -468,6 +468,8 @@ function handle(e, body) {
       case 'archiveFile': return archiveFile(mgr(), body);
       case 'archiveComplete': return archiveComplete(mgr(), body);
       case 'contractMail': return contractMail(need(), body);
+      case 'modusignSend': return modusignSend(need(), body);
+      case 'modusignList': return modusignList(need(), body);
       case 'users':    return usersList(mgr());
       case 'userCreate':return userCreate(mgr(), body);
       case 'userDelete':return userDelete(mgr(), body);
@@ -757,6 +759,139 @@ function contractMail(sess, body) {
   }
   logAction('contractMail:' + to, sess, null);
   return json({ ok: true, to: to, from: from || me || TEAM_EMAIL, cc: opts.cc || '' });
+}
+
+/* ── 모두싸인 전자서명 ────────────────────────────────────────
+   앱이 만든 계약서(.docx)를 모두싸인으로 보내 서명을 받는다(카카오톡·이메일).
+   API 키는 스크립트 속성 MODUSIGN_EMAIL(모두싸인 로그인 이메일)·MODUSIGN_KEY 에만 둔다 —
+   앱(index.html)은 공개 저장소라 절대 넣지 않는다. 로그인한 사람은 누구나(매니저 포함) 이 키로 보낸다.
+   보낸 기록은 시트 _modusign 에 남기고, 목록을 열 때 진행 중인 건의 상태를 모두싸인에서 다시 읽는다.
+   서명이 끝나면 서명본 PDF를 브랜드 계약서 폴더에 표준 이름·같은 메모 형식으로 넣는다
+   (= 계약서 회수기로 들어온 파일과 똑같이 노션 자동기입이 읽는다). */
+var MS_API = 'https://api.modusign.co.kr', SHEET_MS = '_modusign';
+var MS_COLS = ['id', 'brand', 'name', 'to', 'method', 'sentAt', 'by', 'status', 'driveUrl', 'placement', 'date', 'title'];
+
+function msAuth() {
+  var p = PropertiesService.getScriptProperties();
+  var e = p.getProperty('MODUSIGN_EMAIL'), k = p.getProperty('MODUSIGN_KEY');
+  if (!e || !k) throw { code: 400, msg: '모두싸인 API 키가 아직 등록되지 않았습니다(관리자: 스크립트 속성 MODUSIGN_EMAIL·MODUSIGN_KEY).' };
+  return 'Basic ' + Utilities.base64Encode(e + ':' + k);
+}
+function msFetch(method, path, payload) {
+  var o = { method: method, headers: { Authorization: msAuth() }, muteHttpExceptions: true };
+  if (payload) { o.contentType = 'application/json'; o.payload = JSON.stringify(payload); }
+  var r = UrlFetchApp.fetch(MS_API + path, o), t = r.getContentText(), j = null;
+  try { j = JSON.parse(t); } catch (e) {}
+  return { code: r.getResponseCode(), body: j, text: t };
+}
+function msErrText(r) {
+  if (!r) return '응답 없음';
+  var b = r.body || {};
+  return String(b.title || b.message || r.text || '').slice(0, 200);
+}
+/* 서명 자리 — 계약서 문구를 기준(앵커)으로 자동 배치한다. 양식에 그 문구가 없으면 한 단계씩 줄여 다시 보낸다.
+   ① 서명 + 주민등록번호 입력칸(앱에서 주민번호를 비워 보냈을 때)  ② 서명만  ③ 자리 지정 없이 */
+function msFieldPlans(needRrn) {
+  var sig = { type: 'SIGNATURE', dataLabel: '모델 서명', required: true, signatureTypes: ['SIGN'],
+    position: { anchor: { text: '서명을 갈음합니다.', offset: { x: 0, y: 0.03 } } }, size: { width: 0.2, height: 0.06 } };
+  var rrn = { type: 'TEXT', dataLabel: '주민등록번호', required: true,
+    position: { anchor: { text: '주민등록번호:', offset: { x: 0.13, y: 0 } } }, size: { width: 0.25, height: 0.025 },
+    textStyle: { size: 10, font: 'NOTO_SANS' } };
+  var plans = [];
+  if (needRrn) plans.push({ tag: '서명+주민번호', fields: [sig, rrn] });
+  plans.push({ tag: '서명', fields: [sig] });
+  plans.push({ tag: '자리 지정 없음', fields: null });
+  return plans;
+}
+function msSheet() {
+  var sh = sheet(SHEET_MS);
+  if (sh.getLastRow() === 0) sh.appendRow(MS_COLS);
+  return sh;
+}
+function msRead(sh) {
+  var v = sh.getDataRange().getValues(), out = [];
+  for (var i = 1; i < v.length; i++) {
+    var o = { _row: i + 1 };
+    for (var c = 0; c < MS_COLS.length; c++) o[MS_COLS[c]] = String(v[i][c] == null ? '' : v[i][c]);
+    if (o.id) out.push(o);
+  }
+  return out;
+}
+function msSet(sh, o, key, val) { o[key] = val; sh.getRange(o._row, MS_COLS.indexOf(key) + 1).setValue(val); }
+
+function modusignSend(sess, body) {
+  body = body || {};
+  var method = body.method === 'EMAIL' ? 'EMAIL' : 'KAKAO';
+  var to = String(body.to || '').trim();
+  if (method === 'EMAIL' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return json({ error: '받는 사람 이메일이 올바르지 않습니다.' });
+  if (method === 'KAKAO') { to = to.replace(/[^0-9]/g, ''); if (!/^01\d{8,9}$/.test(to)) return json({ error: '받는 사람 휴대폰 번호가 올바르지 않습니다.' }); }
+  var name = String(body.name || '').trim();
+  if (!name) return json({ error: '모델 이름이 없습니다.' });
+  var m = String(body.data || '').match(/^data:([^;]+);base64,(.*)$/);
+  if (!m) return json({ error: '계약서 파일이 없습니다.' });
+  var title = String(body.title || '').replace(/\.docx$/i, '').replace(/[\r\n]+/g, ' ').trim().slice(0, 100) || ('광고모델계약서_' + name);
+
+  var plans = msFieldPlans(!!body.needRrn), last = null;
+  for (var i = 0; i < plans.length; i++) {
+    var part = { type: 'SIGNER', name: name, role: '모델', signingOrder: 1, signingMethod: { type: method, value: to }, locale: 'ko' };
+    if (body.message) part.requesterMessage = String(body.message).slice(0, 500);
+    if (plans[i].fields) part.fields = plans[i].fields;
+    var r = msFetch('post', '/documents', { title: title, file: { base64: m[2], extension: 'docx' }, participants: [part] });
+    if (r.code >= 200 && r.code < 300 && r.body && r.body.id) {
+      var sh = msSheet();
+      sh.appendRow([r.body.id, String(body.brand || ''), name, to, method, new Date().toISOString(), (sess && sess.username) || '',
+        r.body.status || 'ON_GOING', '', plans[i].tag, String(body.date || ''), title]);
+      logAction('modusignSend:' + name, sess, null);
+      return json({ ok: true, id: r.body.id, status: r.body.status || 'ON_GOING', placement: plans[i].tag });
+    }
+    last = r;
+    if (!(r.code === 400 && /anchor/i.test(r.text))) break;   // 서명 자리 문제일 때만 다음 방식으로
+  }
+  return json({ error: '모두싸인 요청 실패(' + (last && last.code) + '): ' + msErrText(last) });
+}
+
+/* 서명 끝난 PDF를 드라이브 계약서 폴더로. 이미 넣었으면(같은 출처 메모) 그 파일을 돌려준다. */
+function msSaveSigned(o, doc) {
+  var url = doc && doc.file && doc.file.downloadUrl;
+  if (!url) return '';
+  var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) res = UrlFetchApp.fetch(url, { headers: { Authorization: msAuth() }, muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) return '';
+  var sub = archiveFolder(o.brand, ARCHIVE_KIND.contract);
+  if (!sub) return '';
+  var ymd6 = String(o.date || '').replace(/[^0-9]/g, '').slice(2, 8);
+  var memo = { s: 'modusign:' + o.id, b: o.brand, k: 'contract', c: '', r: o.name, d: ymd6 || todayDisp().replace(/[^0-9]/g, '') };
+  var prev = findArchived(sub, memo);
+  if (prev.same) return prev.same.getUrl();
+  var base = standardContractName(o.brand, o.name, memo.d) || String(o.title || ('광고모델계약서_' + o.name)).replace(/[\\\/:*?"<>|]/g, '');
+  var fname = base + '.pdf';
+  for (var i = 2; prev.names[fname]; i++) fname = base + '_' + i + '.pdf';
+  var f = sub.createFile(res.getBlob().setName(fname));
+  try { f.setDescription(JSON.stringify(memo)); } catch (e) {}
+  return f.getUrl();
+}
+
+function modusignList(sess, body) {
+  var brand = String((body && body.brand) || '');
+  var sh = msSheet(), rows = msRead(sh), mine = [];
+  for (var i = rows.length - 1; i >= 0 && mine.length < 30; i--) if (!brand || rows[i].brand === brand) mine.push(rows[i]);
+  // 진행 중이거나, 끝났는데 아직 드라이브에 못 넣은 건만 다시 확인한다(한 번에 최대 8건 — 시간 제한)
+  var checked = 0;
+  for (var k = 0; k < mine.length && checked < 8; k++) {
+    var o = mine[k];
+    var open = o.status === 'ON_GOING' || o.status === '';
+    if (!open && !(o.status === 'COMPLETED' && !o.driveUrl)) continue;
+    checked++;
+    var g = msFetch('get', '/documents/' + encodeURIComponent(o.id));
+    if (g.code !== 200 || !g.body) continue;
+    if (g.body.status && g.body.status !== o.status) msSet(sh, o, 'status', g.body.status);
+    if (o.status === 'COMPLETED' && !o.driveUrl) {
+      try { var u = msSaveSigned(o, g.body); if (u) msSet(sh, o, 'driveUrl', u); } catch (e) {}
+    }
+  }
+  return json({ ok: true, items: mine.map(function (o) {
+    return { id: o.id, name: o.name, to: o.to, method: o.method, sentAt: o.sentAt, by: o.by, status: o.status, driveUrl: o.driveUrl, placement: o.placement };
+  }) });
 }
 
 /* 노션 자동기입용 — 아직 처리 안 된(=완료 폴더로 안 옮긴) 계약서 건 목록.

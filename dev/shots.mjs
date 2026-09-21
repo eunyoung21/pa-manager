@@ -48,6 +48,7 @@ for (const t of tabs) {
   if (process.env.FT) { await ev('(()=>{const b=[...document.querySelectorAll(".filter-tab")].find(x=>x.textContent.includes('+JSON.stringify(process.env.FT)+'));b&&b.click()})()'); await sleep(600); }
   if (process.env.ADD) { await ev("(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.includes('인플루언서 추가'));b&&b.click()})()"); await sleep(700); }
   if (process.env.CH) { await ev("(()=>{const l=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent.includes("+JSON.stringify(process.env.CH)+"))||document.querySelector('.ch-link');l&&l.click()})()"); await sleep(700); }
+  if (process.env.EVAL) { await ev(process.env.EVAL); await sleep(900); } // 찍기 전에 화면 조작(예: 창 열기)
   if (t === 'panel' || process.env.OPEN) { await ev("(()=>{const r=document.querySelector('.hk-table tbody tr');r&&r.click()})()"); await sleep(700); }
   const { result } = await S('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(path.join(OUT, `${t}${W < 700 ? '-m' : ''}.png`), Buffer.from(result.data, 'base64'));
