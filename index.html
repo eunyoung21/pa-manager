@@ -288,7 +288,10 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 .s2p-body{padding:18px 20px 40px;}
 .s2p-sec{font-size:12px;font-weight:700;color:var(--muted);margin:4px 0 10px;}
 .s2p-tl{margin-bottom:20px;}
-.s2p-tl-item{display:flex;align-items:center;gap:10px;}
+.s2p-tl-item{display:flex;align-items:center;gap:10px;border-radius:6px;}
+.s2p-tl-item.back{cursor:pointer;}
+.s2p-tl-item.back:hover{background:var(--surface2);}
+.s2p-tl-item.back:hover .s2p-tl-label::after{content:'  ↩ 이 단계로 되돌리기';font-size:11px;color:var(--accent);}
 .s2p-dot{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;}
 .s2p-dot.done{background:var(--green);color:#fff;}
 .s2p-dot.current{background:var(--accent);color:#fff;box-shadow:0 0 0 3px var(--accent-soft);}
@@ -3852,7 +3855,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
 }
 
 /* ─── STEP2 VIEW ─── */
-function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle }) {
+function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
@@ -4005,7 +4008,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
     </div>
     </div>
     <CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
-    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSettle={onSettle}/>}
+    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSettle={onSettle} onShip={onShip} onUnship={onUnship}/>}
   </div>;
 }
 
@@ -4020,12 +4023,12 @@ function s2Stage(r,rv){
   if(r.infSettled==='Y'||r.privacyPurged) return 'done';
   if(r.finalDone==='Y') return 5;
   if(r.shippingDone==='✅ 완료') return 4;
-  if(r.dealDone==='Y'&&(r.contractDone==='✅ 완료'||r.productOnly==='Y'||(rv&&rv.contractDone==='Y'))) return 3;
+  if(r.dealDone==='Y'&&(r.contractDone==='✅ 완료'||r.productOnly==='Y'||(rv&&rv.contractDone==='Y'&&r.contractBack!=='Y'))) return 3;
   if(r.dealDone==='Y') return 2;
   if(r.dmSent==='Y') return 1;
   return 0;
 }
-function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle }){
+function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship }){
   const rv=s2Review(brand,r), st=s2Stage(r,rv);
   const handle=igHandle(r.link);
   const init=()=>({name:r.name||'',followers:r.followers||'',date:r.date||'',memo:r.memo||'',
@@ -4037,9 +4040,29 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle }){
   const upd=patch=>H.current.onUpdate(r.id,patch);
   const dates=[r.date,r.dmDate,r.dealDate,r.contractDate||(rv&&rv.contractDate),r.shipDate,r.finalDate];
   const cur=typeof st==='number'?st:(st==='done'?6:-1);
+  // 진행 단계에서 지난 단계를 누르면 그 단계로 되돌린다(잘못 눌렀을 때). 그 뒤 단계 기록만 지운다.
+  const UNDO=[
+    {dmSent:'N',dmDate:''},                                          // 리스팅 목록으로
+    {dealDone:'N',dealDate:''},                                      // DM 발송 완료로
+    {contractDone:'미완료',contractDate:'',productOnly:'',contractBack:'Y'}, // 계약서발송/수집으로
+    {shippingDone:'미완료',shipDate:''},                              // 제품 발송으로
+    {finalDone:'N',finalDate:''},                                    // 광고 코드/입금정보로
+  ];
+  function goBack(i){
+    if(st==='rejected'||i>=cur) return;
+    if(r.privacyPurged){ alert('정산 후 개인정보가 폐기된 건이라 되돌릴 수 없어요.'); return; }
+    if(cur===6&&IS_STAFF){ alert('정산(입금) 완료를 되돌리는 건 관리자만 할 수 있어요.'); return; }
+    const later=S2_STAGES.slice(i,Math.min(cur,6)).concat(cur===6?['정산(입금) 완료']:[]);
+    if(!confirm(`'${S2_STAGES[i]}' 단계로 되돌릴까요?\n\n완료 표시가 풀리는 단계: ${later.join(' → ')}\n(DM 수당·완료 수당도 그만큼 빠져요${i<=3&&cur>3?' · 출고 탭 기록도 되돌려요':''})`)) return;
+    const patch={}; for(let k=i;k<Math.min(cur,5);k++) Object.assign(patch,UNDO[k]);
+    if(Object.keys(patch).length) upd(patch);
+    if(i<=3&&cur>3) onUnship&&onUnship(r);   // 제품 발송 완료를 되돌리면 출고 탭 행도
+    if(cur===6) onSettle&&onSettle(r.name,false,{});
+  }
   const reject=<button className="btn s2p-danger" onClick={()=>H.current.setStatus(r,'거절')}>✕ 거절됨으로</button>;
   const fld=(label,k,ph,area)=><div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph}/>:<input value={f[k]} onChange={u(k)} placeholder={ph}/>}</div>;
-  const copyFld=(label,v)=><div className="s2p-fg"><label>{label}</label><div className="s2p-copy"><input value={v||''} readOnly/><CopyBtn value={v}/></div></div>;
+  // 입력도 되고 복사도 되는 칸 — 앞 단계에서 비워두고 넘어와도 여기서 채울 수 있게. 칸을 벗어나면 바뀐 경우에만 저장.
+  const editCopy=(label,k,ph,orig,save)=><div className="s2p-fg"><label>{label}</label><div className="s2p-copy"><input value={f[k]} onChange={u(k)} placeholder={ph} onBlur={()=>{const v=f[k].trim();if(v!==String(orig||''))save(v);}}/><CopyBtn value={f[k]}/></div></div>;
   const pa=sanitizePA(r.pa)||'';
 
   let action=null;
@@ -4068,14 +4091,16 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle }){
     {fld('계약 완료일','contractDate','YY.MM.DD')}
     {fld('계약서 링크','contractUrl','계약서 파일 링크')}
     {fld('특이사항 (진행 단가 등)','rate','예: 80,000')}
-    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),contractUrl:f.contractUrl.trim(),rate:f.rate.trim()})}>계약 완료 →</button>{reject}</div></>;
+    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),contractUrl:f.contractUrl.trim(),rate:f.rate.trim()})}>계약 완료 →</button>{reject}</div></>;
   else if(st===3) action=<>
-    <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '제품 발송 완료'를 눌러주세요.</p>
-    {copyFld('실명 (받는 분)',r.realName)}
-    {copyFld('연락처',r.phone)}
-    {copyFld('배송 주소',r.address)}
-    <div className="s2p-btns" style={{marginBottom:8}}><CopyBtn value={[r.realName,r.phone,r.address].filter(Boolean).join('\n')}/><span className="s2p-help" style={{margin:0}}>실명·연락처·주소 한 번에 복사</span></div>
-    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({shippingDone:'✅ 완료',shipDate:r.shipDate||today()})}>제품 발송 완료 →</button></div></>;
+    <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '제품 발송 완료'를 눌러주세요. 누르면 📦 출고 탭에도 자동으로 들어가요.</p>
+    {editCopy('실명 (받는 분)','realName','홍길동',r.realName,v=>upd({realName:v}))}
+    {editCopy('연락처','phone','010-0000-0000',r.phone,v=>upd({phone:v}))}
+    {editCopy('배송 주소','address','우편번호 / 주소 입력',r.address,v=>upd({address:v}))}
+    <div className="s2p-btns" style={{marginBottom:8}}><CopyBtn value={[f.realName,f.phone,f.address].map(x=>x.trim()).filter(Boolean).join('\n')}/><span className="s2p-help" style={{margin:0}}>실명·연락처·주소 한 번에 복사</span></div>
+    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{const info={realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()};
+      upd({...info,shippingDone:'✅ 완료',shipDate:r.shipDate||today()});
+      onShip&&onShip(r,info);}}>제품 발송 완료 →</button></div></>;
   else if(st===4) action=<>
     {fld('광고 코드','adCode','광고 코드 입력')}
     <div className="s2p-btns" style={{marginBottom:10}}>
@@ -4084,9 +4109,9 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle }){
     <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{if(f.adCode.trim())onSetAdCode&&onSetAdCode(r,f.adCode.trim());H.current.setFinal(r,'Y');}}>협찬 완료</button></div></>;
   else if(st===5) action=<>
     <p className="s2p-help">광고 세팅 및 인플루언서 입금을 진행해주세요.</p>
-    {copyFld('광고코드 (복사용)',(rv&&rv.paCode)||'')}
-    {copyFld('실명 (예금주 확인)',r.realName||(rv&&rv.realName)||'')}
-    {copyFld('단가',r.rate)}
+    {editCopy('광고코드 (복사용)','adCode','광고 코드 입력',(rv&&rv.paCode)||'',v=>onSetAdCode&&onSetAdCode(r,v))}
+    {editCopy('실명 (예금주 확인)','realName','홍길동',r.realName||(rv&&rv.realName)||'',v=>upd({realName:v}))}
+    {editCopy('단가','rate','예: 80,000',r.rate,v=>upd({rate:v}))}
     <div className="s2p-btns" style={{marginBottom:8}}><button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 입금정보·서류 보기</button></div>
     {IS_STAFF?<p className="s2p-help">입금 완료는 관리자가 처리해요.</p>
       :<div className="s2p-btns"><button className="btn s2p-success" onClick={()=>onSettle&&onSettle(r.name,true,{pa,realName:r.realName||(rv&&rv.realName)||''})}>✓ 광고세팅 및 입금 완료</button></div>}</>;
@@ -4099,12 +4124,12 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle }){
         <button className="btn s2p-outline" onClick={onClose}>✕ 닫기</button>
       </div>
       <div className="s2p-body">
-        <div className="s2p-sec">진행 단계</div>
+        <div className="s2p-sec">진행 단계 <span style={{fontWeight:400}}>· 잘못 눌렀으면 지난 단계를 눌러 되돌리기</span></div>
         <div className="s2p-tl">
           {S2_STAGES.map((name,i)=>{
             const dc=cur>i||st==='done'?'done':cur===i?'current':'pending';
             return <React.Fragment key={i}>
-              <div className="s2p-tl-item"><div className={'s2p-dot '+dc}>{dc==='done'?'✓':i+1}</div>
+              <div className={'s2p-tl-item'+(dc==='done'&&st!=='rejected'?' back':'')} title={dc==='done'&&st!=='rejected'?'눌러서 이 단계로 되돌리기':''} onClick={()=>dc==='done'&&goBack(i)}><div className={'s2p-dot '+dc}>{dc==='done'?'✓':i+1}</div>
                 <div className={'s2p-tl-label '+dc}>{name}{dates[i]&&i<=cur?<span className="s2p-date">{dates[i]}</span>:null}</div></div>
               {i<S2_STAGES.length-1&&<div className="s2p-line"/>}
             </React.Fragment>;})}
@@ -6456,6 +6481,27 @@ function AppMain({ authInfo, onLogout }) {
     updateBrand(bId,b=>({...b,reviewRows:(b.reviewRows||[]).filter(r=>r.id!==id)}));
   }
 
+  // 컨택현황 상세 창 [제품 발송 완료] → 📦 출고 탭 행. 같은 사람(채널명 또는 수령자 실명)이 이미 있으면 새로 만들지 않고 채운다.
+  const shipKey=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
+  const findShip=(rows,r,info)=>rows.findIndex(x=>(shipKey(x.channelName)&&shipKey(x.channelName)===shipKey(r.name))||(info&&info.realName&&shipKey(x.recipient)===shipKey(info.realName)&&(!x.channelName||shipKey(x.channelName)===shipKey(r.name))));
+  function shipFromContact(r,info){
+    updateBrand(bId,b=>{
+      const rows=b.shippingRows||[]; const i=findShip(rows,r,info);
+      const fill={channelName:r.name||'',recipient:info.realName||'',phone:info.phone||'',address:info.address||'',status:'✅ 완료',shipDate:today()};
+      if(i>=0) return {...b,shippingRows:rows.map((x,j)=>j!==i?x:{...x,...Object.fromEntries(Object.entries(fill).filter(([k,v])=>v||!x[k])),shipDate:x.shipDate||today()})};
+      return {...b,shippingRows:[...rows,{id:makeId(),requestDate:today(),requester:sanitizePA(r.pa)||'',notes:'',tracking:'',qty:'1',fromContact:'Y',...fill}]};
+    });
+  }
+  // 되돌리기 — 상세 창이 만든 행이고 송장이 아직 없으면 지우고, 아니면 '처리중'으로 되돌린다(송장·주소 기록은 남김)
+  function unshipFromContact(r){
+    updateBrand(bId,b=>{
+      const rows=b.shippingRows||[]; const i=findShip(rows,r,{realName:r.realName});
+      if(i<0) return b;
+      const x=rows[i];
+      if(x.fromContact==='Y'&&!String(x.tracking||'').trim()) return {...b,shippingRows:rows.filter((_,j)=>j!==i)};
+      return {...b,shippingRows:rows.map((y,j)=>j===i?{...y,status:'처리중',shipDate:''}:y)};
+    });
+  }
   // 컨택현황 상세 창에서 넣은 광고코드 → 영상검수 행의 PA 코드(없으면 행을 만든다). 영상검수 탭과 같은 값을 본다.
   function setReviewCode(r,code){
     const nz=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
@@ -6950,7 +6996,7 @@ function AppMain({ authInfo, onLogout }) {
         onDelete={deleteStep2Row}
         onDeleteMany={ids=>deleteRowsMany('step2Rows',ids)}
         onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:r.realName||'',phone:r.phone,pa:sanitizePA(r.pa)})}
-        onSetAdCode={setReviewCode} onSettle={setInfSettledByName}
+        onSetAdCode={setReviewCode} onSettle={setInfSettledByName} onShip={shipFromContact} onUnship={unshipFromContact}
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}
       />}

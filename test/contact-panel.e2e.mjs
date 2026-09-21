@@ -20,8 +20,9 @@ let savedData = { paList:['박민선','안민영','권미림'], brands: [
       S2('s2_b','비비','https://instagram.com/bbb_id','안민영',{dmSent:'Y',dmDate:'26.09.02',contactStatus:'진행중'}),
       S2('s2_c','씨씨','https://instagram.com/ccc_id','권미림',{dmSent:'Y',contactStatus:'진행중'}),
       S2('s2_d','디디','https://instagram.com/ddd_id','권미림',{dmSent:'Y',contactStatus:'진행중'}),
+      S2('s2_e','이이','https://instagram.com/eee_id','안민영',{dmSent:'Y',contactStatus:'계약서 작성',dealDone:'Y',dealDate:'26.09.03',contractDone:'✅ 완료'}),
     ],
-    shippingRows:[], reviewRows:[], privacyRows:[] },
+    shippingRows:[{id:'sh_e',requestDate:'26.09.04',requester:'안민영',channelName:'이이',recipient:'',phone:'',address:'',notes:'',status:'처리중',shipDate:'',tracking:'555-1'}], reviewRows:[], privacyRows:[] },
 ], settlements:{} };
 let rev=1;
 const PORT=8951;
@@ -134,6 +135,8 @@ console.log('\n[4→5] 제품 발송 완료');
 await pbtn('제품 발송 완료');
 r=await saved('에이');
 chk(r.shippingDone==='✅ 완료'&&!!r.shipDate,'출고 완료·발송일',r);
+let sh=B().shippingRows.find(x=>x.channelName==='에이');
+chk(sh&&sh.recipient==='홍길동'&&sh.phone==='010-1234-5678'&&sh.address==='서울시 강남구 1'&&sh.status==='✅ 완료'&&sh.requester==='박민선'&&!!sh.shipDate,'📦 출고 탭에 자동 등록(수령자·연락처·주소·요청자·완료)',sh);
 chk(await curStage()==='광고 코드/입금정보 수집','현재 단계 광고 코드/입금정보 수집',await curStage());
 
 console.log('\n[5→6] 광고코드 넣고 협찬 완료');
@@ -161,6 +164,21 @@ await pbtn('협찬 성사 완료');
 r=await saved('비비');
 chk(r.productOnly==='Y'&&r.dealDone==='Y','제품만 협찬 표시 + 성사',r);
 chk(await curStage()==='제품 발송','계약서 단계 건너뛰고 제품 발송',await curStage());
+
+console.log('\n[제품 발송] 앞에서 비워두고 넘어와도 여기서 입력됨');
+const ro=await evalJs(`[...document.querySelectorAll('.s2p .s2p-copy input')].map(i=>i.readOnly)`);
+chk(ro.length===3&&ro.every(x=>!x),'실명·연락처·주소 칸이 입력 가능',ro);
+await fill('실명','김비비');
+await evalJs(`(()=>{const i=document.querySelector('.s2p .s2p-copy input');i.dispatchEvent(new FocusEvent('focusout',{bubbles:true}));return 1})()`);
+r=await saved('비비');
+chk(r.realName==='김비비','칸을 벗어나면 바로 저장',r.realName);
+await fill('연락처','010-2222-3333'); await fill('배송 주소','부산시 해운대구 2');
+await pbtn('제품 발송 완료');
+r=await saved('비비');
+chk(r.phone==='010-2222-3333'&&r.address==='부산시 해운대구 2'&&r.shippingDone==='✅ 완료','[제품 발송 완료]가 입력값도 같이 저장',r);
+sh=B().shippingRows.find(x=>x.channelName==='비비');
+chk(sh&&sh.recipient==='김비비'&&sh.address==='부산시 해운대구 2','비비도 출고 탭에',sh);
+chk(await curStage()==='광고 코드/입금정보 수집','다음 단계로',await curStage());
 await pbtn('닫기'); await wait(200);
 
 console.log('\n[거절·복구]');
@@ -174,6 +192,50 @@ r=await saved('씨씨');
 chk(r.contactStatus!=='거절'&&!r.rejectDate,'복구',r);
 await pbtn('닫기'); await wait(200);
 
+console.log('\n[되돌리기] 진행 단계에서 지난 단계를 누르면 그 단계로');
+await evalJs(`(window.__cf=[],window.confirm=m=>{window.__cf.push(m);return true},1)`);
+await click('.fchip','개인정보 폐기'); await wait(100); await click('.fchip','진행 중'); await wait(300);
+const stepClick=name=>evalJs(`(()=>{const it=[...document.querySelectorAll('.s2p .s2p-tl-item')].find(x=>x.querySelector('.s2p-tl-label').childNodes[0].textContent===${J(name)});it.click();return 1})()`);
+// 에이 는 정산까지 끝나 '완료' 필터에만 있을 수 있어 검색으로 연다
+await evalJs(`(()=>{const i=document.querySelector('.srch');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'에이');i.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`); await wait(500);
+await openCh('에이'); await wait(300);
+chk((await panel()).includes('모든 단계 완료'),'(사전) 에이 = 전부 완료');
+await stepClick('제품 발송'); r=await saved('에이');
+const cf1=await evalJs('window.__cf.slice(-1)[0]||""');
+chk(cf1.includes("'제품 발송' 단계로 되돌릴까요")&&cf1.includes('정산(입금) 완료'),'확인창에 풀리는 단계 안내',cf1);
+chk(r.infSettled!=='Y'&&r.finalDone==='N'&&!r.finalDate&&r.shippingDone==='미완료'&&!r.shipDate,'정산·최종완료·출고 기록만 풀림',r);
+chk(!B().shippingRows.some(x=>x.channelName==='에이'),'상세 창이 만든 출고 행(송장 없음)은 지워짐',B().shippingRows.map(x=>x.channelName));
+chk(r.contractDone==='✅ 완료'&&r.dealDone==='Y'&&r.dmSent==='Y','앞 단계(계약·성사·DM)는 그대로',r);
+chk(await curStage()==='제품 발송','현재 단계 제품 발송',await curStage());
+await stepClick('리스팅 목록'); r=await saved('에이');
+chk(r.dmSent==='N'&&r.dealDone==='N'&&r.contractDone==='미완료'&&r.contractBack==='Y','처음(리스팅 목록)까지 되돌림',r);
+chk(await curStage()==='리스팅 목록','현재 단계 리스팅 목록',await curStage());
+const nCf=await evalJs('window.__cf.length');
+await stepClick('광고세팅/입금'); await wait(300);
+chk(await evalJs('window.__cf.length')===nCf&&await curStage()==='리스팅 목록','아직 안 한 단계를 눌러도 아무 일 없음');
+await evalJs(`window.confirm=m=>{window.__cf.push(m);return false},1`);
+await pbtn('DM 발송으로 이동'); await pbtn('협찬 성사 완료'); await wait(300);
+chk(await curStage()==='계약서발송/수집','영상검수에 계약서 Y가 있어도 되돌린 계약은 다시 계약서 단계부터',await curStage());
+await stepClick('DM 발송 완료/ 진행 대기'); await wait(1600);
+chk(row('에이').dealDone==='Y','확인창에서 [취소]하면 안 바뀜',row('에이').dealDone);
+await evalJs(`(window.confirm=m=>{window.__cf.push(m);return true},1)`);
+await pbtn('닫기'); await wait(200);
+await evalJs(`(()=>{const i=document.querySelector('.srch');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'');i.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`); await wait(300);
+
+console.log('\n[출고 탭에 이미 있는 사람] 새로 안 만들고 채움');
+await openCh('이이'); await wait(300);
+chk(await curStage()==='제품 발송','(사전) 이이 = 제품 발송 단계',await curStage());
+const nShip=B().shippingRows.length;
+await fill('실명','이이본명'); await fill('연락처','010-5555-6666'); await fill('배송 주소','대구시 3');
+await pbtn('제품 발송 완료'); await wait(1600);
+const she=B().shippingRows.filter(x=>x.channelName==='이이');
+chk(B().shippingRows.length===nShip&&she.length===1,'출고 행 개수 그대로(중복 안 만듦)',B().shippingRows.length);
+chk(she[0].id==='sh_e'&&she[0].recipient==='이이본명'&&she[0].address==='대구시 3'&&she[0].status==='✅ 완료'&&she[0].tracking==='555-1','기존 행에 수령자·주소 채우고 완료 · 송장 그대로',she[0]);
+await stepClick('제품 발송'); await wait(1600);
+const she2=B().shippingRows.find(x=>x.id==='sh_e');
+chk(she2&&she2.status==='처리중'&&!she2.shipDate&&she2.tracking==='555-1','되돌리면 송장 있는 행은 남기고 처리중으로',she2);
+await pbtn('닫기'); await wait(200);
+
 console.log('\n[기본 정보] 저장·삭제');
 await click('.fchip','진행 중'); await wait(300);
 await openCh('디디'); await wait(300);
@@ -184,7 +246,7 @@ chk(r.id==='s2_d'&&r.memo==='메모테스트','이름(별칭)·메모 저장',r)
 await pbtn('삭제'); await wait(300);
 r=await saved('디디 새이름');
 chk(!r.id&&!(await evalJs(`!!document.querySelector('.s2p')`)),'삭제하면 행이 지워지고 창 닫힘');
-chk(B().step2Rows.length===3&&['에이','비비','씨씨'].every(n=>row(n).id),'다른 행은 그대로(4→3)',B().step2Rows.map(x=>x.name));
+chk(B().step2Rows.length===4&&['에이','비비','씨씨','이이'].every(n=>row(n).id),'다른 행은 그대로(5→4)',B().step2Rows.map(x=>x.name));
 
 console.log('\n[자동화 탭] 채널명은 전처럼 바로 수정');
 await evalJs(`(()=>{const m=[...document.querySelectorAll('.step-tab')].find(e=>e.textContent.includes('자동화'));m.click();return 1})()`); await wait(500);
