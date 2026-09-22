@@ -4179,16 +4179,13 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     <p className="s2p-help">DM 발송 준비가 완료되면 다음 단계로 이동하세요.</p>
     <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>H.current.setDm(r,'Y')}>▶ DM 발송으로 이동</button>{reject}</div></>;
   else if(st===1) action=<>
-    <p className="s2p-help">DM 발송 후 인플루언서의 실명·연락처·주소를 받아 입력해주세요.<br/>(비워둔 채로 다음 단계로 넘어가도 됩니다)</p>
-    {fld('실명 (계약/입금용)','realName','홍길동')}
-    {fld('연락처','phone','010-0000-0000')}
-    {fld('배송 주소','address','우편번호 / 주소 입력',true)}
+    {/* 실명·연락처·주소 입력칸은 뺐다(2026-09-22 사용자 요청) — 뒤 단계(계약서·제품 발송)에서 채운다 */}
     <div className="s2p-po">
       <button className={'btn '+(r.productOnly==='Y'?'btn-primary':'s2p-outline')} onClick={()=>upd({productOnly:r.productOnly==='Y'?'':'Y'})}>📦 제품만 협찬{r.productOnly==='Y'?' ✓':''}</button>
       <span className="s2p-help" style={{margin:0}}>계약서 단계 건너뛰고 바로 제품 발송</span>
     </div>
     <div className="s2p-btns">
-      <button className="btn btn-primary" onClick={()=>{upd({realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()});H.current.setDeal(r,'Y');}}>협찬 성사 완료</button>{reject}
+      <button className="btn btn-primary" onClick={()=>H.current.setDeal(r,'Y')}>협찬 성사 완료</button>{reject}
     </div></>;
   else if(st===2&&IS_STAFF) action=<>
     {fld('계약 완료일','contractDate','YY.MM.DD')}
