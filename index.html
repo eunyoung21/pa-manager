@@ -1443,14 +1443,13 @@ const TABS = [
   { key:'review',   label:'🎬 영상검수' },
   { key:'dm',       label:'💬 DM 템플릿' },
   { key:'settle',   label:'💰 정산', mgr:true, staffOwn:true },
-  { key:'guide',    label:'📖 가이드', guide:true },
   { key:'finder',   label:'🔎 인플루언서 찾기', mgr:true, staffOwn:true },
 ];
 // 스태프 계정에 개별 부여 가능한 탭(계정별 권한 범위). 관리자 전용(계정관리·접속로그)은 제외.
 const STAFF_TAB_OPTS = [
   {key:'finder',label:'🔎 인플루언서 찾기'},{key:'claudeS2',label:'🤖 자동화'},{key:'shipping',label:'📦 출고'},{key:'review',label:'🎬 영상검수'},
   {key:'dm',label:'💬 DM 템플릿'},{key:'settle',label:'💰 정산'},{key:'step2',label:'👥 인플루언서 관리'},
-  {key:'dashboard',label:'📊 대시보드'},{key:'guide',label:'📖 가이드'},
+  {key:'dashboard',label:'📊 대시보드'},
 ];
 // 새 스태프 기본 권한 — 자동화·출고·영상검수·DM템플릿·정산
 const DEFAULT_STAFF_TABS = ['claudeS2','shipping','review','dm','settle'];
@@ -3540,7 +3539,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       push(i.pa||pa,i,k);
     }));
   }
-  const talkOrder=[...(paList||[]).filter(p=>talkBy[p]||(activePas(paList).includes(p)&&(!paFocus||p===paFocus))), ...Object.keys(talkBy).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
+  const talkOrder=[...(paList||[]).filter(p=>(talkBy[p]||[]).length>0), ...Object.keys(talkBy).filter(k=>!(paList||[]).includes(k)&&talkBy[k].length>0).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
   // 같은 인플루언서를 두 사람이 동시에 맡고 있으면(리스트업/컨택 담당이 다르거나 자동화와 겹침) 알려준다
   const dupTalk=useMemo(()=>{
     const m={}; const add=(name,pa,st)=>{const k=nzName(name); if(!k) return; (m[k]=m[k]||{name,pas:new Set()}).pas.add(pa||'미지정');};
@@ -4520,6 +4519,32 @@ function FinderView({ brand, brands, onAddListing, onAddAuto }){
             </div>;})}
         </div>
       </div>}
+    </div>
+  </div>;
+}
+
+/* ─── 📖 사용법 (옛 가이드 탭 대신, 2026-09-22 구조 기준) ─── */
+const HOWTO=[
+  ['🔎 인플루언서 찾기','이 PC에서 「리스트업 창.bat」을 켜 두고 → 「비슷한 결」 또는 「해시태그」로 찾기 → 카드를 골라 리스팅 목록이나 자동화에 추가. 이미 PA에 있는 사람은 자동으로 빠져요.'],
+  ['👥 인플루언서 관리 · 🟡 리스팅 목록','찾은·직접 추가한 사람이 검수대기로 쌓여요. 관리자가 승인하면 「진행 중」으로 넘어가 DM 대상이 돼요.'],
+  ['👥 인플루언서 관리 · 진행 중','DM 보내면 DM발송 Y. 채널명을 누르면 오른쪽 상세 창에서 단계를 진행해요: DM → 계약서 → 제품 발송 → 광고코드·입금정보 → 광고세팅·입금.'],
+  ['🚫 거절','DM 후 14일 동안 답장이 없으면 자동으로 거절로 옮겨져요. 잘못 옮겨졌으면 상세 창에서 ↩ 복구.'],
+  ['🤖 자동화','자동 DM 대상 목록. 답장 오면 답장 Y, 관리자가 승인 Y(진행) / N(거절).'],
+  ['📦 출고 · 🎬 영상검수','상세 창에서 제품 발송을 누르면 출고에 자동으로 생겨요. 영상검수에서 광고코드·계약서·라이브·정산을 확인해요.'],
+  ['📄 계약서 생성','모델 이름·모델료·날짜를 넣으면 편집 잠금 PDF가 만들어지고 바로 메일로 보낼 수 있어요.'],
+  ['기타','행 삭제는 표 맨 오른쪽 작은 ×. 검색은 날짜·칸 필터와 상관없이 전체에서 찾아요.'],
+];
+function HowToModal({ onClose }){
+  return <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(20,24,33,.35)',zIndex:60,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'60px 16px',overflow:'auto'}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:'var(--surface)',borderRadius:12,maxWidth:560,width:'100%',padding:'20px 22px',boxShadow:'0 10px 40px rgba(0,0,0,.15)'}}>
+      <div style={{display:'flex',alignItems:'center',marginBottom:12}}>
+        <b style={{fontSize:15}}>📖 사용법</b>
+        <button className="btn btn-ghost" style={{marginLeft:'auto'}} onClick={onClose}>닫기</button>
+      </div>
+      {HOWTO.map(([t,d])=><div key={t} style={{padding:'9px 0',borderTop:'1px solid var(--surface3)'}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:3}}>{t}</div>
+        <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.6}}>{d}</div>
+      </div>)}
     </div>
   </div>;
 }
@@ -6215,7 +6240,8 @@ function AppMain({ authInfo, onLogout }) {
   PA_LIST = paList; // 모듈 변수 동기화 — 모든 담당자 선택·색상·매핑이 현재 목록을 사용
   const [bId,         setBId]         = useState(userBrand!=='all'?userBrand:'basetune');
   const [tab,         setTab]         = useState('dashboard');
-  const [s1Filter,    setS1Filter]    = useState('all');   // 인플루언서 관리 > 리스팅 목록 안의 리스트업 필터(대기/승인/반려)
+  const [s1Filter,    setS1Filter]    = useState('all');
+  const [howOpen,     setHowOpen]     = useState(false);   // 📖 사용법 창(옛 가이드 탭 대신)   // 인플루언서 관리 > 리스팅 목록 안의 리스트업 필터(대기/승인/반려)
   const [filter,      setFilter]      = useState('all');
   const [search,      setSearch]      = useState('');
   const [dashPa,      setDashPa]      = useState(null); // 대시보드 담당자 탭
@@ -7247,7 +7273,7 @@ function AppMain({ authInfo, onLogout }) {
     if(visibleTabs.length && !visibleTabs.some(t=>t.key===tab)) setTab(visibleTabs[0].key);
   },[authInfo]);
   // 자주 쓰는 핵심 탭만 노출, 나머지(Claude·DM·가이드·계정·로그)는 '⋯ 더보기'로 접어 어지러움 감소.
-  const PRIMARY_TABS=new Set(['dashboard','step2','finder','shipping','review','dm','settle','claudeS2','guide']);
+  const PRIMARY_TABS=new Set(['dashboard','step2','finder','shipping','review','dm','settle','claudeS2']);
   const primaryTabs=visibleTabs.filter(t=>PRIMARY_TABS.has(t.key));
   const moreTabs=visibleTabs.filter(t=>!PRIMARY_TABS.has(t.key));
   const activeMore=moreTabs.find(t=>t.key===tab);
@@ -7273,6 +7299,8 @@ function AppMain({ authInfo, onLogout }) {
       {addBrandOpen&&<BrandAddModal existingNames={brands.map(b=>b.name)} onClose={()=>setAddBrandOpen(false)}
         onAdd={name=>{ const id=makeId(); setBrands(prev=>[...prev,{id,name,step1Rows:[],step2Rows:[],shippingRows:[],reviewRows:[],privacyRows:[],claudeStep1Rows:[],claudeStep2Rows:[]}]); setBId(id); setAddBrandOpen(false); }}/>}
       <div className="hdr-right">
+        <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setHowOpen(true)} title="프로그램 사용법">📖 사용법</button>
+        {howOpen&&<HowToModal onClose={()=>setHowOpen(false)}/>}
         {/* 계약서 생성 — 모델 정보 입력 후 잠금 PDF 다운로드 (브랜드별 광고주 자동) */}
         <button className="contract-link" style={{cursor:'pointer'}} onClick={()=>setCtGenOpen(true)} title="모델명·모델료·계약일자 입력 후 계약서 PDF 생성">📄 계약서 생성</button>
         {ctGenOpen&&<ContractGenModal brandId={bId} brandName={brand?.name} onClose={()=>setCtGenOpen(false)}
@@ -7280,9 +7308,6 @@ function AppMain({ authInfo, onLogout }) {
           onUploadTemplate={uploadContractTemplate} onRemoveTemplate={removeContractTemplate}/>}
         {/* 자주 쓰는 것만 노출 */}
         {BRAND_DRIVE[bId]&&<a href={BRAND_DRIVE[bId]} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
-        {isManager&&<button className="btn btn-ghost" style={{fontSize:11}} onClick={importFromSheet} disabled={syncing}>
-          {syncing?'가져오는 중…':'📥 시트에서 가져오기'}
-        </button>}
         {/* 시트 링크·중복 제거만 ⚙️ 관리 메뉴로 정리 */}
         {isManager&&<div style={{position:'relative'}}>
           <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setMenuOpen(o=>!o)} title="관리 메뉴">⚙️ 관리 ▾</button>
@@ -7420,7 +7445,6 @@ function AppMain({ authInfo, onLogout }) {
         setSettlements={setSettlements}
         staffPA={isManager?null:(authInfo?.pa||'')}
       />}
-      {tab==='guide'&&<GuideView brand={brand}/>}
       {tab==='users'&&<UserMgmtView/>}
       {tab==='log'&&<AccessLogView/>}
     </div>
