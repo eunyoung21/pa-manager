@@ -53,6 +53,10 @@ const server = http.createServer((req, res) => {
         if (fs.existsSync(f)) return send({ ok: true, dataUrl: 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + fs.readFileSync(f).toString('base64') });
         return send({ ok: false, error: '개발 서버: 첨부 미리보기 없음' });
       }
+      // 복사본은 실제 메일을 절대 안 보낸다 — 흉내만 내고 화면에도 '실제로 안 나감'을 표시한다.
+      case 'contractMail':
+        console.log(`[모의] 메일 발송 — 받는 사람: ${b.to}  제목: ${b.subject}`);
+        return send({ ok: true, to: b.to, from: 'dev-mock@localhost', mock: true });
       default: return send({ ok: true });
     }
   });

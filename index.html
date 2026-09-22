@@ -4219,7 +4219,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
         if(j&&/unknown action/.test(j.error||'')) throw new Error('백엔드에 메일 발송 기능이 아직 적용되지 않았습니다(관리자: Apps Script 재배포 필요).');
         if(!j||j.error) throw new Error((j&&j.error)||'발송 실패');
         upd({realName:name,email,address:f.address.trim(),rate:f.rate.trim(),contractDate:f.contractDate.trim()||today(),contractSent:today()});
-        setMsMsg({ok:`${name} 님(${email})에게 계약서를 메일로 보냈습니다.`});
+        setMsMsg({ok:`${name} 님(${email})에게 계약서를 메일로 보냈습니다.${j.mock?' (개발 서버 — 실제로는 안 나감)':''}`});
       }catch(e){ setMsMsg({err:'메일 발송 실패: '+(e&&e.message||e)}); }
       finally{ setMsBusy(false); }
     };
