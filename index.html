@@ -5523,14 +5523,16 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   // DM 수당 없이 '협업 성사(2만)'만 담당 PA(매니저)에게 정산(_claude 태그로 아래에서 DM 제외).
   const allRows2=[...(brand?.step2Rows||[]), ...((brand?.claudeStep2Rows||[]).map(r=>({...r,_claude:true})))];
   // 정산에서 제외할 담당자(관리자 등 — 수당 정산 대상 아님)
-  const SETTLE_EXCLUDE_PA=['이은영'];
+  // 관리자 명단 — 수당 정산 대상 아님(2026-09-22 사용자 지정). 이름 그대로·정리된 이름 둘 다로 거른다.
+  const SETTLE_EXCLUDE_PA=['이은영','나가연','정현정','이태윤','송준섭'];
+  const isExcludedPA=v=>{const t=String(v||'').trim(); return SETTLE_EXCLUDE_PA.includes(t)||SETTLE_EXCLUDE_PA.includes(sanitizePA(t));};
   // DM 수당 인정 여부: 컨택현황(일반 탭)에서 DM발송한 건만. 클로드 발굴 탭(_claude)은 DM 자동발송이라 제외.
   const dmPaid=r=>!r._claude&&r.dmSent==='Y';
   // 스태프는 본인 담당분만. 공통으로 제외 담당자(이은영)는 집계에서 뺌.
   const allS2 = (isStaffView ? allRows2.filter(r=>staffPASet.has(sanitizePA(r.pa))) : allRows2)
-    .filter(r=>!SETTLE_EXCLUDE_PA.includes(sanitizePA(r.pa)));
+    .filter(r=>!isExcludedPA(r.pa));
   // 거절 3일 뒤 삭제된 행의 DM 수당(신원은 지워졌지만 비용은 정산에 남아야 함) — purgeRejected 참고.
-  const rejBilling=(brand?.rejectedBilling||[]).filter(e=>!SETTLE_EXCLUDE_PA.includes(e.pa)&&(!isStaffView||staffPASet.has(e.pa)));
+  const rejBilling=(brand?.rejectedBilling||[]).filter(e=>!isExcludedPA(e.pa)&&(!isStaffView||staffPASet.has(e.pa)));
   const settle=getSettleInfo();
   const isUrgent=settle.days<=3;
 
