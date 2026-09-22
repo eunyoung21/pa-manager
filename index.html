@@ -5101,7 +5101,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
           <th style={{minWidth:120,whiteSpace:'nowrap'}}>PA 코드</th>
           <th style={{minWidth:130}}>게시 링크</th>
           <th style={{width:96}}>라이브</th>
-          <th style={{width:96}}>계약서</th>
+          <th style={{width:96,whiteSpace:'nowrap'}}>계약서</th>
           <th style={{width:120}}>정산</th>
           <th style={{width:80}}>개인정보</th>
           <th className="del-end"/>
@@ -5154,8 +5154,8 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                     <button onClick={()=>onUpdate(r.id,{contractDone:done?'N':'Y',contractDate:(!done&&!r.contractDate)?today():r.contractDate})}
                       title={done?(r.contractDate?'계약서 작성 '+r.contractDate:'작성됨')+' — 클릭하면 해제':'클릭하면 계약서 작성완료로 표시'}
                       style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:1,padding:'2px 9px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:700,border:'1px solid '+(done?'var(--accent)':'var(--border)'),background:done?'var(--accent-soft)':'var(--surface2)',color:done?'var(--accent)':'var(--dim)'}}>
-                      <span>{done?'📄 작성완료':'○ 미작성'}</span>
-                      {done&&r.contractDate&&<span style={{fontSize:9,fontWeight:500,color:'var(--accent)',opacity:.85}}>{r.contractDate}</span>}
+                      <span style={{whiteSpace:'nowrap'}}>{done?'📄 작성완료':'○ 미작성'}</span>
+                      {done&&r.contractDate&&<span style={{fontSize:9,fontWeight:500,color:'var(--accent)',opacity:.85,whiteSpace:'nowrap'}}>{r.contractDate}</span>}
                     </button>
                   );})()}
                 </td>
