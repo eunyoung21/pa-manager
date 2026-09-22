@@ -123,6 +123,15 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 .cell-val{cursor:text;display:block;min-width:32px;min-height:20px;border-radius:3px;padding:1px 3px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}
 .cell-val:hover{background:var(--surface3);}
 .cell-val.empty{color:var(--dim);}
+/* 인플루언서 관리·자동화 — 양옆 여백·넉넉한 행 간격·팔로워 흐리게 (해트케 화면 참고, 2026-09-22) */
+@media (min-width:769px){
+  .roomy{padding:14px max(24px,calc((100% - 190px - 1240px)/2)) 0;}
+  .roomy .table-wrap{border:1px solid var(--border);border-radius:10px;margin-bottom:12px;}
+  .roomy .toolbar{padding-left:0;padding-right:0;}
+  .roomy th{padding:11px 12px;}
+  .roomy td{padding:9px 12px;}
+}
+.td-dim,.td-dim .cell-val{color:var(--muted);}
 .cell-input{background:var(--surface3);border:1px solid var(--accent);border-radius:4px;padding:2px 6px;color:var(--text);font-size:12px;outline:none;width:100%;font-family:inherit;min-width:80px;}
 .cell-sel{background:var(--surface3);border:1px solid var(--accent);border-radius:4px;padding:2px 6px;color:var(--text);font-size:12px;outline:none;font-family:inherit;}
 
@@ -3831,7 +3840,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
                 ?<a href={r.link} target="_blank" rel="noopener" style={{color:'var(--blue)',fontSize:13}} onClick={e=>e.stopPropagation()}>↗</a>
                 :<Cell value={r.link} onChange={v=>up(r.id,'link',v)} placeholder="URL" style={{width:60}}/>}
             </td>
-            <td><Cell value={r.followers} onChange={v=>up(r.id,'followers',v)} style={{width:70}}/></td>
+            <td className="td-dim"><Cell value={r.followers} onChange={v=>up(r.id,'followers',v)} style={{width:70}}/></td>
             <td><Cell value={r.pa} onChange={v=>up(r.id,'pa',v)} type="select" chips options={PA_LIST}
               style={r.pa?{...paColor(sanitizePA(r.pa)),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
             <td><Cell value={r.persona} onChange={v=>up(r.id,'persona',v)} placeholder="페르소나"/></td>
@@ -3939,13 +3948,13 @@ function Step2View({ listing, listingCount, brand, rows, privacyRows, onUpdate, 
         : [...(listing?[{k:'lst',l:`🟡 리스팅 목록 (${listingCount||0})`,c:''}]:[]),{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}])
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>);
   // 🟡 리스팅 목록 = 옛 STEP1 리스트업 화면 그대로. 여기서 승인하면 '진행 중'(컨택 전)으로 넘어와 DM을 보낸다.
-  if(listing&&filter==='lst') return <div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+  if(listing&&filter==='lst') return <div className="roomy" style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
     <div className="toolbar">{chips}<div className="sep"/><span className="cnt" style={{color:'var(--muted)'}}>승인하면 진행 중으로 넘어가 DM 발송 대상이 돼요</span></div>
     {listing}
   </div>;
 
   return <div className="view-wrap">
-    <div className="view-main">
+    <div className="view-main roomy">
     <div className="toolbar">
       {chips}
       <div className="sep"/>
@@ -4302,7 +4311,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                 {r.link?<a href={r.link} target="_blank" rel="noopener" style={{color:'var(--blue)',fontSize:13}}>↗</a>
                 :<Cell value={r.link} onChange={v=>H.current.up(r.id,'link',v)} placeholder="URL" style={{width:50}}/>}
               </td>
-              <td data-label="팔로워"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
+              <td data-label="팔로워" className="td-dim"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
               <td data-label="담당 PA" style={{textAlign:'center',whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
                 style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
               {isClaude&&<td data-label="진행 상태" style={{textAlign:'center'}}><Cell value={normStatus(r.contactStatus)} onChange={v=>H.current.setStatus(r,v)} type="select" options={CONTACT_STATUS}
