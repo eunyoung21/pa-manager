@@ -3894,6 +3894,9 @@ function Step2View({ actions, listing, listingCount, brand, rows, privacyRows, o
   const isRej=r=>normStatus(r.contactStatus)==='거절';
   const isPurged=r=>!!r.privacyPurged;
   const isArchived=r=>isRej(r);
+  // 🏁 완료 = 최종완료 또는 인플루언서 입금(정산)까지 끝난 건(2026-09-22). 입금만 된 건에 최종완료를 켜면
+  // 성사수당 2만이 새로 잡히므로 데이터는 그대로 두고 화면 칸만 완료로 보낸다 — 정산 금액 영향 없음.
+  const isDoneRow=r=>r.finalDone==='Y'||r.infSettled==='Y';
   const colFKey=JSON.stringify(colF);
   const named=useMemo(()=>rows.filter(r=>s2(r.name).trim()),[rows]);
   const mode=filter==='rej'?'reject':filter==='arc'?'archive':'active';
@@ -3919,16 +3922,16 @@ function Step2View({ actions, listing, listingCount, brand, rows, privacyRows, o
     if(filter==='wait') return r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r); // 답장O·승인 전
     if(filter==='apv') return r.approved==='Y'&&r.dealDone!=='Y'&&!isArchived(r); // 승인됨(소통 진행 중)
     if(filter==='deal') return r.dealDone==='Y';
-    if(filter==='fin') return r.finalDone==='Y';   // 최종완료(=수당 집계 대상)
+    if(filter==='fin') return isDoneRow(r);   // 최종완료 + 인플루언서 입금(정산)까지 끝난 건
     if(filter==='nd') return r.dmSent!=='Y'&&!isArchived(r);
     if(filter==='rej') return isRej(r);
     if(filter==='arc') return isPurged(r);
     if(filter==='apv2') return r.approved==='Y'&&r.finalDone!=='Y'&&!isArchived(r); // 자동화 '승인' — 승인 후 완료 전
     // 'all' — 컨택현황은 '진행 중'(거절·완료 제외), 자동화는 '리스트업'(거절·승인·완료 제외)
-    return !isArchived(r)&&r.finalDone!=='Y'&&(!isClaude||r.approved!=='Y');
+    return !isArchived(r)&&!isDoneRow(r)&&(!isClaude||r.approved!=='Y');
   }).sort(dateSort);
   },[named,dayFilter,monthFilter,colFKey,q,filter,sortDir]);
-  const cnt=useMemo(()=>({all:named.filter(r=>!isArchived(r)&&r.finalDone!=='Y'&&(!isClaude||r.approved!=='Y')).length,apv2:named.filter(r=>r.approved==='Y'&&r.finalDone!=='Y'&&!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,fin:named.filter(r=>r.finalDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
+  const cnt=useMemo(()=>({all:named.filter(r=>!isArchived(r)&&!isDoneRow(r)&&(!isClaude||r.approved!=='Y')).length,apv2:named.filter(r=>r.approved==='Y'&&r.finalDone!=='Y'&&!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,fin:named.filter(isDoneRow).length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
     rep:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length,
     wait:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r)).length,
     apv:named.filter(r=>r.approved==='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length}),[named]);
