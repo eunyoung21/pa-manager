@@ -1438,13 +1438,13 @@ const shipProductOf = brandId => SHIP_PRODUCT[brandId] || '';
 const TABS = [
   { key:'dashboard', label:'📊 대시보드' },
   { key:'step2',    label:'👥 인플루언서 관리' },   // 옛 STEP1 리스트업 + STEP2 컨택현황을 합친 탭(리스트업은 '🟡 리스팅 목록' 칸)
-  { key:'finder',   label:'🔎 인플루언서 찾기', mgr:true, staffOwn:true },
   { key:'claudeS2', label:'🤖 자동화', mgr:true, staffOwn:true },
   { key:'shipping', label:'📦 출고' },
   { key:'review',   label:'🎬 영상검수' },
   { key:'dm',       label:'💬 DM 템플릿' },
   { key:'settle',   label:'💰 정산', mgr:true, staffOwn:true },
   { key:'guide',    label:'📖 가이드', guide:true },
+  { key:'finder',   label:'🔎 인플루언서 찾기', mgr:true, staffOwn:true },
 ];
 // 스태프 계정에 개별 부여 가능한 탭(계정별 권한 범위). 관리자 전용(계정관리·접속로그)은 제외.
 const STAFF_TAB_OPTS = [
