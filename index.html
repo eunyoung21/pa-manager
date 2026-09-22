@@ -3462,7 +3462,8 @@ function useInfActions(A){
 
 function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, settlements }) {
   // 해트케 PA(준섭) 대시보드 구조 그대로: [담당자 탭] → 🟡 매니저 담당 / 🔴 관리자 담당 단계 카드 → 관리자 할 일 · 매니저 할 일
-  const infsAll=useMemo(()=>buildInfluencers(brand,paList),[brand,paList]);
+  // 대시보드는 사람(담당자) 업무만 — 담당자가 안 붙은 🤖 자동화 건은 뺀다(2026-09-22). 담당자가 붙은 자동화 건은 그 담당자 업무로 남는다.
+  const infsAll=useMemo(()=>buildInfluencers(brand,paList).filter(i=>i.pa!==AUTO_PA),[brand,paList]);
   const [talkQ,setTalkQ]=useState({}); // 소통 중 칸별 검색어 {담당자: 검색어}
   // 📨 담당자별 DM 보낸 인플루언서 — 매니저가 직접 DM 보낸 컨택현황 행(자동화 DM 제외).
   //    거절·완료(인플루언서 정산/폐기)·DM 수당이 이미 지급된 달·너무 오래된 DM 은 뺀다.
@@ -3545,7 +3546,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     const m={}; const add=(name,pa,st)=>{const k=nzName(name); if(!k) return; (m[k]=m[k]||{name,pas:new Set()}).pas.add(pa||'미지정');};
     const live=r=>normStatus(r.contactStatus)!=='거절'&&r.infSettled!=='Y'&&!r.privacyPurged&&r.dmSent==='Y';
     (brand.step2Rows||[]).filter(live).forEach(r=>add(r.name,(paList||[]).includes(r.pa)?r.pa:(sanitizePA(r.pa)||r.pa)));
-    (brand.claudeStep2Rows||[]).filter(live).forEach(r=>add(r.name,r.pa?((paList||[]).includes(r.pa)?r.pa:(sanitizePA(r.pa)||r.pa)):AUTO_PA));
+    (brand.claudeStep2Rows||[]).filter(r=>live(r)&&r.pa).forEach(r=>add(r.name,(paList||[]).includes(r.pa)?r.pa:(sanitizePA(r.pa)||r.pa)));
     return Object.values(m).filter(x=>x.pas.size>1).map(x=>({name:x.name,pas:[...x.pas]}));
   },[brand,paList]);
   const partItems=active.filter(i=>INF_STAGES[i.stage].role==='part'&&INF_STAGES[i.stage].key!=='adset');
