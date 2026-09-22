@@ -4084,20 +4084,35 @@ function sweepNoReply(b){
    자동화(claudeStep2Rows)는 DM을 회사가 자동 발송해 수당이 원래 없으므로 그냥 지운다.
    실제 진행(성사·완료·정산·개인정보)이 있던 행은 회계 증빙이라 안전하게 보호하고 절대 건드리지 않는다. */
 const REJECT_PURGE_DAYS=3;
+// 거절일이 비어 있는 옛 거절 건 → 오늘을 거절일로(그래야 3일 뒤 지워진다)
+function stampRejectDate(b){
+  let n=0; const td=today();
+  const fix=rows=>(rows||[]).map(r=>{ if(normStatus(r.contactStatus)!=='거절'||parseDateKey(r.rejectDate)) return r; n++; return {...r,rejectDate:td}; });
+  const step2Rows=fix(b.step2Rows), claudeStep2Rows=fix(b.claudeStep2Rows);
+  return n?{b:{...b,step2Rows,claudeStep2Rows},n}:{b,n:0};
+}
 function shouldPurgeReject(r){
   if(normStatus(r.contactStatus)!=='거절') return false;
   if(r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) return false; // 실제 진행된 건은 보호
   const d=daysSinceKey(r.rejectDate);
   return d!=null&&d>=REJECT_PURGE_DAYS;
 }
-function purgeRejected(b){
+// cap: 한 번에 지울 최대 비율(탭별). 서버 안전장치는 한 번에 50%+(탭별)/40%+(전체) 줄면 저장을 막으므로
+// 30%씩 나눠 지운다(저장 끝나면 다음 묶음). 오래된 거절부터. 안전장치 자체는 그대로 둔다(2026-09-22).
+const REJECT_PURGE_CAP=0.3;
+function purgeRejected(b,cap){
   const billingAdd=[];
   const sweep=(rows,claude)=>{
+    rows=rows||[];
+    let due=rows.filter(shouldPurgeReject);
+    if(cap&&rows.length>=30){ const max=Math.max(1,Math.floor(rows.length*cap));
+      if(due.length>max) due=due.slice().sort((x,y)=>String(parseDateKey(x.rejectDate)).localeCompare(String(parseDateKey(y.rejectDate)))).slice(0,max); }
+    const dueSet=new Set(due);
     const kept=[]; let cut=0;
-    (rows||[]).forEach(r=>{
-      if(!shouldPurgeReject(r)){ kept.push(r); return; }
+    rows.forEach(r=>{
+      if(!dueSet.has(r)){ kept.push(r); return; }
       cut++;
-      if(!claude&&r.dmSent==='Y'){ // 자동화는 DM 자동발송이라 수당 없음 — 컨택현황만 옮겨 담는다
+      if(!claude&&r.dmSent==='Y'&&r.name){   // 정산은 이름 있는 행만 센다 — 같은 기준으로 옮겨 담아야 금액이 그대로 // 자동화는 DM 자동발송이라 수당 없음 — 컨택현황만 옮겨 담는다
         const ym=parseYM(r.dmDate)||parseYM(r.date);
         if(ym) billingAdd.push({id:'rb_'+r.id,pa:sanitizePA(r.pa)||'미지정',ym,at:today()});
       }
@@ -6450,16 +6465,24 @@ function AppMain({ authInfo, onLogout }) {
     setMsg(`📭 DM 후 ${NO_REPLY_DAYS}일 답장 없는 ${tot}명을 거절 탭으로 옮겼어요`);
   },[brands]);
   // 거절 3일 뒤 데이터 자동 삭제 — 관리자 세션에서만(삭제라 조심). DM 수당은 정산에 남는다(purgeRejected 주석 참고).
+  // 많으면 30%씩 나눠 지운다: 한 묶음 지우고 → 저장 끝난 뒤 1분 뒤 다음 묶음(purgeTick).
   const purgeRejRef=useRef(false);
+  const [purgeTick,setPurgeTick]=useState(0);
   useEffect(()=>{
     if(!serverLoadedRef.current||purgeRejRef.current) return;
     if((authInfo?.role||'')!=='manager') return;
+    if(blockedRef.current) return;                                   // 안전장치에 막힌 상태면 더 지우지 않는다
+    if(dirtyRef.current){ const t=setTimeout(()=>setPurgeTick(x=>x+1),30000); return ()=>clearTimeout(t); } // 앞 저장이 끝난 뒤에
     purgeRejRef.current=true;
-    const tot=brands.reduce((s,b)=>s+purgeRejected(b).n,0);
-    if(!tot) return;
-    setBrands(prev=>prev.map(b=>purgeRejected(b).b));
-    setMsg(`🗑️ 거절 ${REJECT_PURGE_DAYS}일 지난 ${tot}명 데이터를 정리했어요(DM 비용은 정산에 남습니다)`);
-  },[brands,authInfo]);
+    const stamped=brands.reduce((s,b)=>s+stampRejectDate(b).n,0);
+    const tot=brands.reduce((s,b)=>s+purgeRejected(b,REJECT_PURGE_CAP).n,0);
+    const all=brands.reduce((s,b)=>s+purgeRejected(b).n,0);
+    if(!tot&&!stamped) return;
+    setBrands(prev=>prev.map(b=>purgeRejected(stampRejectDate(b).b,REJECT_PURGE_CAP).b));
+    if(tot) setMsg(`🗑️ 거절 ${REJECT_PURGE_DAYS}일 지난 ${tot}명 데이터를 정리했어요(DM 비용은 정산에 남습니다)${all>tot?` · 남은 ${all-tot}명은 잠시 뒤 이어서`:''}`);
+    // 다음 묶음 예약 — 이 효과는 brands 가 바뀌면 다시 돌므로 cleanup 으로 두면 곧바로 취소된다 → 타이머를 따로 둔다
+    if(all>tot){ clearTimeout(window._paPurgeT); window._paPurgeT=setTimeout(()=>{purgeRejRef.current=false;setPurgeTick(x=>x+1);},60000); }
+  },[brands,authInfo,purgeTick]);
   const promoteRef=useRef(false);
   useEffect(()=>{
     if(!serverLoadedRef.current||promoteRef.current) return;
