@@ -97,14 +97,19 @@ const delRow  = name=>evalJs(`(()=>{const tr=[...document.querySelectorAll('tbod
   if(!tr)throw new Error('행 없음: '+${JSON.stringify(name)});tr.querySelector('td.del-col .row-del-x').click();return 1})()`);
 
 await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
-await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.includes('STEP2 컨택현황'))`,'앱 로딩');
+await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.includes('인플루언서 관리'))`,'앱 로딩');
 await evalJs(`(window.__cf=[],window.confirm=m=>{window.__cf.push(m);return true},1)`); // 확인창은 항상 예
 console.log('앱 로딩 완료');
 
+// STEP1 리스트업(리스팅 목록)·STEP2 컨택현황은 '인플루언서 관리' 한 탭 안으로 합쳐졌다 — 칩으로 오간다.
+async function gotoInf(chip){ await clickText('👥 인플루언서 관리'); await wait(200);
+  await evalJs(`(()=>{const b=[...document.querySelectorAll('.fchip')].find(x=>x.textContent.includes(${JSON.stringify(chip)}));if(!b)throw new Error('칩 없음: '+${JSON.stringify(chip)});b.click();return 1})()`); }
 // 탭마다 같은 시나리오를 돌린다: 전체선택 → 하나 해제 → 선택 삭제 → 남은 1건 개별 삭제
 async function runTab(tabLabel, waitSel, keepName, unit, expect){
   console.log(`\n[${tabLabel}]`);
-  await clickText(tabLabel);
+  if(tabLabel==='📋 STEP1 리스트업') await gotoInf('리스팅 목록');
+  else if(tabLabel==='📨 STEP2 컨택현황') await gotoInf('진행 중');
+  else await clickText(tabLabel);
   await waitFor(waitSel, tabLabel+' 표');
   await wait(300);
   const n0=await nRows();
@@ -144,7 +149,7 @@ async function runTab(tabLabel, waitSel, keepName, unit, expect){
 
 // ① 먼저 '필터로 좁힌 뒤 전체선택' — 보이는 행만 잡혀야 한다(안 보이는 행이 몰래 지워지면 안 됨)
 console.log('\n[필터 범위] 승인 1건만 보이게 하고 전체선택');
-await clickText('📋 STEP1 리스트업');
+await gotoInf('리스팅 목록');
 await waitFor(`document.querySelector('thead th.del-col input.sel-box')`,'리스트업 표');
 await wait(300);
 chk(await nRows()===2, '리스트업 칩 = 승인 뺀 2행', await nRows());

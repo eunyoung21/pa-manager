@@ -93,9 +93,11 @@ const click=(sel,txt)=>evalJs(`(()=>{const b=[...document.querySelectorAll(${J(s
 const addBtn=()=>evalJs(`(()=>{const b=[...document.querySelectorAll('.modal .modal-foot .btn-primary')][0];return {text:b.textContent,disabled:b.disabled}})()`);
 
 await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('STEP1'))`,'앱 로딩');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('인플루언서 관리'))`,'앱 로딩');
 await evalJs(`(window.__cf=[],window.__al=[],window.__cfAns=false,window.confirm=m=>{window.__cf.push(m);return window.__cfAns},window.alert=m=>{window.__al.push(m)},1)`);
-await click('.step-tab','STEP1'); await wait(500);
+// STEP1 리스트업은 '인플루언서 관리' 탭 안 '🟡 리스팅 목록' 칩으로 합쳐졌다.
+await click('.step-tab','인플루언서 관리'); await wait(500);
+await click('.fchip','리스팅 목록'); await wait(500);
 
 // 여러 명 추가 창 — 줄마다 채널명·링크·팔로워·페르소나·메모 칸
 const setRow=(i,name,link)=>evalJs(`(()=>{const tr=document.querySelectorAll('.modal .add-row')[${i}];const ins=tr.querySelectorAll('input');

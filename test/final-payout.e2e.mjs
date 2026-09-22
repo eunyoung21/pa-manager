@@ -95,8 +95,8 @@ const savedRow=async n=>{await new Promise(r=>setTimeout(r,1600));return savedDa
 const clickYN=async(n,label)=>{await findByName(n);return evalJs(`((${ROW(n)}).querySelector('td[data-label=${JSON.stringify(label)}] button').click(),1)`);};
 
 await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
-await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.includes('STEP2 컨택현황'))`,'앱 로딩');
-await clickText('📨 STEP2 컨택현황');
+await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.includes('인플루언서 관리'))`,'앱 로딩');
+await clickText('👥 인플루언서 관리');
 await waitFor(`document.querySelector('td[data-label="협업성사"]')`,'컨택현황 표');
 console.log('앱 로딩 완료');
 
@@ -142,7 +142,7 @@ chk(/안민영/.test(julyTxt),'7월 정산에 안민영(옛 성사건) 유지');
 chk(/22,000원/.test(julyTxt),'7월 DM 2천 + 완료 2만',julyTxt.match(/[\d,]+원/g)?.slice(0,8));
 
 console.log('\n[5] 협업성사를 끄면 최종완료도 풀림');
-await clickText('📨 STEP2 컨택현황');
+await clickText('👥 인플루언서 관리');
 await waitFor(`document.querySelector('.srch')&&document.querySelector('thead th')`,'컨택현황 복귀'); // 둘 다 완료라 기본 목록이 비어 있을 수 있음
 await clickYN('신규건','협업성사');
 await new Promise(r=>setTimeout(r,300));

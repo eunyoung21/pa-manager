@@ -1412,8 +1412,7 @@ const shipProductOf = brandId => SHIP_PRODUCT[brandId] || '';
 
 const TABS = [
   { key:'dashboard', label:'📊 대시보드' },
-  { key:'step1',    label:'📋 STEP1 리스트업' },
-  { key:'step2',    label:'📨 STEP2 컨택현황' },
+  { key:'step2',    label:'👥 인플루언서 관리' },   // 옛 STEP1 리스트업 + STEP2 컨택현황을 합친 탭(리스트업은 '🟡 리스팅 목록' 칸)
   { key:'claudeS2', label:'🤖 자동화', mgr:true, staffOwn:true },
   { key:'shipping', label:'📦 출고' },
   { key:'review',   label:'🎬 영상검수' },
@@ -1424,8 +1423,8 @@ const TABS = [
 // 스태프 계정에 개별 부여 가능한 탭(계정별 권한 범위). 관리자 전용(계정관리·접속로그)은 제외.
 const STAFF_TAB_OPTS = [
   {key:'claudeS2',label:'🤖 자동화'},{key:'shipping',label:'📦 출고'},{key:'review',label:'🎬 영상검수'},
-  {key:'dm',label:'💬 DM 템플릿'},{key:'settle',label:'💰 정산'},{key:'step2',label:'📨 컨택현황'},
-  {key:'step1',label:'📋 리스트업'},{key:'dashboard',label:'📊 대시보드'},{key:'guide',label:'📖 가이드'},
+  {key:'dm',label:'💬 DM 템플릿'},{key:'settle',label:'💰 정산'},{key:'step2',label:'👥 인플루언서 관리'},
+  {key:'dashboard',label:'📊 대시보드'},{key:'guide',label:'📖 가이드'},
 ];
 // 새 스태프 기본 권한 — 자동화·출고·영상검수·DM템플릿·정산
 const DEFAULT_STAFF_TABS = ['claudeS2','shipping','review','dm','settle'];
@@ -3800,6 +3799,8 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
   // 실제로 바뀐 것이 있을 때만 다시 계산한다(useMemo).
   const colFKey=JSON.stringify(colF);
   const shown=useMemo(()=>{
+    // 검색어가 있으면 날짜·열 필터·카테고리·칩을 다 무시하고 전체에서 찾는다 — 필터에 걸려 안 보이는 일이 없게.
+    if(q) return rows.filter(r=>s(r.name).trim()&&[r.name,r.pa,r.persona,r.memo].some(v=>s(v).toLowerCase().includes(q)));
     const byDay=(dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows);
     return byDay
     .filter(r=>s(r.name).trim())
@@ -3807,8 +3808,6 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
     .filter(r=>{
       // 페르소나 카테고리 필터 — 다른 조건과 AND. '__uncat'=어디에도 안 잡힌 사람.
       if(cat){const cs=rowCatsOf(r); if(cat==='__uncat'){if(cs.length)return false;} else if(!cs.includes(cat))return false;}
-      // 검색은 반려 포함 전체에서 — 누적돼도 누구든 찾을 수 있게.
-      if(q) return [r.name,r.pa,r.persona,r.memo].some(v=>s(v).toLowerCase().includes(q));
       if(filter==='ap') return r.reviewStatus==='승인';
       if(filter==='wt') return r.reviewStatus==='검수대기';
       if(filter==='rj') return r.reviewStatus==='반려';
@@ -3892,7 +3891,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
 }
 
 /* ─── STEP2 VIEW ─── */
-function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
+function Step2View({ listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
@@ -3912,12 +3911,20 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
   const named=useMemo(()=>rows.filter(r=>s2(r.name).trim()),[rows]);
   const mode=filter==='rej'?'reject':filter==='arc'?'archive':'active';
   // 행 수에 비례하는 계산 — 입력할 때마다 다시 돌지 않도록 묶어 둔다.
+  const dateSort=(a,b)=>{   // 날짜 정렬(최신순/오래된순 토글) — 같은 날짜는 기존 순서 유지(안정 정렬)
+    const ka=parseDateKey(a.date),kb=parseDateKey(b.date);
+    if(!ka&&!kb) return 0;
+    if(!ka) return 1;   // 날짜 없는 행은 방향과 무관하게 맨 아래로
+    if(!kb) return -1;
+    const base=ka<kb?-1:ka>kb?1:0;   // 오름차순 기준
+    return sortDir==='asc'?base:-base;
+  };
   const shown=useMemo(()=>{
+  // 검색어가 있으면 날짜·열 필터·칩을 다 무시하고 보관 포함 전체에서 찾는다 — 누적돼도 누구든 찾을 수 있게.
+  if(q) return named.filter(r=>[r.name,r.pa,r.memo,r.contactStatus].some(v=>s2(v).toLowerCase().includes(q))).sort(dateSort);
   const byDayAll=dayFilter?named.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?named.filter(r=>parseYM(r.date)===monthFilter):named;
   const byDay=colFActive.length?byDayAll.filter(r=>colFActive.every(([f,v])=>cfVal(r,f).toLowerCase().includes(v.trim().toLowerCase()))):byDayAll;
   return byDay.filter(r=>{
-    // 검색은 보관 포함 전체에서 — 누적돼도 누구든 찾을 수 있게.
-    if(q) return [r.name,r.pa,r.memo,r.contactStatus].some(v=>s2(v).toLowerCase().includes(q));
     if(filter==='dm') return r.dmSent==='Y';
     // 자동화 단계(답장옴 → 승인됨 → 협업 성사)는 서로 배타 — 다음 단계로 넘어가면 앞 단계에서 빠진다.
     // (승인하면 '답장옴'에서 사라져 '승인됨'에만, 협업성사면 '협업 성사'에만 남는다)
@@ -3932,14 +3939,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
     if(filter==='apv2') return r.approved==='Y'&&r.finalDone!=='Y'&&!isArchived(r); // 자동화 '승인' — 승인 후 완료 전
     // 'all' — 컨택현황은 '진행 중'(거절·완료 제외), 자동화는 '리스트업'(거절·승인·완료 제외)
     return !isArchived(r)&&r.finalDone!=='Y'&&(!isClaude||r.approved!=='Y');
-  }).sort((a,b)=>{   // 날짜 정렬(최신순/오래된순 토글) — 같은 날짜는 기존 순서 유지(안정 정렬)
-    const ka=parseDateKey(a.date),kb=parseDateKey(b.date);
-    if(!ka&&!kb) return 0;
-    if(!ka) return 1;   // 날짜 없는 행은 방향과 무관하게 맨 아래로
-    if(!kb) return -1;
-    const base=ka<kb?-1:ka>kb?1:0;   // 오름차순 기준
-    return sortDir==='asc'?base:-base;
-  });
+  }).sort(dateSort);
   },[named,dayFilter,monthFilter,colFKey,q,filter,sortDir]);
   const cnt=useMemo(()=>({all:named.filter(r=>!isArchived(r)&&r.finalDone!=='Y'&&(!isClaude||r.approved!=='Y')).length,apv2:named.filter(r=>r.approved==='Y'&&r.finalDone!=='Y'&&!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,fin:named.filter(r=>r.finalDone==='Y').length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
     rep:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length,
@@ -3962,7 +3962,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
     onUpdate(r.id,patch);}
   function setDm(r,v){const patch={dmSent:v};if(v==='Y'&&!r.dmDate)patch.dmDate=today();if(v!=='Y')patch.dmDate='';onUpdate(r.id,patch);}
   // 진행 상태를 '거절'로 바꾸면 거절일 자동 기록(그달 DM 수당 정산 기준), 벗어나면 제거.
-  function setStatus(r,v){const patch={contactStatus:v};if(v==='거절'&&!r.rejectDate)patch.rejectDate=today();if(v!=='거절')patch.rejectDate='';onUpdate(r.id,patch);}
+  function setStatus(r,v){const patch={contactStatus:v};if(v==='거절'&&!r.rejectDate)patch.rejectDate=today();if(v!=='거절'){patch.rejectDate='';patch.endReason='';}onUpdate(r.id,patch);}
   // 답장(매니저가 체크) — 답장 온 사람만 따로 모아보기 위한 표시. Y로 바꾸면 답장일 자동 기록.
   function setReplied(r,v){const patch={replied:v};if(v==='Y'&&!r.replyDate)patch.replyDate=today();if(v!=='Y'){patch.replyDate='';}onUpdate(r.id,patch);}
   // 승인(관리자만) — 승인하면 그때부터 매니저가 소통 진행. 승인 시 답장도 자동 Y(답장 없이 승인되는 일 방지).
@@ -3973,14 +3973,20 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
   const hRef=useRef({});
   hRef.current={up,setStatus,setDm,setDeal,setFinal,setReplied,setApproved,onDelete,onUpdate,onAddPrivacy,isRej,selToggle:sel.toggle,open:setOpenId};
   const openRow=openId?rows.find(x=>x.id===openId):null;
+  const chips=(isClaude
+        ? [{k:'all',l:`리스트업 (${cnt.all})`,c:''},{k:'apv2',l:`✅ 승인 (${cnt.apv2})`,c:'f-ap'},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}]
+        : [...(listing?[{k:'lst',l:`🟡 리스팅 목록 (${listingCount||0})`,c:''}]:[]),{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}])
+        .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>);
+  // 🟡 리스팅 목록 = 옛 STEP1 리스트업 화면 그대로. 여기서 승인하면 '진행 중'(컨택 전)으로 넘어와 DM을 보낸다.
+  if(listing&&filter==='lst') return <div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+    <div className="toolbar">{chips}<div className="sep"/><span className="cnt" style={{color:'var(--muted)'}}>승인하면 진행 중으로 넘어가 DM 발송 대상이 돼요</span></div>
+    {listing}
+  </div>;
 
   return <div className="view-wrap">
     <div className="view-main">
     <div className="toolbar">
-      {(isClaude
-        ? [{k:'all',l:`리스트업 (${cnt.all})`,c:''},{k:'apv2',l:`✅ 승인 (${cnt.apv2})`,c:'f-ap'},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'}]
-        : [{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'}])
-        .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
+      {chips}
       <div className="sep"/>
       <div className="search-wrap">
         <input className="srch" placeholder="채널명, PA, 메모…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
@@ -3995,7 +4001,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
             <span>이름·연락처·주소·계좌·계약서는 <b>그대로 남습니다</b>(회계 증빙)</span></>
         : <><span>🚫 <b style={{color:'var(--red)'}}>거절</b> 인플루언서 모음</span>
             <span style={{color:'var(--dim)'}}>·</span>
-            <span>진행상태를 다른 값으로 바꾸면 <b>컨택현황</b>으로 돌아갑니다</span></>}
+            <span>DM 후 {NO_REPLY_DAYS}일 답장 없으면 자동으로 여기로 와요 · 채널명을 눌러 <b>↩ 복구</b>하면 돌아갑니다</span></>}
     </div>}
     <BulkBar sel={sel} onDeleteMany={onDeleteMany} unit="명"/>
     <div className="table-wrap">
@@ -4028,7 +4034,7 @@ function Step2View({ brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany,
             return <Step2Row key={r.id} r={r} isClaude={isClaude} privSubmitted={privSubmitted} paList={PA_LIST} H={hRef} selOn={sel.has(r.id)}/>;
           })}
           {shown.length===0&&<tr><td colSpan={13+(isClaude?3:0)+(!IS_STAFF&&!isClaude?2:0)+((!IS_STAFF||isClaude)?1:0)} className="empty" style={{height:80}}>
-            <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'개인정보가 폐기된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'STEP1에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
+            <span style={{color:'var(--muted)',fontSize:12}}>{mode==='archive'?'개인정보가 폐기된 인플루언서가 없습니다':mode==='reject'?'거절한 인플루언서가 없습니다':named.length===0?'리스팅 목록에서 승인하면 자동으로 여기에 추가됩니다':'조건에 맞는 항목이 없습니다'}</span>
           </td></tr>}
           <MoreRow pg={pg}/>
         </tbody>
@@ -4055,6 +4061,59 @@ function s2Stage(r,rv){
   if(r.dealDone==='Y') return 2;
   if(r.dmSent==='Y') return 1;
   return 0;
+}
+/* DM 보내고 2주 동안 답장 없는 사람 → 거절(무응답)로 자동 이동 (2026-09-21).
+   답장·승인·성사·완료·정산 중 하나라도 있으면 대상 아님. 컨택현황은 '진행중·계약서 작성'도 대화 중이라 제외
+   (자동화 탭의 '컨택 중'은 자동 DM 발송 표시라 상태값으로 거르지 않고 답장 칸으로만 본다).
+   한 번 자동 처리된 행은 noReplyAuto 가 남아, 사람이 거절을 풀면 다시 끌려가지 않는다. */
+const NO_REPLY_DAYS=14;
+function isNoReply(r,claude,cutKey){
+  if(r.dmSent!=='Y'||r.noReplyAuto||r.endReason) return false;
+  if(r.replied==='Y'||r.approved==='Y'||r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) return false;
+  const st=normStatus(r.contactStatus);
+  if(st==='거절'||(!claude&&(st==='진행중'||st==='계약서 작성'))) return false;
+  const k=parseDateKey(r.dmDate)||parseDateKey(r.date);
+  return !!k&&k<=cutKey;
+}
+function noReplyCutKey(){ const d=new Date(); d.setDate(d.getDate()-NO_REPLY_DAYS); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function sweepNoReply(b){
+  const cut=noReplyCutKey(), td=today(); let n=0;
+  const fix=(rows,claude)=>(rows||[]).map(r=>{ if(!isNoReply(r,claude,cut)) return r; n++;
+    return {...r,contactStatus:'거절',endReason:'무응답',rejectDate:r.rejectDate||td,noReplyAuto:td}; });
+  const step2Rows=fix(b.step2Rows,false), claudeStep2Rows=fix(b.claudeStep2Rows,true);
+  return n?{b:{...b,step2Rows,claudeStep2Rows},n}:{b,n:0};
+}
+/* 거절 3일 뒤 데이터 자동 삭제 (2026-09-22) — "해당 데이터는 지워도 되지만, DM 비용까지 날리면 안 된다"는 요청.
+   → 거절된 지 3일 지난 행은 통째로 지운다. 단, 컨택현황(step2Rows·수동 DM)에서 DM을 보냈던 건은
+   지우기 전에 DM 수당(2,000원)만 brand.rejectedBilling 에 옮겨 담아 정산에서 계속 잡히게 한다
+   (정산 화면 '채널별 수당 내역'에는 이름 대신 '🚫 거절(삭제됨)'으로만 표시 — 신원은 안 남는다).
+   자동화(claudeStep2Rows)는 DM을 회사가 자동 발송해 수당이 원래 없으므로 그냥 지운다.
+   실제 진행(성사·완료·정산·개인정보)이 있던 행은 회계 증빙이라 안전하게 보호하고 절대 건드리지 않는다. */
+const REJECT_PURGE_DAYS=3;
+function shouldPurgeReject(r){
+  if(normStatus(r.contactStatus)!=='거절') return false;
+  if(r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) return false; // 실제 진행된 건은 보호
+  const d=daysSinceKey(r.rejectDate);
+  return d!=null&&d>=REJECT_PURGE_DAYS;
+}
+function purgeRejected(b){
+  const billingAdd=[];
+  const sweep=(rows,claude)=>{
+    const kept=[]; let cut=0;
+    (rows||[]).forEach(r=>{
+      if(!shouldPurgeReject(r)){ kept.push(r); return; }
+      cut++;
+      if(!claude&&r.dmSent==='Y'){ // 자동화는 DM 자동발송이라 수당 없음 — 컨택현황만 옮겨 담는다
+        const ym=parseYM(r.dmDate)||parseYM(r.date);
+        if(ym) billingAdd.push({id:'rb_'+r.id,pa:sanitizePA(r.pa)||'미지정',ym,at:today()});
+      }
+    });
+    return {kept,cut};
+  };
+  const s2=sweep(b.step2Rows,false), cs2=sweep(b.claudeStep2Rows,true);
+  const n=s2.cut+cs2.cut;
+  if(!n) return {b,n:0};
+  return {b:{...b,step2Rows:s2.kept,claudeStep2Rows:cs2.kept,rejectedBilling:[...(b.rejectedBilling||[]),...billingAdd]},n};
 }
 function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship }){
   const rv=s2Review(brand,r);
@@ -4102,7 +4161,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
 
   let action=null;
   if(st==='rejected') action=<>
-    <p className="s2p-help">거절 처리된 인플루언서입니다.{r.rejectDate?` (거절일 ${r.rejectDate})`:''}</p>
+    <p className="s2p-help">{r.endReason==='무응답'?`DM 후 ${NO_REPLY_DAYS}일 동안 답장이 없어 자동으로 거절로 옮겼어요.`:'거절 처리된 인플루언서입니다.'}{r.rejectDate?` (거절일 ${r.rejectDate})`:''}</p>
     <button className="btn s2p-outline" onClick={()=>H.current.setStatus(r,r.dmSent==='Y'?'진행중':'컨택 전')}>↩ 복구</button></>;
   else if(st==='done') action=<>
     <p style={{color:'var(--green)',fontWeight:700,marginBottom:6}}>✓ 모든 단계 완료</p>
@@ -4338,8 +4397,10 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
     return String(r[f]||'');
   };
   const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
-  const byDay=dayFilter?rows.filter(r=>parseDateKey(r.requestDate)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.requestDate)===monthFilter):rows;
-  const shown=byDay
+  // 검색어가 있으면 상태 칩·요청자 필터·열 필터·날짜 필터를 다 무시하고 전체에서 찾는다 — 필터에 걸려 안 보이는 일이 없게.
+  const shown=q
+    ? rows.filter(r=>[r.requester,r.recipient,r.channelName||chanOf(r.recipient),r.address,product,r.tracking].some(v=>v&&String(v).toLowerCase().includes(q)))
+    : (dayFilter?rows.filter(r=>parseDateKey(r.requestDate)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.requestDate)===monthFilter):rows)
     .filter(r=>{
       // 라이브 시작된 건은 전체 목록에서 빼고 '완료' 탭으로만 모음
       if(filter==='all'&&isLiveRow(r)) return false;
@@ -4347,7 +4408,6 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
       if(filter==='pend'&&(isLiveRow(r)||r.status?.includes('완료'))) return false;
       if(reqF&&(r.requester||'')!==reqF) return false;
       if(colFActive.length && !colFActive.every(([f,v])=>fieldVal(r,f).toLowerCase().includes(String(v).trim().toLowerCase()))) return false;
-      if(q) return [r.requester,r.recipient,r.address,product,r.tracking].some(v=>v&&String(v).toLowerCase().includes(q));
       return true;
     });
   const cnt={all:rows.filter(r=>!isLiveRow(r)).length,done:rows.filter(isLiveRow).length,pend:rows.filter(r=>!isLiveRow(r)&&!r.status?.includes('완료')).length};
@@ -4818,16 +4878,17 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
   const s2=step2Rows||[];
   const settleOf=r=>{const n=norm(r.channelName);if(!n)return{};return s2.find(x=>norm(x.name)===n)||{};};
   const settleState=r=>{const st=settleOf(r);return st.privacyPurged?'purged':st.infSettled==='Y'?'paid':'unpaid';};
-  const byDay=dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows;
+  // 검색어가 있으면 상태 칩·열 필터·날짜 필터를 다 무시하고 전체에서 찾는다 — 필터에 걸려 안 보이는 일이 없게.
+  const byDay=q?rows:(dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows);
   const shown=byDay
     .filter(r=>{
+      if(q) return [r.channelName,r.pa,r.paCode,r.memo].some(v=>s(v).toLowerCase().includes(q));
       if(colFActive.length && !colFActive.every(([f,v])=>s(r[f]).toLowerCase().includes(v.trim().toLowerCase()))) return false;
       const ss=settleState(r);
       if(filter==='paid'&&!(ss==='paid'||ss==='purged')) return false;
       if(filter==='unpaid'&&ss!=='unpaid') return false;
       if(filter==='purged'&&ss!=='purged') return false;
       if(filter==='live'&&r.live!=='Y') return false;
-      if(q) return [r.channelName,r.pa,r.paCode,r.memo].some(v=>s(v).toLowerCase().includes(q));
       return true;
     });
   const cnt={all:rows.length,
@@ -5273,6 +5334,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   // 스태프는 본인 담당분만. 공통으로 제외 담당자(이은영)는 집계에서 뺌.
   const allS2 = (isStaffView ? allRows2.filter(r=>staffPASet.has(sanitizePA(r.pa))) : allRows2)
     .filter(r=>!SETTLE_EXCLUDE_PA.includes(sanitizePA(r.pa)));
+  // 거절 3일 뒤 삭제된 행의 DM 수당(신원은 지워졌지만 비용은 정산에 남아야 함) — purgeRejected 참고.
+  const rejBilling=(brand?.rejectedBilling||[]).filter(e=>!SETTLE_EXCLUDE_PA.includes(e.pa)&&(!isStaffView||staffPASet.has(e.pa)));
   const settle=getSettleInfo();
   const isUrgent=settle.days<=3;
 
@@ -5283,8 +5346,9 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
       if(dmPaid(r)){const y=parseYM(r.dmDate)||parseYM(r.date);if(y)s.add(y);}
       if(r.finalDone==='Y'){const y=parseYM(r.finalDate)||parseYM(r.dealDate)||parseYM(r.date);if(y)s.add(y);}
     });
+    rejBilling.forEach(e=>s.add(e.ym));
     return Array.from(s).sort().reverse();
-  },[allS2,settle.coverYM]);
+  },[allS2,settle.coverYM,rejBilling]);
   const [month,setMonth]=useState(settle.coverYM);
   const inMonth=(ym)=>month==='all'||ym===month;
 
@@ -5305,8 +5369,15 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
       m[pa].rows.push({...r,dm,deal,subtotal});
       m[pa].dmTotal+=dm; m[pa].dealTotal+=deal; m[pa].total+=subtotal;
     });
+    // 거절 후 삭제된 행의 DM 수당 — 이름 대신 '거절(삭제됨)'로만 표시
+    rejBilling.filter(e=>month==='all'||e.ym===month).forEach(e=>{
+      const pa=e.pa||'미지정';
+      if(!m[pa])m[pa]={rows:[],dmTotal:0,dealTotal:0,total:0};
+      m[pa].rows.push({id:e.id,name:'🚫 거절(삭제됨)',dm:2000,deal:0,subtotal:2000});
+      m[pa].dmTotal+=2000; m[pa].total+=2000;
+    });
     return m;
-  },[allS2,month]);
+  },[allS2,month,rejBilling]);
 
   // 결과 미정으로 정산 보류된 인원(진행중 등인데 DM은 보낸 사람) — 빠진 게 아님을 안내
   const heldPeople=allS2.filter(r=>r.name && ((dmPaid(r)&&!(parseYM(r.dmDate)||parseYM(r.date)))||(r.finalDone==='Y'&&!(parseYM(r.finalDate)||parseYM(r.dealDate)||parseYM(r.date))))).length;
@@ -5350,6 +5421,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
       if(dmPaid(r)){const k=parseYM(r.dmDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+2000;}
       if(r.finalDone==='Y'){const k=parseYM(r.finalDate)||parseYM(r.dealDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+20000;}
     });
+    rejBilling.forEach(e=>{owed[e.ym]=(owed[e.ym]||0)+2000;});
     const brandS=settlements[brand?.id]||{};
     return Object.keys(owed).map(ym=>{
       const paid=isStaffView
@@ -5357,7 +5429,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
         : Object.values(brandS[ym]||{}).reduce((s,v)=>s+(v?.paid||0),0);
       return {ym,owed:owed[ym],out:owed[ym]-paid};
     }).filter(x=>x.out>0).sort((a,b)=>a.ym<b.ym?1:-1);
-  },[allS2,settlements,brand,isStaffView,staffPA]);
+  },[allS2,settlements,brand,isStaffView,staffPA,rejBilling]);
 
   // 스태프인데 계정에 담당자(PA)가 지정되지 않은 경우 — 본인 식별 불가
   if(isStaffView && staffPASet.size===0){
@@ -5980,6 +6052,7 @@ function AppMain({ authInfo, onLogout }) {
   PA_LIST = paList; // 모듈 변수 동기화 — 모든 담당자 선택·색상·매핑이 현재 목록을 사용
   const [bId,         setBId]         = useState(userBrand!=='all'?userBrand:'basetune');
   const [tab,         setTab]         = useState('dashboard');
+  const [s1Filter,    setS1Filter]    = useState('all');   // 인플루언서 관리 > 리스팅 목록 안의 리스트업 필터(대기/승인/반려)
   const [filter,      setFilter]      = useState('all');
   const [search,      setSearch]      = useState('');
   const [dashPa,      setDashPa]      = useState(null); // 대시보드 담당자 탭
@@ -5995,14 +6068,15 @@ function AppMain({ authInfo, onLogout }) {
         if(inf.stage===4&&inf.shipping&&inf.status==='active'){ T='shipping'; Q=inf.shipping.recipient||''; }
         else if(inf.stage>=5&&inf.review){ T='review'; Q=inf.name; }
         else if(inf.contact){ T=inf.src==='auto'?'claudeS2':'step2'; Q=inf.name; }
-        else if(inf.step1){ T='step1'; Q=inf.name; }
+        else if(inf.step1){ T='step2'; Fl='lst'; Q=inf.name; }
         else { T='review'; Q=inf.name; }
       } else {
-        const m={'0':['step1','all'],'1':['step2','all'],'2':['step2','all'],'3':['step2','all'],'4':['shipping','pend'],'5':['review','all'],'6':['step2','fin'],'all':['step2','all']}[String(f)]||['step2','all'];
+        const m={'0':['step2','lst'],'1':['step2','all'],'2':['step2','all'],'3':['step2','all'],'4':['shipping','pend'],'5':['review','all'],'6':['step2','fin'],'all':['step2','all']}[String(f)]||['step2','all'];
         [T,Fl]=m;
-        if(auto&&['step1','step2'].includes(T)){ T='claudeS2'; if(Fl==='dm'||Fl==='all') Fl='all'; }
+        if(auto&&T==='step2'){ T='claudeS2'; if(Fl==='dm'||Fl==='all'||Fl==='lst') Fl='all'; }
       }
     }
+    if(T==='step1'){ T='step2'; Fl='lst'; }   // 리스트업 탭은 인플루언서 관리 안으로 합쳐졌다
     if(T===tab){ setFilter(Fl); setSearch(Q); return; }
     navRef.current={filter:Fl,search:Q}; setTab(T);
   }
@@ -6166,6 +6240,27 @@ function AppMain({ authInfo, onLogout }) {
   // 옛 업로드 방식이 신분증·통장 사진을 본문에 그대로 박아, 저장 데이터가 9.8MB까지 부풀어
   // 매 저장마다 그 용량을 다시 올려야 했다(모바일 저장 실패·락 경합·로컬백업 초과의 직접 원인).
   // 관리자가 접속하면 한 번 정리한다. 실패하면 다음 접속에 다시 시도(참조 교체된 것만 반영).
+  // DM 후 2주 답장 없는 사람 → 거절(무응답)로 자동 이동. 접속 때마다 1회 — 일반 편집처럼 저장(병합)된다.
+  const sweepRef=useRef(false);
+  useEffect(()=>{
+    if(!serverLoadedRef.current||sweepRef.current) return;
+    sweepRef.current=true;
+    const tot=brands.reduce((s,b)=>s+sweepNoReply(b).n,0);
+    if(!tot) return;
+    setBrands(prev=>prev.map(b=>sweepNoReply(b).b));
+    setMsg(`📭 DM 후 ${NO_REPLY_DAYS}일 답장 없는 ${tot}명을 거절 탭으로 옮겼어요`);
+  },[brands]);
+  // 거절 3일 뒤 데이터 자동 삭제 — 관리자 세션에서만(삭제라 조심). DM 수당은 정산에 남는다(purgeRejected 주석 참고).
+  const purgeRejRef=useRef(false);
+  useEffect(()=>{
+    if(!serverLoadedRef.current||purgeRejRef.current) return;
+    if((authInfo?.role||'')!=='manager') return;
+    purgeRejRef.current=true;
+    const tot=brands.reduce((s,b)=>s+purgeRejected(b).n,0);
+    if(!tot) return;
+    setBrands(prev=>prev.map(b=>purgeRejected(b).b));
+    setMsg(`🗑️ 거절 ${REJECT_PURGE_DAYS}일 지난 ${tot}명 데이터를 정리했어요(DM 비용은 정산에 남습니다)`);
+  },[brands,authInfo]);
   const promoteRef=useRef(false);
   useEffect(()=>{
     if(!serverLoadedRef.current||promoteRef.current) return;
@@ -6969,7 +7064,7 @@ function AppMain({ authInfo, onLogout }) {
     if(allowedBrands.length && !allowedBrands.some(b=>b.id===bId)) setBId(allowedBrands[0].id);
   },[userBrand,brands.length]);
   // 계정별 탭 권한(스태프) — authInfo.tabs 있으면 그 탭만. 없으면(기존 계정) 전체 스태프 탭.
-  const myTabs = !isManager && authInfo?.tabs ? new Set(parseTabs(authInfo.tabs)) : null;
+  const myTabs = !isManager && authInfo?.tabs ? (s=>{ if(s.has('step1')) s.add('step2'); return s; })(new Set(parseTabs(authInfo.tabs))) : null;   // 옛 '리스트업' 권한 = 인플루언서 관리
   const visibleTabs=[
     ...TABS.filter(t=>(!t.mgr||isManager||t.staffOwn)&&(!t.guide||true)&&(!myTabs||myTabs.has(t.key))),
     ...(isManager ? [{key:'users', label:'👤 계정관리', mgr:true}, {key:'log', label:'🔐 접속로그', mgr:true}] : [])
@@ -6979,7 +7074,7 @@ function AppMain({ authInfo, onLogout }) {
     if(visibleTabs.length && !visibleTabs.some(t=>t.key===tab)) setTab(visibleTabs[0].key);
   },[authInfo]);
   // 자주 쓰는 핵심 탭만 노출, 나머지(Claude·DM·가이드·계정·로그)는 '⋯ 더보기'로 접어 어지러움 감소.
-  const PRIMARY_TABS=new Set(['dashboard','step1','step2','shipping','review','dm','settle','claudeS2','guide']);
+  const PRIMARY_TABS=new Set(['dashboard','step2','shipping','review','dm','settle','claudeS2','guide']);
   const primaryTabs=visibleTabs.filter(t=>PRIMARY_TABS.has(t.key));
   const moreTabs=visibleTabs.filter(t=>!PRIMARY_TABS.has(t.key));
   const activeMore=moreTabs.find(t=>t.key===tab);
@@ -7041,7 +7136,7 @@ function AppMain({ authInfo, onLogout }) {
         <button key={t.key} className={`step-tab ${t.mgr?'settle-tab':''} ${t.guide?'guide-tab':''} ${tab===t.key?'active':''}`}
           onClick={()=>setTab(t.key)}>
           {t.label}
-          {t.key==='step1'&&brand.step1Rows.filter(r=>r.reviewStatus==='검수대기'&&r.name).length>0&&(
+          {t.key==='step2'&&brand.step1Rows.filter(r=>r.reviewStatus==='검수대기'&&r.name).length>0&&(
             <span style={{marginLeft:6,background:'var(--red)',borderRadius:10,padding:'1px 6px',fontSize:10,color:'#fff'}}>
               {brand.step1Rows.filter(r=>r.reviewStatus==='검수대기'&&r.name).length}
             </span>
@@ -7063,17 +7158,18 @@ function AppMain({ authInfo, onLogout }) {
 
     <div className="main">
       {tab==='dashboard'&&<DashboardView brand={brand} paList={paList} paFocus={dashPa} setPaFocus={setDashPa} isStaff={IS_STAFF} A={infA} go={go} settlements={settlements}/>}
-      {tab==='step1'&&<Step1View
+      {tab==='step2'&&<Step2View
+        listing={<Step1View
         rows={brand.step1Rows||[]}
         onUpdate={updateStep1Row}
         onDelete={deleteStep1Row}
         onDeleteMany={ids=>deleteRowsMany('step1Rows',ids)}
         onAdd={()=>setModal('addStep1')}
         onPasteImport={()=>setModal('pasteStep1')}
-        filter={filter} setFilter={setFilter}
+        filter={s1Filter} setFilter={setS1Filter}
         search={search} setSearch={setSearch}
-      />}
-      {tab==='step2'&&<Step2View
+        />}
+        listingCount={(brand.step1Rows||[]).filter(r=>r.name&&r.reviewStatus!=='반려'&&r.reviewStatus!=='승인').length}
         brand={brand}
         rows={brand.step2Rows||[]}
         privacyRows={brand.privacyRows||[]}

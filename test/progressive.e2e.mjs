@@ -81,7 +81,10 @@ const setInput=(sel,val)=>evalJs("(()=>{const i=document.querySelector('"+sel+"'
 
 await S('Page.navigate',{url:'http://127.0.0.1:'+PORT+'/'});
 await waitFor("document.querySelectorAll('.step-tab').length>0",'앱 로딩');
-await evalJs("[...document.querySelectorAll('.step-tab')].find(e=>e.textContent.includes('STEP1')).click()");
+// STEP1 리스트업은 '인플루언서 관리' 탭 안 '🟡 리스팅 목록' 칩으로 합쳐졌다.
+await evalJs("[...document.querySelectorAll('.step-tab')].find(e=>e.textContent.includes('인플루언서 관리')).click()");
+await waitFor("[...document.querySelectorAll('.fchip')].some(e=>e.textContent.includes('리스팅 목록'))",'인플루언서 관리 화면');
+await evalJs("[...document.querySelectorAll('.fchip')].find(e=>e.textContent.includes('리스팅 목록')).click()");
 await waitFor("document.querySelectorAll('tbody tr').length>10",'표 렌더');
 await wait(800);
 
@@ -91,7 +94,8 @@ ok(n1>0 && n1<N, '처음 그린 행 '+n1+'개 < 전체 '+N+'개');
 ok(await evalJs("!!document.querySelector('tbody td[colspan]')"), '표 끝에 "더 보입니다" 안내행이 있다');
 
 console.log('\n[2] 개수 표시는 전체 기준');
-const cntTxt=await evalJs("(document.querySelector('.cnt')||{}).textContent||''");
+// '인플루언서 관리' 안 리스팅 목록은 바깥(안내문구)·안(실제 개수) 두 개의 .cnt 가 있다 — 마지막 것이 진짜 개수.
+const cntTxt=await evalJs("(([...document.querySelectorAll('.cnt')].pop())||{}).textContent||''");
 ok(cntTxt.includes(String(N)), '상단 개수 표시 "'+cntTxt+'" 가 전체 '+N+' 을 말한다');
 
 console.log('\n[3] 아래로 내리면 이어서 그려진다');

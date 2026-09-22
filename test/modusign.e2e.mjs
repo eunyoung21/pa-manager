@@ -117,11 +117,12 @@ const msg = () => evalJs(`((document.querySelector('.s2p .ms-msg')||{}).innerTex
 const row = (bi, n) => savedData.brands[bi].step2Rows.find(r => r.name === n) || {};
 const load = async () => {
   await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-  await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('STEP2'))`, '앱 로딩');
+  await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('인플루언서 관리'))`, '앱 로딩');
   await evalJs(`(window.confirm=()=>true,window.alert=()=>{},1)`);
 };
 const openCh = async n => {
-  await click('.step-tab', 'STEP2'); await waitFor(`document.querySelector('.ch-link')`, '컨택현황'); await wait(300);
+  // STEP2 컨택현황은 '인플루언서 관리' 탭으로 합쳐졌다(리스팅 목록과 같은 탭, 다른 칩).
+  await click('.step-tab', '인플루언서 관리'); await waitFor(`document.querySelector('.ch-link')`, '컨택현황'); await wait(300);
   await evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent===${J(n)});s.click();return 1})()`); await wait(400);
 };
 

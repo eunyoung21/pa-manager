@@ -11,10 +11,12 @@ const REPO = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\//,
 const TMP  = path.join(os.tmpdir(), 'pa-panel-e2e');
 
 const S2=(id,name,link,pa,x={})=>({id,step1Id:'',date:'26.09.01',name,link,followers:'1000',pa,contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:'',...x});
+// 무응답 14일 자동거절 스윕에 안 걸리게 — DM 보낸 날짜는 실행 시점 기준 최근으로.
+const ymd=n=>{const t=new Date(Date.now()-n*864e5);return String(t.getFullYear()).slice(2)+'.'+String(t.getMonth()+1).padStart(2,'0')+'.'+String(t.getDate()).padStart(2,'0');};
 let savedData = { paList:['박민선','안민영','권미림'], brands: [
   { id:'basetune', name:'베이스튠',
     step1Rows:[], claudeStep1Rows:[],
-    claudeStep2Rows:[{...S2('c2_j','제이','https://instagram.com/jjj',''),dmSent:'Y',contactStatus:'컨택 중',category:''}],
+    claudeStep2Rows:[{...S2('c2_j','제이','https://instagram.com/jjj',''),dmSent:'Y',dmDate:ymd(2),contactStatus:'컨택 중',category:''}],
     step2Rows:[
       S2('s2_a','에이','https://www.instagram.com/aaa_id?igsh=1','박민선'),
       S2('s2_b','비비','https://instagram.com/bbb_id','안민영',{dmSent:'Y',dmDate:'26.09.02',contactStatus:'진행중'}),
@@ -95,9 +97,10 @@ const fill=(label,v)=>evalJs(`(()=>{const f=[...document.querySelectorAll('.s2p 
 const pbtn=txt=>click('.s2p button',txt);
 
 await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('STEP2'))`,'앱 로딩');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('인플루언서 관리'))`,'앱 로딩');
 await evalJs(`(window.confirm=()=>true,window.alert=()=>{},1)`);
-await click('.step-tab','STEP2'); await waitFor(`document.querySelector('.ch-link')`,'컨택현황'); await wait(300);
+// STEP2 컨택현황은 '인플루언서 관리' 탭으로 합쳐졌다.
+await click('.step-tab','인플루언서 관리'); await waitFor(`document.querySelector('.ch-link')`,'컨택현황'); await wait(300);
 
 console.log('\n[열기] 채널명 누르면 오른쪽 상세 창');
 await openCh('에이'); await wait(300);
