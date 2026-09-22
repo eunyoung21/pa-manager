@@ -125,8 +125,8 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 .cell-val.empty{color:var(--dim);}
 /* 인플루언서 관리·자동화 — 양옆 여백·넉넉한 행 간격·팔로워 흐리게 (해트케 화면 참고, 2026-09-22) */
 @media (min-width:769px){
-  .roomy{padding:14px max(24px,calc((100% - 190px - 1240px)/2)) 0;}
-  .roomy.no-cal{padding:14px max(24px,calc((100% - 1430px)/2)) 0;}   /* 출고·영상검수: 날짜 달력 없이 같은 폭 */
+  .roomy{padding:14px max(24px,calc((100% - 190px - 1480px)/2)) 0;}
+  .roomy.no-cal{padding:14px max(24px,calc((100% - 1680px)/2)) 0;}   /* 출고·영상검수: 날짜 달력 없이 같은 폭 */
   .roomy .toolbar{padding-left:0;padding-right:0;background:transparent;border:none;}
   .roomy th{padding:11px 12px;}
   .roomy td{padding:9px 12px;}
@@ -4316,9 +4316,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
   return <tr className={selOn?'sel-on':''}>
               <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
                 <input type="checkbox" className="sel-box" checked={!!selOn} onChange={()=>H.current.selToggle(r.id)} title="선택"/>
-                {isClaude&&<button className="row-del-btn" title={isRej(r)?'거절 취소 (컨택 전으로 되돌림)':'맘에 안 들면 거절 — 보관함으로 이동(데이터는 학습용으로 보존)'}
-                  style={{color:isRej(r)?'var(--red)':'var(--dim)',borderColor:isRej(r)?'#fca5a5':undefined}}
-                  onClick={()=>H.current.setStatus(r,H.current.isRej(r)?'컨택 전':'거절')}>{isRej(r)?'↩':'🚫'}</button>}
+                {/* 🚫 거절 버튼은 뺐다(2026-09-22) — 거절은 승인 칸의 N으로 */}
               </span></td>
               <td data-label="날짜"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
               <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}>{<span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>}</td>
