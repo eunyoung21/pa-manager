@@ -2243,7 +2243,8 @@ function normalizeData(d) {
    나중에 저장한 쪽이 상대의 최근 입력을 통째로 덮어써 사라졌다(2026-07 사고).
    → 저장 직전에 서버 최신본을 가져와, 내가 "기준선(base) 이후 실제로 바꾼 것"만
      그 위에 얹어서(3-way merge) 올린다. 상대 입력은 그대로 살아남는다. */
-const MERGE_ROW_KEYS=['step1Rows','step2Rows','claudeStep1Rows','claudeStep2Rows','shippingRows','reviewRows','privacyRows'];
+// rejectedBilling(거절 삭제 행의 DM 비용)도 id 단위로 합친다 — 통째 덮어쓰면 동시 저장 때 비용 기록이 사라질 수 있다(2026-09-22)
+const MERGE_ROW_KEYS=['step1Rows','step2Rows','claudeStep1Rows','claudeStep2Rows','shippingRows','reviewRows','privacyRows','rejectedBilling'];
 const _eq=(a,b)=>JSON.stringify(a===undefined?null:a)===JSON.stringify(b===undefined?null:b);
 function _byId(rows){const m=Object.create(null);(rows||[]).forEach(r=>{if(r&&r.id!=null)m[r.id]=r;});return m;}
 // 한 배열(예: step2Rows)의 3-way 병합. 기준=서버(theirs), 그 위에 내 변경(base→mine)만 반영.
@@ -4055,13 +4056,15 @@ function s2Stage(r,rv){
    (자동화 탭의 '컨택 중'은 자동 DM 발송 표시라 상태값으로 거르지 않고 답장 칸으로만 본다).
    한 번 자동 처리된 행은 noReplyAuto 가 남아, 사람이 거절을 풀면 다시 끌려가지 않는다. */
 const NO_REPLY_DAYS=14;
+// 라이브 적용(2026-09-22) 때 사용자 결정: 8월까지 DM 보낸 사람만 옮긴다. 9월 DM부터 14일 규칙을 켜려면 이 날짜를 비우거나 늦춘다.
+const NO_REPLY_DM_UNTIL='2026-08-31';
 function isNoReply(r,claude,cutKey){
   if(r.dmSent!=='Y'||r.noReplyAuto||r.endReason) return false;
   if(r.replied==='Y'||r.approved==='Y'||r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) return false;
   const st=normStatus(r.contactStatus);
   if(st==='거절'||(!claude&&(st==='진행중'||st==='계약서 작성'))) return false;
   const k=parseDateKey(r.dmDate)||parseDateKey(r.date);
-  return !!k&&k<=cutKey;
+  return !!k&&k<=cutKey&&(!NO_REPLY_DM_UNTIL||k<=NO_REPLY_DM_UNTIL);
 }
 function noReplyCutKey(){ const d=new Date(); d.setDate(d.getDate()-NO_REPLY_DAYS); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function sweepNoReply(b){
