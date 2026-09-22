@@ -126,12 +126,19 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
 /* 인플루언서 관리·자동화 — 양옆 여백·넉넉한 행 간격·팔로워 흐리게 (해트케 화면 참고, 2026-09-22) */
 @media (min-width:769px){
   .roomy{padding:14px max(24px,calc((100% - 190px - 1240px)/2)) 0;}
-  .roomy .table-wrap{border:1px solid var(--border);border-radius:10px;margin-bottom:12px;}
-  .roomy .toolbar{padding-left:0;padding-right:0;}
+  .roomy .toolbar{padding-left:0;padding-right:0;background:transparent;border:none;}
   .roomy th{padding:11px 12px;}
   .roomy td{padding:9px 12px;}
 }
 .td-dim,.td-dim .cell-val{color:var(--muted);}
+/* 표는 흰 바탕·옅은 가로줄만(줄무늬 없음), 바깥은 옅은 회색 — 상자에 가둔 느낌 없이. 날짜 달력은 같은 바탕에 녹인다. */
+.roomy-wrap,.roomy{background:var(--surface2);}
+.roomy .table-wrap{background:var(--surface);box-shadow:0 0 0 1px var(--border);}
+.roomy thead tr{background:var(--surface);}
+.roomy tbody tr{border-bottom-color:var(--surface3);}
+.roomy tbody tr:nth-child(even){background:var(--surface);}
+.roomy tbody tr:hover{background:var(--row-hover);}
+.roomy-wrap .cal-sidebar,.roomy .cal-sidebar{background:transparent;border-left:none;}
 .cell-input{background:var(--surface3);border:1px solid var(--accent);border-radius:4px;padding:2px 6px;color:var(--text);font-size:12px;outline:none;width:100%;font-family:inherit;min-width:80px;}
 .cell-sel{background:var(--surface3);border:1px solid var(--accent);border-radius:4px;padding:2px 6px;color:var(--text);font-size:12px;outline:none;font-family:inherit;}
 
@@ -3953,7 +3960,7 @@ function Step2View({ listing, listingCount, brand, rows, privacyRows, onUpdate, 
     {listing}
   </div>;
 
-  return <div className="view-wrap">
+  return <div className="view-wrap roomy-wrap">
     <div className="view-main roomy">
     <div className="toolbar">
       {chips}
