@@ -120,7 +120,8 @@ await evalJs(`(window.__cf=[],window.confirm=m=>{window.__cf.push(m);return true
 
 console.log('\n[대시보드] 구성');
 const dash=await evalJs(`document.querySelector('.hk-in').innerText`);
-chk(['매니저 담당','관리자 담당','담당자별 소통 중','관리자 할 일','매니저 할 일','업무 매뉴얼'].every(t=>dash.includes(t)),'역할 카드·소통 중·할 일·업무 매뉴얼');
+chk(['매니저 담당','관리자 담당','담당자별 소통 중','관리자 할 일','매니저 할 일'].every(t=>dash.includes(t)),'역할 카드·소통 중·할 일');
+chk(!dash.includes('업무 매뉴얼'),'업무 매뉴얼은 삭제됨');
 chk(!dash.includes('담당자별 DM 보낸 인플루언서')&&!(await evalJs(`!!document.querySelector('.dm-col')`)),'DM 보낸 인플루언서 칸이 따로 없음(소통 중으로 합침)');
 
 console.log('\n[대시보드] 담당자별 소통 중 = 답장 이후 진행 중 + 최근 DM 보낸 사람');

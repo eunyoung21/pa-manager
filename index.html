@@ -3264,71 +3264,6 @@ function AddShipModal({ onConfirm, onCancel }) {
     </div>
   </div>;
 }
-
-/* ─── 업무 매뉴얼 (대시보드 상시 노출) ─── */
-function WorkManual(){
-  const [open,setOpen]=useState(true);
-  const SECT=[
-    { icon:'🔷', title:'1. 인플루언서 협업 관리', tint:'#3b82f6', steps:[
-      { t:'리스트업', d:'승인 대상 인플루언서 목록 정리' },
-      { t:'DM 발송', d:'승인 인원에게 DM 발송 → PA 프로그램에 발송 여부 즉시 체크' },
-      { t:'협업 성사 시', d:'PA 프로그램에 협업성사 체크 → 협의된 인플루언서 단가 기재 (성사만으론 수당 안 잡힘)' },
-      { t:'최종 완료 시', d:'영상 업로드 + 광고코드까지 끝나면 최종완료 체크 → 그 날짜 기준으로 수당(2만원) 집계' },
-    ]},
-    { icon:'🔷', title:'2. 영상 콘텐츠 관리', tint:'#ea580c', steps:[
-      { t:'출고 시트 작성', d:'출고요청일 · 요청자 · 사유 · 채널명 · 수령자명 · 연락처 · 배송지주소 빠짐없이 기재' },
-      { t:'영상 일정 모니터링', warn:true, d:'담당자 작성 출고일자 확인 → 업로드까지 7일 초과 예상 시 즉시 담당자 보고 (보고: 채널명 · 본명 · 지연 사유)' },
-      { t:'1차 영상 검수', d:'아래 3가지 확인 후 담당자 전달 — ① 나레이션 오류 ② 자막 누락 ③ 면책문구 포함 여부' },
-      { t:'업로드 일정 공유', d:'담당자 승인 후 → 업로드 일정 담당자에게 공유' },
-      { t:'영상 업로드 즉시 — 검수 페이지 작성', warn:true, d:'날짜 · 채널명 · 본명 · 담당 PA · PA 코드 · 게시 링크 기재', ban:'라이브 표기 누르지 않음', after:'작성 후 담당자에게 채널명 · 본명 · 코드 · 업로드 완료 보고' },
-      { t:'영상 업로드 즉시 — 서류 수령', d:'계약서 · 신분증 · 통장 사본 받기' },
-      { t:'개인정보 업로드 및 보고', warn:true, d:'수령 즉시 업로드 → 담당자에게 보고', ban:'보고 누락 없도록 주의' },
-    ]},
-  ];
-  return (
-    <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden',marginBottom:16}}>
-      <div onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:10,padding:'13px 18px',cursor:'pointer',borderBottom:open?'1px solid var(--border)':'none'}}>
-        <span style={{fontSize:15,fontWeight:700}}>📋 업무 매뉴얼</span>
-        <span style={{fontSize:11,color:'var(--muted)',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>체크·보고는 즉시 · 7일 초과 / 라이브 표기 / 개인정보 보고 누락 주의</span>
-        <span style={{color:'var(--muted)',fontSize:12,flexShrink:0}}>{open?'▲ 접기':'▼ 펼치기'}</span>
-      </div>
-      {open&&<div style={{padding:'16px 18px'}}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))',gap:16}}>
-          {SECT.map((sec,si)=>(
-            <div key={si} style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 16px'}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,paddingBottom:9,borderBottom:'2px solid '+sec.tint}}>
-                <span style={{fontSize:14}}>{sec.icon}</span>
-                <span style={{fontSize:14,fontWeight:700,color:sec.tint}}>{sec.title}</span>
-              </div>
-              <div style={{display:'flex',flexDirection:'column',gap:9}}>
-                {sec.steps.map((st,i)=>(
-                  <div key={i} style={{display:'flex',gap:10,...(st.warn?{background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:8,padding:'8px 10px'}:{padding:'0 1px'})}}>
-                    <span style={{flexShrink:0,width:21,height:21,borderRadius:'50%',background:st.warn?'#d99a2b':sec.tint,color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{i+1}</span>
-                    <div style={{minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,marginBottom:3,lineHeight:1.3}}>{st.t}{st.warn&&<span style={{color:'#b45309',fontSize:10,marginLeft:6,fontWeight:700}}>⚠️ 중요</span>}</div>
-                      <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.5}}>{st.d}</div>
-                      {st.ban&&<div style={{display:'inline-block',marginTop:6,fontSize:11,fontWeight:700,color:'#b91c1c',background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:6,padding:'2px 9px'}}>⛔ {st.ban}</div>}
-                      {st.after&&<div style={{fontSize:11,color:'var(--muted)',marginTop:5,paddingTop:5,borderTop:'1px dashed var(--border)'}}>↳ {st.after}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={{marginTop:14,background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:10,padding:'12px 16px'}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#b45309',marginBottom:7}}>💡 핵심 원칙</div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:'7px 20px',fontSize:12,color:'#78716c'}}>
-            <span>• 체크 및 보고는 <b style={{color:'var(--text)'}}>즉시</b> 처리</span>
-            <span>• 7일 일정 초과 · 라이브 표기 · 개인정보 보고 누락 <b style={{color:'#b91c1c'}}>절대 주의</b></span>
-          </div>
-        </div>
-      </div>}
-    </div>
-  );
-}
-
-/* ─── STEP1 VIEW ─── */
 /* ─── 대시보드용 인플루언서 단계 (v2 인플루언서 관리와 같은 규칙) ───
    필드(컨택 행에 기록): listType 'manual'|'auto'(리스트업 방식, 등록 시점 고정) · dmType 'manual'|'auto'|null
      · pa(담당자, paList 참조) · stage(아래 key) · endReason '거절'|'무응답'
@@ -3635,7 +3570,6 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
           {partTodo.length?partTodo:empty}
         </div>
       </div>
-      <WorkManual/>
     </div></div>
   );
 }
