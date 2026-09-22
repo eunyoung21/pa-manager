@@ -1438,6 +1438,7 @@ const shipProductOf = brandId => SHIP_PRODUCT[brandId] || '';
 const TABS = [
   { key:'dashboard', label:'📊 대시보드' },
   { key:'step2',    label:'👥 인플루언서 관리' },   // 옛 STEP1 리스트업 + STEP2 컨택현황을 합친 탭(리스트업은 '🟡 리스팅 목록' 칸)
+  { key:'finder',   label:'🔎 인플루언서 찾기', mgr:true, staffOwn:true },
   { key:'claudeS2', label:'🤖 자동화', mgr:true, staffOwn:true },
   { key:'shipping', label:'📦 출고' },
   { key:'review',   label:'🎬 영상검수' },
@@ -1447,7 +1448,7 @@ const TABS = [
 ];
 // 스태프 계정에 개별 부여 가능한 탭(계정별 권한 범위). 관리자 전용(계정관리·접속로그)은 제외.
 const STAFF_TAB_OPTS = [
-  {key:'claudeS2',label:'🤖 자동화'},{key:'shipping',label:'📦 출고'},{key:'review',label:'🎬 영상검수'},
+  {key:'finder',label:'🔎 인플루언서 찾기'},{key:'claudeS2',label:'🤖 자동화'},{key:'shipping',label:'📦 출고'},{key:'review',label:'🎬 영상검수'},
   {key:'dm',label:'💬 DM 템플릿'},{key:'settle',label:'💰 정산'},{key:'step2',label:'👥 인플루언서 관리'},
   {key:'dashboard',label:'📊 대시보드'},{key:'guide',label:'📖 가이드'},
 ];
@@ -3876,7 +3877,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
 }
 
 /* ─── STEP2 VIEW ─── */
-function Step2View({ listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
+function Step2View({ actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
@@ -3979,6 +3980,7 @@ function Step2View({ listing, listingCount, brand, rows, privacyRows, onUpdate, 
       </div>
       <span className="cnt">{shown.length}명</span>
     </div>
+    {actions&&<div style={{padding:'6px 0 8px',display:'flex',gap:6,flexWrap:'wrap'}}>{actions}</div>}
     {(mode==='archive'||mode==='reject')&&<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',padding:'7px 12px',margin:'0 0 2px',background:'var(--surface2)',borderTop:'1px solid var(--border)',borderBottom:'1px solid var(--border)',fontSize:12,color:'var(--muted)'}}>
       {mode==='archive'
         ? <><span>🗑️ <b style={{color:'var(--orange)'}}>사본 폐기</b> — 정산 30일 뒤 <b>신분증사본·통장사본·주민등록번호</b>가 자동 폐기된 인플루언서 모음</span>
@@ -4350,6 +4352,177 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
               <td className="del-end"><RowDelBtn name={r.name} onDelete={()=>H.current.onDelete(r.id)}/></td>
             </tr>;
 });
+
+/* ─── 🔎 인플루언서 찾기 (2026-09-22) ───
+   이 PC에서 돌고 있는 「리스트업 창」 서버(influencer-finder/ui/server.mjs, 기본 8788)를 브리지로 불러
+   인스타에서 후보를 찾고, 결과를 보고 골라 🟡 리스팅 목록 또는 🤖 자동화로 넣는다.
+   - 비슷한 결 찾기: 이 브랜드에서 진행한 인플루언서(시드)가 쓰는 해시태그를 뽑아 그 풀에서 찾는다.
+   - 해시태그로 찾기: 태그를 직접 넣는다.
+   이미 PA에 있는 사람(모든 브랜드·모든 탭)은 찾기 전에 브리지로 보내 결과에서 빼 준다. */
+const FINDER_URL=(()=>{try{return localStorage.getItem('pa_finder_url')||'http://127.0.0.1:8788';}catch{return 'http://127.0.0.1:8788';}})();
+const FINDER_SEED_MAX=12;   // 시드 1명당 게시물 3개를 열어 태그를 모으므로 많으면 오래 걸린다
+const rowHandle=r=>String(r.username||'').trim().replace(/^@/,'').toLowerCase()||igHandle(r.link);
+function finderApi(path,body){
+  return fetch(FINDER_URL+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined)
+    .then(r=>r.json());
+}
+const fmtK=n=>n==null?'—':n>=10000?(Math.round(n/1000)/10)+'만':n>=1000?(Math.round(n/100)/10)+'천':String(n);
+function FinderView({ brand, brands, onAddListing, onAddAuto }){
+  const LS='pa_finder_run_'+brand.id;
+  const [bridge,setBridge]=useState(null);        // null=확인중, false=꺼짐, {accounts…}
+  const [mode,setMode]=useState('seed');
+  const [seedSrc,setSeedSrc]=useState('deal');
+  const [tags,setTags]=useState('');
+  const [fMin,setFMin]=useState('1000'), [fMax,setFMax]=useState('150000'), [cnt,setCnt]=useState('40'), [age,setAge]=useState('45');
+  const [run,setRun]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS)||'null');}catch{return null;}});
+  const [job,setJob]=useState(null), [lines,setLines]=useState([]);
+  const [result,setResult]=useState(null), [pick,setPick]=useState({}), [msg,setMsg]=useState('');
+  const [past,setPast]=useState([]);
+  useEffect(()=>{try{run?localStorage.setItem(LS,JSON.stringify(run)):localStorage.removeItem(LS);}catch{}},[run]);
+
+  const ping=()=>finderApi('/api/init').then(d=>{setBridge(d);setPast(d.lists||[]);}).catch(()=>setBridge(false));
+  useEffect(()=>{ping();},[]);
+  const findAcc=bridge&&bridge.accounts?(bridge.accounts.find(a=>a.use==='find')||bridge.accounts[0]):null;
+
+  // 이 브랜드에서 진행한 사람들 = 시드 후보(최근 순)
+  const s2all=useMemo(()=>[...(brand.step2Rows||[]),...(brand.claudeStep2Rows||[])],[brand]);
+  const isDeal=r=>r.dealDone==='Y'||r.finalDone==='Y';
+  const isDm=r=>r.dmSent==='Y'||isDeal(r);
+  const seedPool=useMemo(()=>{
+    const seen=new Set(), out=[];
+    s2all.filter(seedSrc==='deal'?isDeal:isDm)
+      .sort((a,b)=>String(parseDateKey(b.dealDate||b.dmDate||b.date)||'').localeCompare(String(parseDateKey(a.dealDate||a.dmDate||a.date)||'')))
+      .forEach(r=>{const h=rowHandle(r); if(h&&!seen.has(h)){seen.add(h);out.push(h);}});
+    return out;
+  },[s2all,seedSrc]);
+  const cntOf=f=>new Set(s2all.filter(f).map(rowHandle).filter(Boolean)).size;
+  // 이미 PA에 있는 사람(모든 브랜드) — 찾기 결과에서 빼고, 결과 화면에서 '이미 있음'으로 표시
+  const have=useMemo(()=>{const s=new Set();(brands||[]).forEach(b=>[...(b.step1Rows||[]),...(b.step2Rows||[]),...(b.claudeStep2Rows||[])].forEach(r=>{const h=rowHandle(r);if(h)s.add(h);}));return s;},[brands]);
+
+  function loadResult(file){
+    if(!file) return;
+    finderApi('/api/result?file='+encodeURIComponent(file))
+      .then(d=>{ if(d.ok){setResult({...d.result,file});setPick({});} else setMsg(d.error||'결과가 아직 없어요'); })
+      .catch(()=>setMsg('브리지에 연결할 수 없어요'));
+  }
+  // 진행 중 작업 따라가기(3초마다 로그 끝부분)
+  useEffect(()=>{
+    if(!run||!bridge) return;
+    if(!run.jobId){ loadResult(run.listFile); return; }
+    let stop=false;
+    const tick=()=>finderApi('/api/joblog?id='+run.jobId+'&n=8').then(d=>{
+      if(stop) return;
+      if(!d.ok){ loadResult(run.listFile); return; }   // 브리지를 다시 켜면 작업 기록이 없어진다 → 결과 파일로
+      setJob(d.job); setLines(d.lines||[]);
+      if(d.job.running) setTimeout(tick,3000); else loadResult(run.listFile);
+    }).catch(()=>{ if(!stop) setTimeout(tick,5000); });
+    tick(); return ()=>{stop=true;};
+  },[run&&run.jobId,run&&run.listFile,!!bridge]);
+
+  function start(){
+    setMsg('');
+    const hashtags=tags.split(/[\s,]+/).map(t=>t.replace(/^#/,'').trim()).filter(Boolean);
+    const seeds=mode==='seed'?seedPool.slice(0,FINDER_SEED_MAX):[];
+    if(mode==='seed'&&!seeds.length){setMsg('기준으로 쓸 인플루언서(인스타 링크 있는 사람)가 없어요');return;}
+    if(mode==='tag'&&!hashtags.length){setMsg('해시태그를 넣어 주세요');return;}
+    const name=`PA-${brand.name}-${mode==='seed'?'비슷한결':'해시태그'}-${Date.now().toString(36)}`;
+    finderApi('/api/run',{name,brand:brand.name,accountId:findAcc&&findAcc.id,hashtags,seeds,excludeUsers:[...have],
+      followersMin:fMin,followersMax:fMax,targetCount:cnt,maxCandidates:Math.max(170,(+cnt||40)*4),maxAgeDays:age,
+      excludeKeywords:(bridge&&bridge.defaultExcludeKeywords)||[]})
+      .then(d=>{ if(!d.ok){setMsg(d.error||'시작 실패');return;} setResult(null);setLines([]);setJob({running:true});setRun({jobId:d.jobId,listFile:d.listFile}); })
+      .catch(()=>setMsg('브리지에 연결할 수 없어요 — 이 PC에서 「리스트업 창.bat」을 켜 주세요'));
+  }
+  const stopRun=()=>run&&run.jobId&&finderApi('/api/stop',{id:run.jobId}).catch(()=>{});
+  const login=()=>findAcc&&finderApi('/api/account/login',{id:findAcc.id})
+    .then(d=>setMsg(d.ok?'크롬 창이 뜨면 인스타에 로그인해 주세요 (한 번 하면 유지돼요)':(d.error||'실패'))).catch(()=>setMsg('브리지에 연결할 수 없어요'));
+
+  const list=(result&&result.list)||[];
+  const picked=list.filter(r=>pick[r.username]);
+  const toRow=r=>({name:r.fullName&&r.fullName.trim()?r.fullName.trim():r.username,username:r.username,link:r.url||`https://www.instagram.com/${r.username}/`,
+    followers:r.followers!=null?Number(r.followers).toLocaleString():'',
+    memo:[r.lastVideoDaysAgo!=null?`최근 릴스 ${r.lastVideoDaysAgo}일 전`:'',r.viewMed?`조회 중앙값 ${fmtK(r.viewMed)}`:''].filter(Boolean).join(' · ')});
+  function add(to){
+    const rows=picked.filter(r=>!have.has(String(r.username).toLowerCase())).map(toRow);
+    if(!rows.length){setMsg('추가할 사람이 없어요 (이미 있는 사람은 빼요)');return;}
+    (to==='auto'?onAddAuto:onAddListing)(rows);
+    setMsg(`${rows.length}명을 ${to==='auto'?'🤖 자동화':'🟡 리스팅 목록'}에 넣었어요`); setPick({});
+  }
+
+  const running=!!(job&&job.running);
+  const L={fontSize:12,color:'var(--muted)',margin:'12px 0 5px'};
+  return <div className="view-wrap roomy-wrap" style={{overflow:'auto'}}>
+    <div className="view-main roomy no-cal" style={{overflow:'visible'}}>
+      <div style={{fontSize:12,color:'var(--muted)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',margin:'2px 0 10px'}}>
+        <span>💡 원하는 결의 인스타 인플루언서를 찾아 검토 후 <b style={{color:'var(--text)'}}>리스팅 목록에 추가</b>하거나 <b style={{color:'var(--text)'}}>자동화(DM)</b>로 넘깁니다. 이 PC에서 <b style={{color:'var(--text)'}}>「리스트업 창.bat」 실행 + 인스타 로그인</b>이 필요해요.</span>
+        {bridge===false&&<><span style={{color:'var(--red)',fontWeight:600}}>● 연결 안 됨</span><button className="btn btn-ghost" onClick={ping}>다시 확인</button></>}
+        {bridge&&<span style={{color:'var(--green)',fontWeight:600}}>● 연결됨</span>}
+        {bridge&&findAcc&&<button className="btn btn-ghost" onClick={login}>인스타 로그인 열기</button>}
+      </div>
+
+      <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'16px 18px'}}>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+          {[['seed','기존 인플루언서로 비슷한 결 찾기'],['tag','해시태그로 찾기']].map(([k,l])=>
+            <button key={k} className={`fchip ${mode===k?'active':''}`} style={{fontSize:12,padding:'5px 12px',border:'1px solid var(--border)'}} onClick={()=>setMode(k)}>{l}</button>)}
+        </div>
+        {mode==='seed'?<>
+          <div style={L}>기준 — <b style={{color:'var(--text)'}}>{brand.name}</b>에서 진행한 인플루언서들의 결을 따라 찾습니다</div>
+          <select className="modal-inp" style={{maxWidth:420}} value={seedSrc} onChange={e=>setSeedSrc(e.target.value)}>
+            <option value="deal">협업 성사·완료한 사람 ({cntOf(isDeal)}명)</option>
+            <option value="dm">DM 보낸 사람 전체 — 거절 포함 ({cntOf(isDm)}명)</option>
+          </select>
+          <div style={{fontSize:11,color:'var(--dim)',marginTop:5}}>최근 순으로 {Math.min(FINDER_SEED_MAX,seedPool.length)}명의 게시물에서 해시태그를 뽑아 그 풀에서 찾아요{seedPool.length>FINDER_SEED_MAX?` (전체 ${seedPool.length}명 중)`:''}</div>
+        </>:<>
+          <div style={L}>해시태그 — 띄어쓰기나 쉼표로 구분 (# 없어도 돼요)</div>
+          <textarea className="modal-inp" rows={2} style={{maxWidth:640}} value={tags} onChange={e=>setTags(e.target.value)} placeholder="러닝 러닝크루 마라톤준비"/>
+        </>}
+        <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+          {[['팔로워 최소',fMin,setFMin],['팔로워 최대',fMax,setFMax],['최대 후보 수',cnt,setCnt],['최근 릴스 (일 이내)',age,setAge]].map(([l,v,s])=>
+            <div key={l} style={{width:130}}><div style={L}>{l}</div><input className="modal-inp" value={v} onChange={e=>s(e.target.value.replace(/[^0-9]/g,''))}/></div>)}
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center',marginTop:16,flexWrap:'wrap'}}>
+          <button className="btn btn-primary" style={{padding:'7px 16px',fontSize:13,fontWeight:600,opacity:(!bridge||running)?.5:1}} disabled={!bridge||running} onClick={start}>🔍 인플루언서 찾기</button>
+          {running&&<button className="btn btn-ghost" onClick={stopRun}>중단</button>}
+          {past.length>0&&<select className="modal-inp" style={{width:'auto',marginLeft:'auto'}} value="" onChange={e=>{const f=e.target.value;if(f){setJob(null);setRun({jobId:null,listFile:f});}}}>
+            <option value="">지난 결과 불러오기…</option>
+            {past.map(p=><option key={p.file} value={p.file}>{p.label}</option>)}
+          </select>}
+        </div>
+        {msg&&<div style={{fontSize:12,marginTop:8,color:'var(--accent)'}}>{msg}</div>}
+        {(running||(lines.length>0&&!result))&&<div style={{marginTop:10,background:'var(--surface2)',borderRadius:8,padding:'8px 10px',fontSize:11,fontFamily:'monospace',color:'var(--muted)',whiteSpace:'pre-wrap',maxHeight:150,overflow:'auto'}}>
+          {running?'⏳ 찾는 중… (한 명 확인에 20~40초 · 다른 탭에 가도 계속 돌아요)\n':''}{lines.join('\n')}
+        </div>}
+      </div>
+
+      {result&&<div style={{marginTop:16}}>
+        <div className="toolbar" style={{gap:8}}>
+          <b style={{fontSize:13}}>찾은 사람 {list.length}명</b>
+          <span className="cnt" style={{color:'var(--muted)'}}>{(result.hashtags||[]).slice(0,10).map(t=>'#'+t).join(' ')}</span>
+          <div className="sep"/>
+          <button className="fchip" onClick={()=>{const p={};list.forEach(r=>{if(!have.has(String(r.username).toLowerCase()))p[r.username]=true;});setPick(p);}}>전체 선택</button>
+          {picked.length>0&&<button className="fchip" onClick={()=>setPick({})}>선택 해제</button>}
+          <button className="btn btn-primary" style={{opacity:picked.length?1:.5}} disabled={!picked.length} onClick={()=>add('listing')}>🟡 리스팅 목록에 추가 ({picked.length})</button>
+          <button className="btn btn-ghost" style={{opacity:picked.length?1:.5}} disabled={!picked.length} onClick={()=>add('auto')}>🤖 자동화에 추가</button>
+        </div>
+        {list.length===0&&<div style={{fontSize:12,color:'var(--muted)',padding:'20px 0'}}>조건에 맞는 사람이 없었어요. 팔로워 범위나 최근 릴스 기간을 넓혀 다시 찾아 보세요.</div>}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,paddingBottom:24}}>
+          {list.map(r=>{const dup=have.has(String(r.username).toLowerCase()); const on=!!pick[r.username];
+            return <div key={r.username} onClick={()=>!dup&&setPick(p=>({...p,[r.username]:!p[r.username]}))}
+              style={{background:'var(--surface)',border:`1px solid ${on?'var(--accent)':'var(--border)'}`,boxShadow:on?'0 0 0 1px var(--accent)':'none',borderRadius:10,overflow:'hidden',cursor:dup?'default':'pointer',opacity:dup?.5:1}}>
+              <div style={{aspectRatio:'3 / 4',background:'var(--surface3)',position:'relative'}}>
+                {r.reelShot&&<img src={FINDER_URL+'/img?p='+encodeURIComponent(r.reelShot)} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>}
+                <span style={{position:'absolute',top:8,left:8,background:on?'var(--accent)':'rgba(255,255,255,.92)',color:on?'#fff':'var(--text)',borderRadius:6,fontSize:11,fontWeight:700,padding:'2px 7px'}}>{dup?'이미 있음':on?'✓ 선택':'선택'}</span>
+              </div>
+              <div style={{padding:'8px 10px 10px'}}>
+                <a href={r.url} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()} style={{fontWeight:700,fontSize:13,color:'var(--text)',textDecoration:'none'}}>@{r.username} ↗</a>
+                <div style={{fontSize:12,color:'var(--muted)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.fullName||' '}</div>
+                <div style={{fontSize:11,color:'var(--muted)',marginTop:4}}>팔로워 {fmtK(r.followers)} · 조회 {fmtK(r.viewMed)} · 릴스 {r.lastVideoDaysAgo!=null?r.lastVideoDaysAgo+'일 전':'—'}</div>
+              </div>
+            </div>;})}
+        </div>
+      </div>}
+    </div>
+  </div>;
+}
 
 /* ─── SHIPPING VIEW ─── */
 function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
@@ -6544,6 +6717,15 @@ function AppMain({ authInfo, onLogout }) {
     if(!id)return;
     updateBrand(bId,b=>({...b,claudeStep2Rows:(b.claudeStep2Rows||[]).filter(r=>r.id!==id)}));
   }
+  // 🔎 인플루언서 찾기 결과 → 🟡 리스팅 목록(검수대기) / 🤖 자동화(컨택 전)
+  function addFinderListing(list){
+    const td=today();
+    updateBrand(bId,b=>({...b,step1Rows:[...(b.step1Rows||[]),...list.map(r=>({id:makeId(),date:td,pa:'',reviewStatus:'검수대기',name:r.name,username:r.username,link:r.link,followers:r.followers,persona:'',memo:r.memo,promotedToStep2:false}))]}));
+  }
+  function addFinderAuto(list){
+    const td=today();
+    updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...list.map(r=>({id:makeId(),date:td,name:r.name,username:r.username,link:r.link,followers:r.followers,pa:'',category:nicheOf([r.name,r.memo].join(' '))||'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:r.memo}))]}));
+  }
   // 컨택현황에 빈 행 추가 — 직접 인플루언서 입력용.
   function addClaudeS2Row(){
     updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),{id:makeId(),date:today(),name:'새 인플루언서',link:'',followers:'',pa:'',category:'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''}]}));
@@ -7065,7 +7247,7 @@ function AppMain({ authInfo, onLogout }) {
     if(visibleTabs.length && !visibleTabs.some(t=>t.key===tab)) setTab(visibleTabs[0].key);
   },[authInfo]);
   // 자주 쓰는 핵심 탭만 노출, 나머지(Claude·DM·가이드·계정·로그)는 '⋯ 더보기'로 접어 어지러움 감소.
-  const PRIMARY_TABS=new Set(['dashboard','step2','shipping','review','dm','settle','claudeS2','guide']);
+  const PRIMARY_TABS=new Set(['dashboard','step2','finder','shipping','review','dm','settle','claudeS2','guide']);
   const primaryTabs=visibleTabs.filter(t=>PRIMARY_TABS.has(t.key));
   const moreTabs=visibleTabs.filter(t=>!PRIMARY_TABS.has(t.key));
   const activeMore=moreTabs.find(t=>t.key===tab);
@@ -7175,15 +7357,16 @@ function AppMain({ authInfo, onLogout }) {
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}
       />}
+      {tab==='finder'&&<FinderView key={bId} brand={brand} brands={brands} onAddListing={addFinderListing} onAddAuto={addFinderAuto}/>}
       {tab==='claudeS2'&&<div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-        <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'var(--surface2)'}}>
-          <button className="btn btn-primary" style={{fontSize:11}} onClick={addClaudeS2Row}>＋ 추가</button>
-          {(brand.claudeStep1Rows||[]).length>0&&<button className="btn" style={{fontSize:11,background:'var(--accent)',color:'#fff'}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
-          {bId==='granny'&&<button className="btn" style={{fontSize:11,background:'var(--surface3)',color:'var(--text)',marginLeft:'auto'}} onClick={seedClaudeGranny}>🤖 발굴 50명 불러오기</button>}
-        </div>
         <Step2View
           brand={brand}
           isClaude={true}
+          actions={<>
+            <button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={addClaudeS2Row}>＋ 인플루언서 추가</button>
+            {(brand.claudeStep1Rows||[]).length>0&&<button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
+            {bId==='granny'&&<button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={seedClaudeGranny}>🤖 발굴 50명 불러오기</button>}
+          </>}
           rows={brand.claudeStep2Rows||[]}
           privacyRows={brand.privacyRows||[]}
           onUpdate={updateClaudeS2Row}
