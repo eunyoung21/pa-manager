@@ -4238,18 +4238,19 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
           <span className="ct-file-name" style={{fontWeight:600}}>📄 {ctT?(ctT.tpl?ctT.tpl.name:ctT.builtinName+'.docx'):'없음'}</span>
           <span style={{color:'var(--muted)'}}>{ctT?ctT.kind:''}</span>
         </div>
-        <div className="s2p-btns" style={{marginTop:6}}>
-          <button className="btn s2p-outline" disabled={msBusy||!ctT} onClick={previewCt} title="지금 입력한 값을 넣은 계약서를 내려받아 확인·수정(수정한 파일은 '다른 파일로'로 다시 첨부)">⬇ 값 넣어 내려받기</button>
-          <button className="btn s2p-outline" disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 다른 파일로</button>
-          {r.contractFile&&<button className="btn s2p-outline" disabled={msBusy} onClick={()=>{upd({contractFile:null});setMsMsg(null);}}>↺ 기본으로</button>}
+        <div className="s2p-btns ct-file-btns" style={{marginTop:6}}>
+          <button className="btn s2p-outline" style={{fontSize:10,padding:'3px 7px'}} disabled={msBusy||!ctT} onClick={previewCt} title="지금 입력한 값을 넣은 계약서를 내려받아 확인·수정(수정한 파일은 '다른 파일로'로 다시 첨부)">⬇ 값 넣어 내려받기</button>
+          <button className="btn s2p-outline" style={{fontSize:10,padding:'3px 7px'}} disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 다른 파일로</button>
+          {r.contractFile&&<button className="btn s2p-outline" style={{fontSize:10,padding:'3px 7px'}} disabled={msBusy} onClick={()=>{upd({contractFile:null});setMsMsg(null);}}>↺ 기본으로</button>}
           <input ref={ctRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickCt}/>
         </div>
       </div>
       {msAsk&&!msBusy&&<p className="s2p-help ms-ask" style={{color:'var(--text)'}}>{msAsk} 으로 보냅니다. 맞으면 버튼을 한 번 더 누르세요.</p>}
       {msMsg&&<p className="s2p-help ms-msg" style={{color:msMsg.err?'var(--red)':'var(--green,#15803d)'}}>{msMsg.err||('✅ '+msMsg.ok)}</p>}
-      {r.contractSent&&!msMsg&&<p className="s2p-help">📧 {r.contractSent} 메일 발송함 — 회신 받으면 계약서 링크를 넣고 '계약 완료'를 누르세요.</p>}
-      <div className="s2p-btns" style={{marginBottom:10}}>
+      {r.contractSent&&!msMsg&&<p className="s2p-help">📧 {r.contractSent} 메일 발송함 — 회신 오면 계약서 수집 → 드라이브에서 확인 후 계약 완료를 누르세요.</p>}
+      <div className="s2p-btns" style={{marginBottom:10,alignItems:'center'}}>
         <button className="btn btn-primary ms-send" disabled={msBusy} onClick={sendMs}>{msBusy?'메일 보내는 중…':msAsk?'✅ 확인 — 보내기':'📧 이메일로 계약서 보내기'}</button>
+        <ContractCollectBtn isManager={!IS_STAFF}/>
       </div>
       <div className="s2p-hr"/>
       {r.contractUrl&&<p className="s2p-help">서명본: <a href={r.contractUrl} target="_blank" rel="noopener">계약서 링크 ↗</a></p>}
