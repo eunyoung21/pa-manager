@@ -5076,6 +5076,18 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
   const norm=v=>String(v||'').trim().toLowerCase().replace(/\s+/g,'');
   const s2=step2Rows||[];
   const settleOf=r=>{const n=norm(r.channelName);if(!n)return{};return s2.find(x=>norm(x.name)===n)||{};};
+  // 단가는 인플루언서 관리·자동화 탭에 적은 값을 그대로 보여준다(여기서 고치지 않음, 2026-09-30)
+  const s2all=[...s2,...((brand&&brand.claudeStep2Rows)||[])];
+  // 이름 맞추기용 키 — 기호(| ｜ · 등)·공백·꼬리표(님)를 지우고 비교한다(2026-09-30, 같은 사람인데 기호가 달라 못 찾던 문제)
+  const mk=v=>String(v||'').normalize('NFC').toLowerCase().replace(/[^0-9a-z가-힣]/g,'').replace(/님$/,'');
+  const rateOf=r=>{
+    const n=mk(r.channelName), rn=mk(r.realName);
+    const has=x=>String(x.rate||'').trim();
+    // 채널명이 정확히 같은 행 → 본명이 같은 행 → 한쪽이 다른 쪽을 포함하는 이름(…님 같은 꼬리표 차이) 순으로
+    const hit=(n&&s2all.find(x=>mk(x.name)===n&&has(x)))
+      ||(rn&&s2all.find(x=>mk(x.realName)===rn&&has(x)))
+      ||(n&&n.length>=3&&s2all.find(x=>{const m=mk(x.name);return m&&has(x)&&(m.startsWith(n)||n.startsWith(m));}));
+    return hit?String(hit.rate).trim():'';};
   const settleState=r=>{const st=settleOf(r);return st.privacyPurged?'purged':st.infSettled==='Y'?'paid':'unpaid';};
   // 검색어가 있으면 상태 칩·열 필터·날짜 필터를 다 무시하고 전체에서 찾는다 — 필터에 걸려 안 보이는 일이 없게.
   const byDay=q?rows:(dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows);
@@ -5139,7 +5151,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
           <th style={{width:96}}>라이브</th>
           <th style={{width:96,whiteSpace:'nowrap'}}>계약서</th>
           <th style={{width:120}}>정산</th>
-          <th style={{width:80}}>개인정보</th>
+          <th style={{width:90}}>단가</th>
           <th className="del-end"/>
         </tr>
         {showColF&&<tr className="colf-row">
@@ -5209,12 +5221,12 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                           {isManager&&<button onClick={()=>onSettle&&onSettle(r.channelName,true,{pa:r.pa,realName:r.realName})} title="단가 지급 완료 표시 (30일 후 신분증·통장 사본·주민번호 자동 폐기)" style={{fontSize:9,padding:'2px 7px',border:0,borderRadius:4,background:'var(--green)',color:'#fff',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>💰 정산완료</button>}
                         </span>}
                 </td>
-                <td data-label="개인정보" style={{textAlign:'center'}}>
-                  {!isManager
-                    ? <span style={{fontSize:10,color:'var(--dim)'}}>—</span>
-                    : <button onClick={()=>setPvRow(r)} title={ss==='purged'?'개인정보 보기 — 신분증·통장 사본과 주민번호는 폐기됐고 나머지는 남아 있습니다':'이 사람 개인정보 보기/입력 (관리자 전용)'} style={{fontSize:10,padding:'3px 8px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface2)',color:'var(--text)',cursor:'pointer',whiteSpace:'nowrap'}}>🔒 개인정보</button>}
+                <td data-label="단가" style={{textAlign:'right',whiteSpace:'nowrap'}} title="인플루언서 관리·자동화 탭에 적은 단가입니다 (여기서는 수정할 수 없어요)">
+                  {(()=>{const v=rateOf(r); return v
+                    ? <span style={{fontSize:12,fontWeight:600,color:'var(--yellow)'}}>{/^\d[\d,]*$/.test(v)?Number(v.replace(/,/g,'')).toLocaleString():v}</span>
+                    : <span style={{fontSize:11,color:'var(--dim)'}}>—</span>;})()}
                 </td>
-                <td className="del-end"><RowDelBtn name={r.channelName} onDelete={()=>onDelete(r.id)}/></td>
+                                <td className="del-end"><RowDelBtn name={r.channelName} onDelete={()=>onDelete(r.id)}/></td>
               </tr>
             </React.Fragment>;
           })}
