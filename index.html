@@ -132,6 +132,12 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
   .roomy td{padding:9px 12px;}
 }
 .td-dim,.td-dim .cell-val{color:var(--muted);}
+/* 제품 탭 — 한 브랜드 안의 협찬 제품별 보기 */
+.prod-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:10px 0 0;}
+.prod-tab{padding:5px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;}
+.prod-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.prod-tab.add{border-style:dashed;color:var(--dim);font-weight:500;}
+.prod-badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;background:var(--surface3);color:var(--muted);font-size:10px;font-weight:600;vertical-align:middle;}
 /* 행 삭제(×) — 작게, 표 맨 오른쪽 끝 */
 th.del-end,td.del-end{width:24px;padding-left:2px!important;padding-right:6px!important;text-align:center;}
 td.del-end .row-del-x{font-size:11px;padding:0 3px;opacity:.3;}
@@ -1434,6 +1440,13 @@ const DEFAULT_BRANDS = [
 // 출고 상품명은 브랜드별로 고정 — 베이스튠=베이스튠(1), 그래니살라=그래니살라(2)
 const SHIP_PRODUCT = { basetune:'베이스튠(1)', granny:'그래니살라(2)' };
 const shipProductOf = brandId => SHIP_PRODUCT[brandId] || '';
+// 브랜드 안의 제품 목록 — brand.products(수동 추가) + 행에 실제로 쓰인 제품명(2026-09-30, 해트케 합류)
+function brandProducts(brand, rows){
+  const out=[...(brand&&brand.products||[])];
+  (rows||[]).forEach(r=>{const v=String(r&&r.product||'').trim(); if(v&&!out.includes(v)) out.push(v);});
+  return out;
+}
+const productOfRow = (r, brand) => String(r&&r.product||'').trim() || shipProductOf(brand&&brand.id) || (brand&&brand.name) || '';
 
 const TABS = [
   { key:'dashboard', label:'📊 대시보드' },
@@ -3323,18 +3336,19 @@ function AddShipModal({ onConfirm, onCancel }) {
    자동 건은 자동화가 리스트업+DM을 한 번에 해서 DM발송 단계로 들어온다.
    예전 행(필드 없음)은 기존 값(dmSent·replied·dealDone·출고·영상검수·finalDone·infSettled)으로 단계를 추정하고,
    버튼을 누르면 새 필드와 기존 값을 함께 기록한다(옛 표 탭·정산이 그대로 맞도록). */
+// 2026-09-29: 제품발송을 계약서발송보다 앞으로(모두싸인 직접 발송으로 계약 수집 대기가 없어짐).
 const INF_STAGES=[
   {id:0,key:'listup', name:'리스트업',             short:'리스트업',   color:'#6c757d',role:'part'},
   {id:1,key:'dm',     name:'DM발송',               short:'DM발송',     color:'#0dcaf0',role:'part'},
   {id:2,key:'replied',name:'답장옴(진행대기)',      short:'답장옴',     color:'#3b82f6',role:'part'},
-  {id:3,key:'contract',name:'계약서발송',           short:'계약서',     color:'#20c997',role:'boss'},
-  {id:4,key:'ship',   name:'제품발송',             short:'제품발송',   color:'#8b5cf6',role:'boss'},
+  {id:3,key:'ship',   name:'제품발송',             short:'제품발송',   color:'#8b5cf6',role:'boss'},
+  {id:4,key:'contract',name:'계약서발송',           short:'계약서',     color:'#20c997',role:'boss'},
   {id:5,key:'adcode', name:'광고코드·입금정보수집', short:'광고코드',   color:'#f97316',role:'part'},
   {id:6,key:'adset',  name:'광고세팅·입금완료',     short:'광고세팅',   color:'#ec4899',role:'boss'},
 ];
 const STAGE_IDX=Object.fromEntries(INF_STAGES.map(s=>[s.key,s.id]));
 // 각 단계에서 '다음 처리' 버튼 글자
-const INF_NEXT_LABEL={0:'DM 발송',1:'답장옴',2:'계약서 발송',3:'계약 완료',4:'제품 발송 완료',5:'수집 완료',6:'세팅·입금 완료'};
+const INF_NEXT_LABEL={0:'DM 발송',1:'답장옴',2:'제품 발송',3:'제품 발송 완료',4:'계약 완료',5:'수집 완료',6:'세팅·입금 완료'};
 const AUTO_PA='🤖 자동화';
 const nzName=s=>String(s||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,'');
 const infStageInfo=inf=>inf.status==='rejected'?{name:inf.endReason||'거절',short:inf.endReason||'거절',color:inf.endReason==='무응답'?'#888888':'#e74c3c'}:inf.status==='done'?{name:'완료',short:'완료',color:'#22c55e'}:INF_STAGES[inf.stage];
@@ -3356,19 +3370,21 @@ function buildInfluencers(brand,paList){
     const pv=privByCh.get(k)||null;
     const review=reviewRow||revByCh.get(k)||(pv&&revByReal.get(nzName(pv.realName)))||null;
     if(review) usedRev.add(review.id);
-    const realName=(review&&review.realName)||(pv&&pv.realName)||'';
-    const shipping=shipByCh.get(k)||(realName?shipByRec.get(nzName(realName)):null)||null;
     const c=contact||{};
+    const realName=(review&&review.realName)||(pv&&pv.realName)||c.realName||'';
+    // 출고 시트의 '채널명'은 종종 별칭(name) 대신 인스타 핸들로 적혀 있어 이름만으로는 못 찾는다 —
+    // 링크에서 뽑은 핸들로도 한 번 더 찾아본다(2026-09-29, 출고 완료가 대시보드에 안 반영되던 문제).
+    const hk=nzName(igHandle((contact&&contact.link)||(step1&&step1.link)||''));
+    const shipping=shipByCh.get(k)||(hk&&shipByCh.get(hk))||(realName?shipByRec.get(nzName(realName)):null)||null;
     const shipped=c.shippingDone==='✅ 완료'||String((shipping&&shipping.status)||'').includes('완료');
     const listType=c.listType||(src==='auto'?'auto':'manual');
     const dmType=c.dmType||(c.dmSent==='Y'?(src==='auto'?'auto':'manual'):null);
     const pa=P(c.pa||(step1&&step1.pa)||(review&&review.pa))||(src==='auto'?AUTO_PA:'');
     const st=normStatus(c.contactStatus);
-    // 기존 값으로 추정한 단계
+    // 기존 값으로 추정한 단계 (제품발송이 계약서발송보다 앞선 순서, 2026-09-29)
     let legacy=0;
     if(c.finalDone==='Y') legacy=6;
-    else if(shipped||review) legacy=5;
-    else if(c.dealDone==='Y'&&(c.contractDone==='✅ 완료'||(review&&review.contractDone==='Y'))) legacy=4;
+    else if(shipped||review) legacy=(c.contractDone==='✅ 완료'||c.productOnly==='Y'||(review&&review.contractDone==='Y'))?5:4;
     else if(c.dealDone==='Y') legacy=3;
     else if(c.replied==='Y'||st==='진행중'||st==='계약서 작성') legacy=2;
     else if(c.dmSent==='Y') legacy=1;
@@ -3441,11 +3457,11 @@ function useInfActions(A){
       switch(inf.stage){
         case 0: acts.sendDm(inf); return true;
         case 1: acts.replied(inf); return true;
-        case 2: up(inf,{stage:'contract',dealDone:'Y',dealDate:c.dealDate||td,contactStatus:'계약서 작성'}); return true;
-        case 3: up(inf,{stage:'ship',contractDone:'✅ 완료'}); return true;
-        case 4: up(inf,{stage:'adcode',shippingDone:'✅ 완료',shipDate:c.shipDate||td});
+        case 2: up(inf,{stage:'ship',dealDone:'Y',dealDate:c.dealDate||td}); return true;
+        case 3: up(inf,{stage:'contract',shippingDone:'✅ 완료',shipDate:c.shipDate||td});
           if(inf.shipping&&!String(inf.shipping.status||'').includes('완료')) A.updateShipRow(inf.shipping.id,{status:'✅ 완료',shipDate:inf.shipping.shipDate||td});
           A.ensureReviewRow({channelName:inf.name,realName:inf.realName,pa:pa0(inf)}); return true;
+        case 4: up(inf,{stage:'adcode',contractDone:'✅ 완료'}); return true;
         case 5: up(inf,{stage:'adset',finalDone:'Y',finalDate:c.finalDate||td}); return true;
         case 6: up(inf,{stage:'done'}); A.setInfSettledByName(inf.name,true,{pa:pa0(inf),realName:inf.realName}); return true;
       }
@@ -3453,7 +3469,7 @@ function useInfActions(A){
     },
     back:inf=>{ // 한 단계 되돌리기(잘못 누른 경우)
       const c=inf.contact||{}; const prev=INF_STAGES[Math.max(0,inf.stage-1)].key;
-      const undo={1:{dmSent:'N',dmType:null},2:{replied:'',contactStatus:'컨택 완료'},3:{dealDone:'N',contactStatus:'진행중'},4:{contractDone:'미완료'},5:{shippingDone:'미완료'},6:{finalDone:'N',finalDate:''}}[inf.stage]||{};
+      const undo={1:{dmSent:'N',dmType:null},2:{replied:'',contactStatus:'컨택 완료'},3:{dealDone:'N',contactStatus:'진행중'},4:{shippingDone:'미완료'},5:{contractDone:'미완료'},6:{finalDone:'N',finalDate:''}}[inf.stage]||{};
       up(inf,{...undo,stage:prev});
     },
     settleUndo:inf=>{ up(inf,{stage:'adset'}); A.setInfSettledByName(inf.name,false,{}); },
@@ -3492,6 +3508,10 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const infs=paFocus?infsAll.filter(i=>(i.pa||'미지정')===paFocus):infsAll;
   const active=infs.filter(i=>i.status==='active');
   const byStage=id=>active.filter(i=>i.stage===id);
+  // 📦 출고 정보 복사 필요 — 알바가 컨택현황에서 제품 발송을 완료하면 출고 탭에 '처리중'으로 자동 등록되는데,
+  // 그건 실제 회사 출고 시트로 옮겨 적어야 할 일이 남았다는 뜻(2026-09-29). 관리자가 옮겨 적고 출고 탭에서
+  // 완료로 바꾸기 전까지 여기 계속 뜬다 — 제품발송 단계 자체는(계약서발송으로) 그대로 바로 넘어간다.
+  const shipPending=active.filter(i=>i.contact&&i.contact.shippingDone==='✅ 완료'&&i.shipping&&!String(i.shipping.status||'').includes('완료'));
   const card=s=>(
     <div key={s.id} className="card" style={{borderTop:'3px solid '+s.color}} onClick={()=>go('manage',String(s.id),paFocus)}>
       <div className="card-count" style={{color:s.color}}>{byStage(s.id).length}</div>
@@ -3516,14 +3536,16 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const moreRow=(n,onClick)=>n>MAX&&<div className="todo-item" style={{justifyContent:'center',color:'var(--muted)',fontSize:11}} onClick={onClick}>외 {n-MAX}명 더 보기 →</div>;
   const empty=<div className="todo-none">할 일 없음 ✓</div>;
 
-  // 관리자 할 일 — 단계별로 묶어서
+  // 관리자 할 일 — 제품발송·계약서발송을 단계별로 나누지 않고 한 목록에 합친다(2026-09-29 사용자 요청).
+  // 어느 단계 할 일인지는 각 줄의 단계 배지(제품발송/계약서)로 구분된다.
   // 이미 다 처리된 건(최종완료 = 영상·광고코드까지 끝, 광고세팅·입금완료 단계)은 할 일에 안 띄운다 — 카드 숫자에는 그대로 둠
   const bossStages=INF_STAGES.filter(s=>s.role==='boss'&&s.key!=='adset');
-  const bossTodo=bossStages.map(s=>{const l=byStage(s.id); if(!l.length) return null;
-    return <div key={s.id} className="todo-group">
-      <div className="todo-group-h" style={{color:s.color}}>{s.name} <span>{l.length}</span></div>
-      {l.slice(0,MAX).map(item)}{moreRow(l.length,()=>go('manage',String(s.id),paFocus))}
-    </div>;}).filter(Boolean);
+  const bossItems=bossStages.flatMap(s=>byStage(s.id));
+  const bossTodo=bossItems.length?[
+    <div key="boss" className="todo-group">
+      {bossItems.slice(0,MAX).map(item)}{moreRow(bossItems.length,()=>go('manage','all',paFocus))}
+    </div>
+  ]:[];
 
   // 매니저 할 일 — 매니저가 여러 명이라 사람별로 묶는다
   // 💬 담당자별 소통 중 — DM을 보내 대화가 시작된 뒤 아직 끝나지 않은 사람(완료·거절·DM 전은 뺀다)
@@ -3612,9 +3634,23 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
             </div>
           </div>;})}
       </div>}
+      {shipPending.length>0&&<div className="todo-box" style={{marginBottom:14}}>
+        <h3><span style={{color:'#8b5cf6'}}>📦</span> 출고 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({shipPending.length})</span></h3>
+        {shipPending.slice(0,MAX).map(i=>{
+          const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
+          return <div key={i.id} className="todo-item">
+            <span className="todo-name" style={{cursor:'pointer'}} onClick={()=>go('shipping','pend',paFocus,i.name)}>{i.name}</span>
+            <div className="todo-right">
+              {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
+              <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={()=>A.updateShipRow(i.shipping.id,{status:'✅ 완료',shipDate:i.shipping.shipDate||today()})}>✓ 완료</button>
+            </div>
+          </div>;
+        })}
+        {moreRow(shipPending.length,()=>go('shipping','pend',paFocus))}
+      </div>}
       <div className="todo-grid">
         <div className="todo-box">
-          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일</h3>
+          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length})</span>}</h3>
           {bossTodo.length?bossTodo:empty}
         </div>
         <div className="todo-box">
@@ -3878,12 +3914,13 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
 }
 
 /* ─── STEP2 VIEW ─── */
-function Step2View({ actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
+function Step2View({ onAddProduct, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [sortDir,setSortDir]=useState('asc');   // 날짜 정렬: 'asc'=오래된순(기본), 'desc'=최신순
   const [colF,setColF]=useState({}); const [showColF,setShowColF]=useState(false);
+  const [prod,setProd]=useState('all');   // 제품 탭(전체 / 제품명 / 미지정) — 한 브랜드 안에 협찬 제품이 여러 개일 때
   const q=useDeferredValue(search).trim().toLowerCase();   // 표 필터는 한 박자 늦게 — 타자가 안 밀리게
   const s2=v=>String(v||'');
   const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
@@ -3898,7 +3935,11 @@ function Step2View({ actions, listing, listingCount, brand, rows, privacyRows, o
   // 성사수당 2만이 새로 잡히므로 데이터는 그대로 두고 화면 칸만 완료로 보낸다 — 정산 금액 영향 없음.
   const isDoneRow=r=>r.finalDone==='Y'||r.infSettled==='Y';
   const colFKey=JSON.stringify(colF);
-  const named=useMemo(()=>rows.filter(r=>s2(r.name).trim()),[rows]);
+  const namedAll=useMemo(()=>rows.filter(r=>s2(r.name).trim()),[rows]);
+  const products=useMemo(()=>brandProducts(brand,namedAll),[brand,namedAll]);
+  const prodOf=r=>s2(r.product).trim();
+  const named=useMemo(()=>prod==='all'?namedAll:namedAll.filter(r=>prod==='__none__'?!prodOf(r):prodOf(r)===prod),[namedAll,prod]);
+  const prodCount=v=>v==='all'?namedAll.length:namedAll.filter(r=>v==='__none__'?!prodOf(r):prodOf(r)===v).length;
   const mode=filter==='rej'?'reject':filter==='arc'?'archive':'active';
   // 행 수에 비례하는 계산 — 입력할 때마다 다시 돌지 않도록 묶어 둔다.
   const dateSort=(a,b)=>{   // 날짜 정렬(최신순/오래된순 토글) — 같은 날짜는 기존 순서 유지(안정 정렬)
@@ -3963,18 +4004,28 @@ function Step2View({ actions, listing, listingCount, brand, rows, privacyRows, o
   const hRef=useRef({});
   hRef.current={up,setStatus,setDm,setDeal,setFinal,setReplied,setApproved,onDelete,onUpdate,onAddPrivacy,isRej,selToggle:sel.toggle,open:setOpenId};
   const openRow=openId?rows.find(x=>x.id===openId):null;
+  // 제품 탭 — 제품이 있거나(관리자면 없어도) 보여준다. 해트케처럼 한 브랜드에 협찬 제품이 여러 개일 때 나눠 본다.
+  const prodTabs=(products.length||(!IS_STAFF&&!isClaude))?<div className="prod-tabs">
+    {[{k:'all',l:`전체 (${prodCount('all')})`},...products.map(pn=>({k:pn,l:`${pn} (${prodCount(pn)})`})),
+      ...(prodCount('__none__')&&products.length?[{k:'__none__',l:`제품 미지정 (${prodCount('__none__')})`}]:[])]
+      .map(({k,l})=><button key={k} className={`prod-tab ${prod===k?'active':''}`} onClick={()=>setProd(k)}>{l}</button>)}
+    {!IS_STAFF&&onAddProduct&&<button className="prod-tab add" title="이 브랜드에 협찬 제품 추가"
+      onClick={()=>{const n=(window.prompt('추가할 제품 이름')||'').trim(); if(n){onAddProduct(n);setProd(n);}}}>＋ 제품 추가</button>}
+  </div>:null;
   const chips=(isClaude
         ? [{k:'all',l:`리스트업 (${cnt.all})`,c:''},{k:'apv2',l:`✅ 승인 (${cnt.apv2})`,c:'f-ap'},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}]
         : [...(listing?[{k:'lst',l:`🟡 리스팅 목록 (${listingCount||0})`,c:''}]:[]),{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}])
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>);
   // 🟡 리스팅 목록 = 옛 STEP1 리스트업 화면 그대로. 여기서 승인하면 '진행 중'(컨택 전)으로 넘어와 DM을 보낸다.
   if(listing&&filter==='lst') return <div className="roomy" style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+    {prodTabs}
     <div className="toolbar">{chips}<div className="sep"/><span className="cnt" style={{color:'var(--muted)'}}>승인하면 진행 중으로 넘어가 DM 발송 대상이 돼요</span></div>
     {listing}
   </div>;
 
   return <div className="view-wrap roomy-wrap">
     <div className="view-main roomy">
+    {prodTabs}
     <div className="toolbar">
       {chips}
       <div className="sep"/>
@@ -4041,15 +4092,17 @@ function Step2View({ actions, listing, listingCount, brand, rows, privacyRows, o
 /* ─── 컨택현황 상세 창 (해트케 PA 구조, 2026-09-21) ───
    채널명을 누르면 오른쪽에 열린다. 진행 단계는 해트케와 같은 6단계.
    단계 버튼은 기존 칸(DM발송·협업성사·계약·출고·최종완료·정산)을 그대로 바꾼다 — 정산 계산 규칙은 그대로. */
-const S2_STAGES=['리스팅 목록','DM 발송 완료/ 진행 대기','계약서발송/수집','제품 발송','광고 코드/입금정보 수집','광고세팅/입금'];
+const S2_STAGES=['리스팅 목록','DM 발송 완료/ 진행 대기','제품 발송','계약서발송/수집','광고 코드/입금정보 수집','광고세팅/입금'];
 const s2nz=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
 function s2Review(brand,r){ return (brand&&brand.reviewRows||[]).find(x=>s2nz(x.channelName)&&s2nz(x.channelName)===s2nz(r.name))||null; }
+// 2026-09-29: 제품 발송을 계약서발송/수집보다 앞으로 — 모두싸인으로 계약서를 바로 보내게 되면서
+// 계약서 수집을 기다리느라 제품 발송이 늦어질 이유가 없어졌다(협찬 성사되면 바로 발송).
 function s2Stage(r,rv){
   if(normStatus(r.contactStatus)==='거절'||r.endReason) return 'rejected';
   if(r.infSettled==='Y'||r.privacyPurged) return 'done';
   if(r.finalDone==='Y') return 5;
-  if(r.shippingDone==='✅ 완료') return 4;
-  if(r.dealDone==='Y'&&(r.contractDone==='✅ 완료'||r.productOnly==='Y'||(rv&&rv.contractDone==='Y'&&r.contractBack!=='Y'))) return 3;
+  if(r.shippingDone==='✅ 완료'&&(r.contractDone==='✅ 완료'||r.productOnly==='Y'||(rv&&rv.contractDone==='Y'&&r.contractBack!=='Y'))) return 4;
+  if(r.shippingDone==='✅ 완료') return 3;
   if(r.dealDone==='Y') return 2;
   if(r.dmSent==='Y') return 1;
   return 0;
@@ -4063,6 +4116,7 @@ const NO_REPLY_DAYS=14;
 const NO_REPLY_DM_UNTIL='2026-08-31';
 function isNoReply(r,claude,cutKey){
   if(r.dmSent!=='Y'||r.noReplyAuto||r.endReason) return false;
+  if(r.importedFrom) return false;   // 다른 프로그램에서 옮겨온 기록은 그대로 둔다(2026-09-30)
   if(r.replied==='Y'||r.approved==='Y'||r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) return false;
   const st=normStatus(r.contactStatus);
   if(st==='거절'||(!claude&&(st==='진행중'||st==='계약서 작성'))) return false;
@@ -4093,6 +4147,7 @@ function stampRejectDate(b){
 }
 function shouldPurgeReject(r){
   if(normStatus(r.contactStatus)!=='거절') return false;
+  if(r.importedFrom) return false;   // 다른 프로그램에서 옮겨온 기록은 자동 삭제하지 않는다(2026-09-30)
   if(r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) return false; // 실제 진행된 건은 보호
   const d=daysSinceKey(r.rejectDate);
   return d!=null&&d>=REJECT_PURGE_DAYS;
@@ -4135,10 +4190,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     realName:r.realName||(rv&&rv.realName)||'',phone:r.phone||'',address:r.address||'',email:r.email||'',
     contractDate:r.contractDate||today(),contractUrl:r.contractUrl||'',rate:r.rate||'',adCode:(rv&&rv.paCode)||'',rrn:''});
   const [f,setF]=useState(init);
-  // 모두싸인 발송 — 첫 클릭은 받는 곳 확인, 같은 내용으로 한 번 더 누르면 보낸다(주민번호는 계약서에만 넣고 저장 안 함)
-  const [msAsk,setMsAsk]=useState(''), [msBusy,setMsBusy]=useState(false), [msMsg,setMsMsg]=useState(null);
-  const ctRef=useRef(null);
-  useEffect(()=>{setF(init());setMsAsk('');setMsMsg(null);},[r.id]);
+  useEffect(()=>{setF(init());},[r.id]);
   const u=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const upd=patch=>H.current.onUpdate(r.id,patch);
   const dates=[r.date,r.dmDate,r.dealDate,r.contractDate||(rv&&rv.contractDate),r.shipDate,r.finalDate];
@@ -4147,8 +4199,8 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
   const UNDO=[
     {dmSent:'N',dmDate:''},                                          // 리스팅 목록으로
     {dealDone:'N',dealDate:''},                                      // DM 발송 완료로
-    {contractDone:'미완료',contractDate:'',productOnly:'',contractBack:'Y'}, // 계약서발송/수집으로
     {shippingDone:'미완료',shipDate:''},                              // 제품 발송으로
+    {contractDone:'미완료',contractDate:'',productOnly:'',contractBack:'Y'}, // 계약서발송/수집으로
     {finalDone:'N',finalDate:''},                                    // 광고 코드/입금정보로
   ];
   function goBack(i){
@@ -4156,10 +4208,10 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     if(r.privacyPurged){ alert('정산 후 개인정보가 폐기된 건이라 되돌릴 수 없어요.'); return; }
     if(cur===6&&IS_STAFF){ alert('정산(입금) 완료를 되돌리는 건 관리자만 할 수 있어요.'); return; }
     const later=S2_STAGES.slice(i,Math.min(cur,6)).concat(cur===6?['정산(입금) 완료']:[]);
-    if(!confirm(`'${S2_STAGES[i]}' 단계로 되돌릴까요?\n\n완료 표시가 풀리는 단계: ${later.join(' → ')}\n(DM 수당·완료 수당도 그만큼 빠져요${i<=3&&cur>3?' · 출고 탭 기록도 되돌려요':''})`)) return;
+    if(!confirm(`'${S2_STAGES[i]}' 단계로 되돌릴까요?\n\n완료 표시가 풀리는 단계: ${later.join(' → ')}\n(DM 수당·완료 수당도 그만큼 빠져요${i<=2&&cur>2?' · 출고 탭 기록도 되돌려요':''})`)) return;
     const patch={}; for(let k=i;k<Math.min(cur,5);k++) Object.assign(patch,UNDO[k]);
     if(Object.keys(patch).length) upd(patch);
-    if(i<=3&&cur>3) onUnship&&onUnship(r);   // 제품 발송 완료를 되돌리면 출고 탭 행도
+    if(i<=2&&cur>2) onUnship&&onUnship(r);   // 제품 발송 완료를 되돌리면 출고 탭 행도
     if(cur===6) onSettle&&onSettle(r.name,false,{});
   }
   const reject=<button className="btn s2p-danger" onClick={()=>H.current.setStatus(r,'거절')}>✕ 거절됨으로</button>;
@@ -4187,83 +4239,8 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     <div className="s2p-btns">
       <button className="btn btn-primary" onClick={()=>H.current.setDeal(r,'Y')}>협찬 성사 완료</button>{reject}
     </div></>;
-  else if(st===2&&IS_STAFF) action=<>
-    {fld('계약 완료일','contractDate','YY.MM.DD')}
-    {fld('계약서 링크','contractUrl','계약서 파일 링크')}
-    {fld('특이사항 (진행 단가 등)','rate','예: 80,000')}
-    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),contractUrl:f.contractUrl.trim(),rate:f.rate.trim()})}>계약 완료 →</button>{reject}</div></>;
-  else if(st===2){
-    // 관리자: 등록 양식 + 이 정보로 계약서를 만들어 메일로 보낸다.
-    // (모두싸인 연동은 현재 막혀 있어 잠시 이메일 발송으로 대신함 — sendModusign 은 안 씀)
-    const ctT=contractTplFor(brand,r);
-    const ctVals=()=>({name:f.realName.trim()||'모델',fee:f.rate.replace(/[^0-9]/g,''),date:ymdFromDisp(f.contractDate)||ymdFromDisp(today()),
-      phone:f.phone.trim(),addr:f.address.trim(),rrn:f.rrn.trim()});
-    const previewCt=async()=>{
-      try{ downloadBuiltDocx(await buildBrandContract(brand,r,ctVals())); }
-      catch(e){ setMsMsg({err:'계약서 만들기 실패: '+(e&&e.message||e)}); }
-    };
-    const pickCt=async e=>{
-      const file=e.target.files&&e.target.files[0]; e.target.value=''; if(!file) return;
-      try{ const cf=await uploadContractFile(file); upd({contractFile:cf}); setMsAsk(''); setMsMsg({ok:`계약서 파일을 ${file.name} 로 바꿨습니다(이 건만).`}); }
-      catch(e2){ setMsMsg({err:'첨부 실패: '+(e2&&e2.message||e2)}); }
-    };
-    const sendMs=async()=>{
-      const name=f.realName.trim(), email=f.email.trim(), fee=f.rate.replace(/[^0-9]/g,''), date=ymdFromDisp(f.contractDate)||ymdFromDisp(today());
-      if(!name) return setMsMsg({err:'실명(계약자)을 입력하세요.'});
-      if(!isEmail(email)) return setMsMsg({err:'받는 사람 이메일을 정확히 입력하세요.'});
-      if(!fee) return setMsMsg({err:'모델료(진행 단가)를 입력하세요.'});
-      const ask=`${name} 님 · 이메일 ${email} · ${Number(fee).toLocaleString()}원`;
-      if(msAsk!==ask){ setMsAsk(ask); setMsMsg(null); return; }
-      setMsAsk(''); setMsBusy(true); setMsMsg(null);
-      try{
-        const built=await buildBrandContract(brand,r,{name,fee,date,phone:f.phone.trim(),addr:f.address.trim(),rrn:f.rrn.trim()});
-        const dataUrl=await bytesToDataUrl(built.bytes, built.type);
-        const d=contractMailDefaults({brandName:brand&&brand.name,company:window.CONTRACT_BRANDS?.[brand&&brand.id]?.company,
-          name,fee,date,phone:f.phone.trim(),rrn:f.rrn.trim(),addr:f.address.trim()});
-        const j=await callApi('contractMail',{to:email,subject:d.subject,body:d.body,filename:built.filename,data:dataUrl,
-          brand:brand&&brand.id,senderName:window.CONTRACT_BRANDS?.[brand&&brand.id]?.company||(brand&&brand.name)||''});
-        if(j&&/unknown action/.test(j.error||'')) throw new Error('백엔드에 메일 발송 기능이 아직 적용되지 않았습니다(관리자: Apps Script 재배포 필요).');
-        if(!j||j.error) throw new Error((j&&j.error)||'발송 실패');
-        upd({realName:name,email,address:f.address.trim(),rate:f.rate.trim(),contractDate:f.contractDate.trim()||today(),contractSent:today()});
-        setMsMsg({ok:`${name} 님(${email})에게 계약서를 메일로 보냈습니다.${j.mock?' (개발 서버 — 실제로는 안 나감)':''}`});
-      }catch(e){ setMsMsg({err:'메일 발송 실패: '+(e&&e.message||e)}); }
-      finally{ setMsBusy(false); }
-    };
-    action=<>
-      <p className="s2p-help">아래 정보로 등록된 {(brand&&brand.name)||''} 계약서 양식을 채워 메일로 보냅니다(모두싸인 연동은 현재 점검 중이라 임시로 메일 발송). 모델이 채워 회신하면 계약 완료로 넘기세요.</p>
-      {fld('실명 (계약자)','realName','홍길동')}
-      {fld('받는 사람 이메일','email','model@example.com')}
-      {fld('연락처','phone','010-0000-0000')}
-      {fld('주소','address','주소 입력',true)}
-      {fld('주민등록번호','rrn','')}
-      {fld('모델료 (진행 단가)','rate','예: 80,000')}
-      {fld('계약일자','contractDate','YY.MM.DD')}
-      {/* 계약서 파일 — 기본은 등록 양식(없으면 앱 내장 드래프터 등). 이 건만 다른 파일로 바꿀 수 있다 */}
-      <div className="s2p-fg ct-file"><label>계약서 파일</label>
-        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',fontSize:12}}>
-          <span className="ct-file-name" style={{fontWeight:600}}>📄 {ctT?(ctT.tpl?ctT.tpl.name:ctT.builtinName+'.docx'):'없음'}</span>
-          <span style={{color:'var(--muted)'}}>{ctT?ctT.kind:''}</span>
-        </div>
-        <div className="s2p-btns ct-file-btns" style={{marginTop:6}}>
-          <button className="btn s2p-outline" style={{fontSize:10,padding:'3px 7px'}} disabled={msBusy||!ctT} onClick={previewCt} title="지금 입력한 값을 넣은 계약서를 내려받아 확인·수정(수정한 파일은 '다른 파일로'로 다시 첨부)">⬇ 값 넣어 내려받기</button>
-          <button className="btn s2p-outline" style={{fontSize:10,padding:'3px 7px'}} disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 다른 파일로</button>
-          {r.contractFile&&<button className="btn s2p-outline" style={{fontSize:10,padding:'3px 7px'}} disabled={msBusy} onClick={()=>{upd({contractFile:null});setMsMsg(null);}}>↺ 기본으로</button>}
-          <input ref={ctRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickCt}/>
-        </div>
-      </div>
-      {msAsk&&!msBusy&&<p className="s2p-help ms-ask" style={{color:'var(--text)'}}>{msAsk} 으로 보냅니다. 맞으면 버튼을 한 번 더 누르세요.</p>}
-      {msMsg&&<p className="s2p-help ms-msg" style={{color:msMsg.err?'var(--red)':'var(--green,#15803d)'}}>{msMsg.err||('✅ '+msMsg.ok)}</p>}
-      {r.contractSent&&!msMsg&&<p className="s2p-help">📧 {r.contractSent} 메일 발송함 — 회신 오면 계약서 수집 → 드라이브에서 확인 후 계약 완료를 누르세요.</p>}
-      <div className="s2p-btns" style={{marginBottom:10,alignItems:'center'}}>
-        <button className="btn btn-primary ms-send" disabled={msBusy} onClick={sendMs}>{msBusy?'메일 보내는 중…':msAsk?'✅ 확인 — 보내기':'📧 이메일로 계약서 보내기'}</button>
-        <ContractCollectBtn isManager={!IS_STAFF}/>
-      </div>
-      <div className="s2p-hr"/>
-      {r.contractUrl&&<p className="s2p-help">서명본: <a href={r.contractUrl} target="_blank" rel="noopener">계약서 링크 ↗</a></p>}
-      <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),rate:f.rate.trim(),realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()})}>계약 완료 →</button>{reject}</div></>;
-  }
-  else if(st===3) action=<>
-    <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '제품 발송 완료'를 눌러주세요. 누르면 📦 출고 탭에도 자동으로 들어가요.</p>
+  else if(st===2) action=<>
+    <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '제품 발송 완료'를 눌러주세요. 누르면 📦 출고 탭에도 '처리중'으로 자동 등록돼요(관리자가 실제 출고 시트에 옮겨 적으면 출고 탭에서 완료로 바꿔주세요).</p>
     {editCopy('실명 (받는 분)','realName','홍길동',r.realName,v=>upd({realName:v}))}
     {editCopy('연락처','phone','010-0000-0000',r.phone,v=>upd({phone:v}))}
     {editCopy('배송 주소','address','우편번호 / 주소 입력',r.address,v=>upd({address:v}))}
@@ -4271,6 +4248,14 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{const info={realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()};
       upd({...info,shippingDone:'✅ 완료',shipDate:r.shipDate||today()});
       onShip&&onShip(r,info);}}>제품 발송 완료 →</button></div></>;
+  else if(st===3){
+    // 계약서는 이제 앱 밖에서 모두싸인으로 바로 보낸다(2026-09-29) — 여기선 이름·연락처만 받고 완료/거절만 표시.
+    action=<>
+      <p className="s2p-help">모두싸인으로 계약서를 바로 보냈다면, 서명 완료 후 계약완료를 눌러주세요.</p>
+      {fld('이름','realName','홍길동')}
+      {fld('연락처','phone','010-0000-0000')}
+      <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:today(),realName:f.realName.trim(),phone:f.phone.trim()})}>계약완료 →</button>{reject}</div></>;
+  }
   else if(st===4) action=<>
     {fld('광고 코드','adCode','광고 코드 입력')}
     <div className="s2p-btns" style={{marginBottom:10}}>
@@ -4307,7 +4292,14 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
         </div>
         <div className="s2p-sec">기본 정보</div>
         {fld('이름 (별칭)','name','채널명')}
-        <div className="s2p-fg"><label>협찬 제품</label><input value={(brand&&SHIP_PRODUCT[brand.id])||(brand&&brand.name)||''} readOnly/></div>
+        <div className="s2p-fg"><label>협찬 제품</label>
+          {(brand&&brandProducts(brand,brand.step2Rows).length)
+            ? <select value={r.product||''} onChange={e=>upd({product:e.target.value})}>
+                <option value="">미지정</option>
+                {brandProducts(brand,brand.step2Rows).map(pn=><option key={pn} value={pn}>{pn}</option>)}
+              </select>
+            : <input value={productOfRow(r,brand)} readOnly/>}
+        </div>
         {fld('팔로워 수','followers','12,400')}
         {fld('모집일','date','YY.MM.DD')}
         {fld('메모','memo','',true)}
@@ -4339,7 +4331,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                 {/* 🚫 거절 버튼은 뺐다(2026-09-22) — 거절은 승인 칸의 N으로 */}
               </span></td>
               <td data-label="날짜"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
-              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}>{<span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>}</td>
+              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}><span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>{r.product?<span className="prod-badge">{r.product}</span>:null}</td>
               <td data-label="팔로워" className="td-dim"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
               <td data-label="담당 PA" style={{textAlign:'center',whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
                 style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
@@ -4576,7 +4568,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
   const [colF,setColF]=useState({}); // 엑셀식 컬럼별 포함검색 필터 {필드:문자열}
   const [showColF,setShowColF]=useState(false);
   const q=useDeferredValue(search).trim().toLowerCase();   // 표 필터는 한 박자 늦게 — 타자가 안 밀리게
-  const product=shipProductOf(brand?.id); // 브랜드별 고정 상품명
+  const product=shipProductOf(brand?.id); // 브랜드별 고정 상품명(행에 제품이 따로 있으면 그 값을 쓴다)
   // 요청자 필터 옵션 — 실제 출고행에 있는 요청자(공백 제외) 모음
   const reqOpts=Array.from(new Set((rows||[]).map(r=>r.requester).filter(Boolean)));
   // 수령자명(본명)으로 개인정보에서 채널명을 찾고, 그 채널의 라이브 여부를 컨택현황/영상검수에서 확인 — 출고↔영상 매칭.
@@ -5537,6 +5529,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   // 정산에서 제외할 담당자(관리자 등 — 수당 정산 대상 아님)
   // 관리자 명단 — 수당 정산 대상 아님(2026-09-22 사용자 지정). 이름 그대로·정리된 이름 둘 다로 거른다.
   const SETTLE_EXCLUDE_PA=['이은영','나가연','정현정','이태윤','송준섭'];
+  // 수당 단가는 브랜드별로 다를 수 있다(해트케는 DM 수당 없음) — 없으면 기본값
+  const RATE_DM=Number(brand?.rates?.dm ?? 2000), RATE_DEAL=Number(brand?.rates?.deal ?? 20000);
   const isExcludedPA=v=>{const t=String(v||'').trim(); return SETTLE_EXCLUDE_PA.includes(t)||SETTLE_EXCLUDE_PA.includes(sanitizePA(t));};
   // DM 수당 인정 여부: 컨택현황(일반 탭)에서 DM발송한 건만. 클로드 발굴 탭(_claude)은 DM 자동발송이라 제외.
   const dmPaid=r=>!r._claude&&r.dmSent==='Y';
@@ -5569,8 +5563,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
       //    수당은 '협업성사'가 아니라 '최종 완료'에서만 잡힌다(성사는 진행 표시일 뿐).
       const dmYM=parseYM(r.dmDate)||parseYM(r.date);
       const finYM=parseYM(r.finalDate)||parseYM(r.dealDate)||parseYM(r.date);
-      const dm  =(dmPaid(r)&&(month==='all'||dmYM===month))?2000 :0; // Claude 발굴 탭은 DM 자동발송이라 DM 수당 없음
-      const deal=(r.finalDone==='Y'&&(month==='all'||finYM===month))?20000:0;
+      const dm  =(dmPaid(r)&&(month==='all'||dmYM===month))?RATE_DM :0; // Claude 발굴 탭은 DM 자동발송이라 DM 수당 없음
+      const deal=(r.finalDone==='Y'&&(month==='all'||finYM===month))?RATE_DEAL:0;
       const subtotal=dm+deal;
       if(subtotal===0) return;
       const pa=sanitizePA(r.pa)||'미지정';
@@ -5582,8 +5576,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
     rejBilling.filter(e=>month==='all'||e.ym===month).forEach(e=>{
       const pa=e.pa||'미지정';
       if(!m[pa])m[pa]={rows:[],dmTotal:0,dealTotal:0,total:0};
-      m[pa].rows.push({id:e.id,name:'🚫 거절(삭제됨)',dm:2000,deal:0,subtotal:2000});
-      m[pa].dmTotal+=2000; m[pa].total+=2000;
+      m[pa].rows.push({id:e.id,name:'🚫 거절(삭제됨)',dm:RATE_DM,deal:0,subtotal:RATE_DM});
+      m[pa].dmTotal+=RATE_DM; m[pa].total+=RATE_DM;
     });
     return m;
   },[allS2,month,rejBilling]);
@@ -5627,8 +5621,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   const pendingMonths=useMemo(()=>{
     const owed={};
     allS2.filter(r=>r.name).forEach(r=>{
-      if(dmPaid(r)){const k=parseYM(r.dmDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+2000;}
-      if(r.finalDone==='Y'){const k=parseYM(r.finalDate)||parseYM(r.dealDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+20000;}
+      if(dmPaid(r)){const k=parseYM(r.dmDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+RATE_DM;}
+      if(r.finalDone==='Y'){const k=parseYM(r.finalDate)||parseYM(r.dealDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+RATE_DEAL;}
     });
     rejBilling.forEach(e=>{owed[e.ym]=(owed[e.ym]||0)+2000;});
     const brandS=settlements[brand?.id]||{};
@@ -5705,7 +5699,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
 
     {/* 정산 규칙 — 한 줄 요약 */}
     <div style={{marginBottom:14,fontSize:11.5,color:'var(--muted)'}}>
-      DM 발송 = 2,000원 · 최종 완료(영상 업로드+광고코드) = +20,000원 · 체크된 DM·최종완료는 모두 정산 반영 (협업 성사만으론 수당 안 잡힘){heldPeople>0&&<span style={{color:'var(--orange)'}}> · ⏸ 날짜없어 보류 {heldPeople}명</span>}
+      DM 발송 = {RATE_DM.toLocaleString()}원 · 최종 완료(영상 업로드+광고코드) = +{RATE_DEAL.toLocaleString()}원 · 체크된 DM·최종완료는 모두 정산 반영 (협업 성사만으론 수당 안 잡힘){heldPeople>0&&<span style={{color:'var(--orange)'}}> · ⏸ 날짜없어 보류 {heldPeople}명</span>}
     </div>
 
     {/* 미지급 월 빠른 이동 — 있을 때만 표시 */}
@@ -6275,13 +6269,13 @@ function AppMain({ authInfo, onLogout }) {
       const auto=pa==='🤖 자동화';
       if(inf){
         Fl='all';
-        if(inf.stage===4&&inf.shipping&&inf.status==='active'){ T='shipping'; Q=inf.shipping.recipient||''; }
+        if(inf.stage===3&&inf.shipping&&inf.status==='active'){ T='shipping'; Q=inf.shipping.recipient||''; }
         else if(inf.stage>=5&&inf.review){ T='review'; Q=inf.name; }
         else if(inf.contact){ T=inf.src==='auto'?'claudeS2':'step2'; Q=inf.name; }
         else if(inf.step1){ T='step2'; Fl='lst'; Q=inf.name; }
         else { T='review'; Q=inf.name; }
       } else {
-        const m={'0':['step2','lst'],'1':['step2','all'],'2':['step2','all'],'3':['step2','all'],'4':['shipping','pend'],'5':['review','all'],'6':['step2','fin'],'all':['step2','all']}[String(f)]||['step2','all'];
+        const m={'0':['step2','lst'],'1':['step2','all'],'2':['step2','all'],'3':['shipping','pend'],'4':['step2','all'],'5':['review','all'],'6':['step2','fin'],'all':['step2','all']}[String(f)]||['step2','all'];
         [T,Fl]=m;
         if(auto&&T==='step2'){ T='claudeS2'; if(Fl==='dm'||Fl==='all'||Fl==='lst') Fl='all'; }
       }
@@ -6772,6 +6766,11 @@ function AppMain({ authInfo, onLogout }) {
     if(!id)return;
     updateBrand(bId,b=>({...b,claudeStep2Rows:(b.claudeStep2Rows||[]).filter(r=>r.id!==id)}));
   }
+  // 브랜드 안 협찬 제품 추가(해트케처럼 한 브랜드에 제품이 여러 개일 때)
+  function addBrandProduct(name){
+    const n=String(name||'').trim(); if(!n) return;
+    updateBrand(bId,b=>({...b,products:[...new Set([...(b.products||[]),n])]}));
+  }
   // 🔎 인플루언서 찾기 결과 → 🟡 리스팅 목록(검수대기) / 🤖 자동화(컨택 전)
   function addFinderListing(list){
     const td=today();
@@ -6828,6 +6827,9 @@ function AppMain({ authInfo, onLogout }) {
   function addShipRow(row){
     updateBrand(bId,b=>({...b,shippingRows:[...(b.shippingRows||[]),row]}));
   }
+  // 출고 탭에서 처리상태를 '완료'로 바꾸면 → 인플루언서 관리(컨택현황)의 제품발송도 같이 완료 처리하고
+  // 영상검수 탭에 등록한다(2026-09-29). 실제 발송 확인은 출고 탭에서만 일어나게 하려는 것 — 주소 입력만으로는
+  // 다음 단계(계약서발송)로 못 넘어가고, 여기서 완료를 눌러야 우리가 한 번 더 확인한 게 된다.
   function updateShipRow(id,patch){
     if(!id)return;
     updateBrand(bId,b=>({...b,shippingRows:(b.shippingRows||[]).map(r=>r.id===id?{...r,...patch}:r)}));
@@ -6889,15 +6891,18 @@ function AppMain({ authInfo, onLogout }) {
     updateBrand(bId,b=>({...b,reviewRows:(b.reviewRows||[]).filter(r=>r.id!==id)}));
   }
 
-  // 컨택현황 상세 창 [제품 발송 완료] → 📦 출고 탭 행. 같은 사람(채널명 또는 수령자 실명)이 이미 있으면 새로 만들지 않고 채운다.
+  // 컨택현황 상세 창 [제품 발송 등록] → 📦 출고 탭 행. 같은 사람(채널명 또는 수령자 실명)이 이미 있으면 새로 만들지 않고 채운다.
+  // 2026-09-29: 알바가 컨택현황에서 제품 발송을 완료하면 여기 새 출고 행이 '처리중'으로 등록된다.
+  // 처리상태는 이 실제 발송 완료(단계 이동)와는 별개 — 관리자가 이 정보를 회사 실제 출고 시트에 옮겨 적고 나면
+  // 출고 탭에서 완료로 바꾸는 용도다(대시보드 '출고 정보' 칸이 이 처리중 건들을 보여준다).
   const shipKey=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
   const findShip=(rows,r,info)=>rows.findIndex(x=>(shipKey(x.channelName)&&shipKey(x.channelName)===shipKey(r.name))||(info&&info.realName&&shipKey(x.recipient)===shipKey(info.realName)&&(!x.channelName||shipKey(x.channelName)===shipKey(r.name))));
   function shipFromContact(r,info){
     updateBrand(bId,b=>{
       const rows=b.shippingRows||[]; const i=findShip(rows,r,info);
-      const fill={channelName:r.name||'',recipient:info.realName||'',phone:info.phone||'',address:info.address||'',status:'✅ 완료',shipDate:today()};
-      if(i>=0) return {...b,shippingRows:rows.map((x,j)=>j!==i?x:{...x,...Object.fromEntries(Object.entries(fill).filter(([k,v])=>v||!x[k])),shipDate:x.shipDate||today()})};
-      return {...b,shippingRows:[...rows,{id:makeId(),requestDate:today(),requester:sanitizePA(r.pa)||'',notes:'',tracking:'',qty:'1',fromContact:'Y',...fill}]};
+      const fill={channelName:r.name||'',recipient:info.realName||'',phone:info.phone||'',address:info.address||''};
+      if(i>=0) return {...b,shippingRows:rows.map((x,j)=>j!==i?x:{...x,...Object.fromEntries(Object.entries(fill).filter(([k,v])=>v||!x[k]))})};
+      return {...b,shippingRows:[...rows,{id:makeId(),requestDate:today(),requester:sanitizePA(r.pa)||'',notes:'',tracking:'',qty:'1',fromContact:'Y',status:'처리중',product:r.product||shipProductOf(bId),...fill}]};
     });
   }
   // 되돌리기 — 상세 창이 만든 행이고 송장이 아직 없으면 지우고, 아니면 '처리중'으로 되돌린다(송장·주소 기록은 남김)
@@ -7389,6 +7394,7 @@ function AppMain({ authInfo, onLogout }) {
     <div className="main">
       {tab==='dashboard'&&<DashboardView brand={brand} paList={paList} paFocus={dashPa} setPaFocus={setDashPa} isStaff={IS_STAFF} A={infA} go={go} settlements={settlements}/>}
       {tab==='step2'&&<Step2View
+        onAddProduct={addBrandProduct}
         listing={<Step1View
         rows={brand.step1Rows||[]}
         onUpdate={updateStep1Row}
