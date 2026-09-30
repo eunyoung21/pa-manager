@@ -132,6 +132,12 @@ tbody tr:hover .row-copy-btn{opacity:.7;}
   .roomy td{padding:9px 12px;}
 }
 .td-dim,.td-dim .cell-val{color:var(--muted);}
+/* 제품 탭 — 한 브랜드 안의 협찬 제품별 보기 */
+.prod-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:10px 0 0;}
+.prod-tab{padding:5px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;}
+.prod-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.prod-tab.add{border-style:dashed;color:var(--dim);font-weight:500;}
+.prod-badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;background:var(--surface3);color:var(--muted);font-size:10px;font-weight:600;vertical-align:middle;}
 /* 행 삭제(×) — 작게, 표 맨 오른쪽 끝 */
 th.del-end,td.del-end{width:24px;padding-left:2px!important;padding-right:6px!important;text-align:center;}
 td.del-end .row-del-x{font-size:11px;padding:0 3px;opacity:.3;}
@@ -1434,6 +1440,13 @@ const DEFAULT_BRANDS = [
 // 출고 상품명은 브랜드별로 고정 — 베이스튠=베이스튠(1), 그래니살라=그래니살라(2)
 const SHIP_PRODUCT = { basetune:'베이스튠(1)', granny:'그래니살라(2)' };
 const shipProductOf = brandId => SHIP_PRODUCT[brandId] || '';
+// 브랜드 안의 제품 목록 — brand.products(수동 추가) + 행에 실제로 쓰인 제품명(2026-09-30, 해트케 합류)
+function brandProducts(brand, rows){
+  const out=[...(brand&&brand.products||[])];
+  (rows||[]).forEach(r=>{const v=String(r&&r.product||'').trim(); if(v&&!out.includes(v)) out.push(v);});
+  return out;
+}
+const productOfRow = (r, brand) => String(r&&r.product||'').trim() || shipProductOf(brand&&brand.id) || (brand&&brand.name) || '';
 
 const TABS = [
   { key:'dashboard', label:'📊 대시보드' },
@@ -3901,12 +3914,13 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
 }
 
 /* ─── STEP2 VIEW ─── */
-function Step2View({ actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
+function Step2View({ onAddProduct, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [sortDir,setSortDir]=useState('asc');   // 날짜 정렬: 'asc'=오래된순(기본), 'desc'=최신순
   const [colF,setColF]=useState({}); const [showColF,setShowColF]=useState(false);
+  const [prod,setProd]=useState('all');   // 제품 탭(전체 / 제품명 / 미지정) — 한 브랜드 안에 협찬 제품이 여러 개일 때
   const q=useDeferredValue(search).trim().toLowerCase();   // 표 필터는 한 박자 늦게 — 타자가 안 밀리게
   const s2=v=>String(v||'');
   const colFActive=Object.entries(colF).filter(([,v])=>String(v||'').trim());
@@ -3921,7 +3935,11 @@ function Step2View({ actions, listing, listingCount, brand, rows, privacyRows, o
   // 성사수당 2만이 새로 잡히므로 데이터는 그대로 두고 화면 칸만 완료로 보낸다 — 정산 금액 영향 없음.
   const isDoneRow=r=>r.finalDone==='Y'||r.infSettled==='Y';
   const colFKey=JSON.stringify(colF);
-  const named=useMemo(()=>rows.filter(r=>s2(r.name).trim()),[rows]);
+  const namedAll=useMemo(()=>rows.filter(r=>s2(r.name).trim()),[rows]);
+  const products=useMemo(()=>brandProducts(brand,namedAll),[brand,namedAll]);
+  const prodOf=r=>s2(r.product).trim();
+  const named=useMemo(()=>prod==='all'?namedAll:namedAll.filter(r=>prod==='__none__'?!prodOf(r):prodOf(r)===prod),[namedAll,prod]);
+  const prodCount=v=>v==='all'?namedAll.length:namedAll.filter(r=>v==='__none__'?!prodOf(r):prodOf(r)===v).length;
   const mode=filter==='rej'?'reject':filter==='arc'?'archive':'active';
   // 행 수에 비례하는 계산 — 입력할 때마다 다시 돌지 않도록 묶어 둔다.
   const dateSort=(a,b)=>{   // 날짜 정렬(최신순/오래된순 토글) — 같은 날짜는 기존 순서 유지(안정 정렬)
@@ -3986,18 +4004,28 @@ function Step2View({ actions, listing, listingCount, brand, rows, privacyRows, o
   const hRef=useRef({});
   hRef.current={up,setStatus,setDm,setDeal,setFinal,setReplied,setApproved,onDelete,onUpdate,onAddPrivacy,isRej,selToggle:sel.toggle,open:setOpenId};
   const openRow=openId?rows.find(x=>x.id===openId):null;
+  // 제품 탭 — 제품이 있거나(관리자면 없어도) 보여준다. 해트케처럼 한 브랜드에 협찬 제품이 여러 개일 때 나눠 본다.
+  const prodTabs=(products.length||(!IS_STAFF&&!isClaude))?<div className="prod-tabs">
+    {[{k:'all',l:`전체 (${prodCount('all')})`},...products.map(pn=>({k:pn,l:`${pn} (${prodCount(pn)})`})),
+      ...(prodCount('__none__')&&products.length?[{k:'__none__',l:`제품 미지정 (${prodCount('__none__')})`}]:[])]
+      .map(({k,l})=><button key={k} className={`prod-tab ${prod===k?'active':''}`} onClick={()=>setProd(k)}>{l}</button>)}
+    {!IS_STAFF&&onAddProduct&&<button className="prod-tab add" title="이 브랜드에 협찬 제품 추가"
+      onClick={()=>{const n=(window.prompt('추가할 제품 이름')||'').trim(); if(n){onAddProduct(n);setProd(n);}}}>＋ 제품 추가</button>}
+  </div>:null;
   const chips=(isClaude
         ? [{k:'all',l:`리스트업 (${cnt.all})`,c:''},{k:'apv2',l:`✅ 승인 (${cnt.apv2})`,c:'f-ap'},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}]
         : [...(listing?[{k:'lst',l:`🟡 리스팅 목록 (${listingCount||0})`,c:''}]:[]),{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}])
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>);
   // 🟡 리스팅 목록 = 옛 STEP1 리스트업 화면 그대로. 여기서 승인하면 '진행 중'(컨택 전)으로 넘어와 DM을 보낸다.
   if(listing&&filter==='lst') return <div className="roomy" style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+    {prodTabs}
     <div className="toolbar">{chips}<div className="sep"/><span className="cnt" style={{color:'var(--muted)'}}>승인하면 진행 중으로 넘어가 DM 발송 대상이 돼요</span></div>
     {listing}
   </div>;
 
   return <div className="view-wrap roomy-wrap">
     <div className="view-main roomy">
+    {prodTabs}
     <div className="toolbar">
       {chips}
       <div className="sep"/>
@@ -4088,6 +4116,7 @@ const NO_REPLY_DAYS=14;
 const NO_REPLY_DM_UNTIL='2026-08-31';
 function isNoReply(r,claude,cutKey){
   if(r.dmSent!=='Y'||r.noReplyAuto||r.endReason) return false;
+  if(r.importedFrom) return false;   // 다른 프로그램에서 옮겨온 기록은 그대로 둔다(2026-09-30)
   if(r.replied==='Y'||r.approved==='Y'||r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) return false;
   const st=normStatus(r.contactStatus);
   if(st==='거절'||(!claude&&(st==='진행중'||st==='계약서 작성'))) return false;
@@ -4118,6 +4147,7 @@ function stampRejectDate(b){
 }
 function shouldPurgeReject(r){
   if(normStatus(r.contactStatus)!=='거절') return false;
+  if(r.importedFrom) return false;   // 다른 프로그램에서 옮겨온 기록은 자동 삭제하지 않는다(2026-09-30)
   if(r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) return false; // 실제 진행된 건은 보호
   const d=daysSinceKey(r.rejectDate);
   return d!=null&&d>=REJECT_PURGE_DAYS;
@@ -4262,7 +4292,14 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
         </div>
         <div className="s2p-sec">기본 정보</div>
         {fld('이름 (별칭)','name','채널명')}
-        <div className="s2p-fg"><label>협찬 제품</label><input value={(brand&&SHIP_PRODUCT[brand.id])||(brand&&brand.name)||''} readOnly/></div>
+        <div className="s2p-fg"><label>협찬 제품</label>
+          {(brand&&brandProducts(brand,brand.step2Rows).length)
+            ? <select value={r.product||''} onChange={e=>upd({product:e.target.value})}>
+                <option value="">미지정</option>
+                {brandProducts(brand,brand.step2Rows).map(pn=><option key={pn} value={pn}>{pn}</option>)}
+              </select>
+            : <input value={productOfRow(r,brand)} readOnly/>}
+        </div>
         {fld('팔로워 수','followers','12,400')}
         {fld('모집일','date','YY.MM.DD')}
         {fld('메모','memo','',true)}
@@ -4294,7 +4331,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                 {/* 🚫 거절 버튼은 뺐다(2026-09-22) — 거절은 승인 칸의 N으로 */}
               </span></td>
               <td data-label="날짜"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
-              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}>{<span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>}</td>
+              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}><span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>{r.product?<span className="prod-badge">{r.product}</span>:null}</td>
               <td data-label="팔로워" className="td-dim"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
               <td data-label="담당 PA" style={{textAlign:'center',whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
                 style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
@@ -4531,7 +4568,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
   const [colF,setColF]=useState({}); // 엑셀식 컬럼별 포함검색 필터 {필드:문자열}
   const [showColF,setShowColF]=useState(false);
   const q=useDeferredValue(search).trim().toLowerCase();   // 표 필터는 한 박자 늦게 — 타자가 안 밀리게
-  const product=shipProductOf(brand?.id); // 브랜드별 고정 상품명
+  const product=shipProductOf(brand?.id); // 브랜드별 고정 상품명(행에 제품이 따로 있으면 그 값을 쓴다)
   // 요청자 필터 옵션 — 실제 출고행에 있는 요청자(공백 제외) 모음
   const reqOpts=Array.from(new Set((rows||[]).map(r=>r.requester).filter(Boolean)));
   // 수령자명(본명)으로 개인정보에서 채널명을 찾고, 그 채널의 라이브 여부를 컨택현황/영상검수에서 확인 — 출고↔영상 매칭.
@@ -5492,6 +5529,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   // 정산에서 제외할 담당자(관리자 등 — 수당 정산 대상 아님)
   // 관리자 명단 — 수당 정산 대상 아님(2026-09-22 사용자 지정). 이름 그대로·정리된 이름 둘 다로 거른다.
   const SETTLE_EXCLUDE_PA=['이은영','나가연','정현정','이태윤','송준섭'];
+  // 수당 단가는 브랜드별로 다를 수 있다(해트케는 DM 수당 없음) — 없으면 기본값
+  const RATE_DM=Number(brand?.rates?.dm ?? 2000), RATE_DEAL=Number(brand?.rates?.deal ?? 20000);
   const isExcludedPA=v=>{const t=String(v||'').trim(); return SETTLE_EXCLUDE_PA.includes(t)||SETTLE_EXCLUDE_PA.includes(sanitizePA(t));};
   // DM 수당 인정 여부: 컨택현황(일반 탭)에서 DM발송한 건만. 클로드 발굴 탭(_claude)은 DM 자동발송이라 제외.
   const dmPaid=r=>!r._claude&&r.dmSent==='Y';
@@ -5524,8 +5563,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
       //    수당은 '협업성사'가 아니라 '최종 완료'에서만 잡힌다(성사는 진행 표시일 뿐).
       const dmYM=parseYM(r.dmDate)||parseYM(r.date);
       const finYM=parseYM(r.finalDate)||parseYM(r.dealDate)||parseYM(r.date);
-      const dm  =(dmPaid(r)&&(month==='all'||dmYM===month))?2000 :0; // Claude 발굴 탭은 DM 자동발송이라 DM 수당 없음
-      const deal=(r.finalDone==='Y'&&(month==='all'||finYM===month))?20000:0;
+      const dm  =(dmPaid(r)&&(month==='all'||dmYM===month))?RATE_DM :0; // Claude 발굴 탭은 DM 자동발송이라 DM 수당 없음
+      const deal=(r.finalDone==='Y'&&(month==='all'||finYM===month))?RATE_DEAL:0;
       const subtotal=dm+deal;
       if(subtotal===0) return;
       const pa=sanitizePA(r.pa)||'미지정';
@@ -5537,8 +5576,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
     rejBilling.filter(e=>month==='all'||e.ym===month).forEach(e=>{
       const pa=e.pa||'미지정';
       if(!m[pa])m[pa]={rows:[],dmTotal:0,dealTotal:0,total:0};
-      m[pa].rows.push({id:e.id,name:'🚫 거절(삭제됨)',dm:2000,deal:0,subtotal:2000});
-      m[pa].dmTotal+=2000; m[pa].total+=2000;
+      m[pa].rows.push({id:e.id,name:'🚫 거절(삭제됨)',dm:RATE_DM,deal:0,subtotal:RATE_DM});
+      m[pa].dmTotal+=RATE_DM; m[pa].total+=RATE_DM;
     });
     return m;
   },[allS2,month,rejBilling]);
@@ -5582,8 +5621,8 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
   const pendingMonths=useMemo(()=>{
     const owed={};
     allS2.filter(r=>r.name).forEach(r=>{
-      if(dmPaid(r)){const k=parseYM(r.dmDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+2000;}
-      if(r.finalDone==='Y'){const k=parseYM(r.finalDate)||parseYM(r.dealDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+20000;}
+      if(dmPaid(r)){const k=parseYM(r.dmDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+RATE_DM;}
+      if(r.finalDone==='Y'){const k=parseYM(r.finalDate)||parseYM(r.dealDate)||parseYM(r.date);if(k)owed[k]=(owed[k]||0)+RATE_DEAL;}
     });
     rejBilling.forEach(e=>{owed[e.ym]=(owed[e.ym]||0)+2000;});
     const brandS=settlements[brand?.id]||{};
@@ -5660,7 +5699,7 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
 
     {/* 정산 규칙 — 한 줄 요약 */}
     <div style={{marginBottom:14,fontSize:11.5,color:'var(--muted)'}}>
-      DM 발송 = 2,000원 · 최종 완료(영상 업로드+광고코드) = +20,000원 · 체크된 DM·최종완료는 모두 정산 반영 (협업 성사만으론 수당 안 잡힘){heldPeople>0&&<span style={{color:'var(--orange)'}}> · ⏸ 날짜없어 보류 {heldPeople}명</span>}
+      DM 발송 = {RATE_DM.toLocaleString()}원 · 최종 완료(영상 업로드+광고코드) = +{RATE_DEAL.toLocaleString()}원 · 체크된 DM·최종완료는 모두 정산 반영 (협업 성사만으론 수당 안 잡힘){heldPeople>0&&<span style={{color:'var(--orange)'}}> · ⏸ 날짜없어 보류 {heldPeople}명</span>}
     </div>
 
     {/* 미지급 월 빠른 이동 — 있을 때만 표시 */}
@@ -6727,6 +6766,11 @@ function AppMain({ authInfo, onLogout }) {
     if(!id)return;
     updateBrand(bId,b=>({...b,claudeStep2Rows:(b.claudeStep2Rows||[]).filter(r=>r.id!==id)}));
   }
+  // 브랜드 안 협찬 제품 추가(해트케처럼 한 브랜드에 제품이 여러 개일 때)
+  function addBrandProduct(name){
+    const n=String(name||'').trim(); if(!n) return;
+    updateBrand(bId,b=>({...b,products:[...new Set([...(b.products||[]),n])]}));
+  }
   // 🔎 인플루언서 찾기 결과 → 🟡 리스팅 목록(검수대기) / 🤖 자동화(컨택 전)
   function addFinderListing(list){
     const td=today();
@@ -6858,7 +6902,7 @@ function AppMain({ authInfo, onLogout }) {
       const rows=b.shippingRows||[]; const i=findShip(rows,r,info);
       const fill={channelName:r.name||'',recipient:info.realName||'',phone:info.phone||'',address:info.address||''};
       if(i>=0) return {...b,shippingRows:rows.map((x,j)=>j!==i?x:{...x,...Object.fromEntries(Object.entries(fill).filter(([k,v])=>v||!x[k]))})};
-      return {...b,shippingRows:[...rows,{id:makeId(),requestDate:today(),requester:sanitizePA(r.pa)||'',notes:'',tracking:'',qty:'1',fromContact:'Y',status:'처리중',...fill}]};
+      return {...b,shippingRows:[...rows,{id:makeId(),requestDate:today(),requester:sanitizePA(r.pa)||'',notes:'',tracking:'',qty:'1',fromContact:'Y',status:'처리중',product:r.product||shipProductOf(bId),...fill}]};
     });
   }
   // 되돌리기 — 상세 창이 만든 행이고 송장이 아직 없으면 지우고, 아니면 '처리중'으로 되돌린다(송장·주소 기록은 남김)
@@ -7350,6 +7394,7 @@ function AppMain({ authInfo, onLogout }) {
     <div className="main">
       {tab==='dashboard'&&<DashboardView brand={brand} paList={paList} paFocus={dashPa} setPaFocus={setDashPa} isStaff={IS_STAFF} A={infA} go={go} settlements={settlements}/>}
       {tab==='step2'&&<Step2View
+        onAddProduct={addBrandProduct}
         listing={<Step1View
         rows={brand.step1Rows||[]}
         onUpdate={updateStep1Row}
