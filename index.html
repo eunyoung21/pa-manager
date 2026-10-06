@@ -5905,7 +5905,7 @@ function GuideView({ brand }) {
 
 /* ─── MAIN APP ─── */
 /* ─── USER MANAGEMENT VIEW ─── */
-function UserMgmtView() {
+function UserMgmtView({ brands }) {
   const [users, setUsers] = useState(null);
   const [msg, setMsg]     = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -5914,8 +5914,9 @@ function UserMgmtView() {
   const [newPw, setNewPw]     = useState('');
   const [tabEdit, setTabEdit] = useState(null); // {id, tabs:[]} — 계정별 탭 권한 편집
   const [paEdit, setPaEdit]   = useState(null); // {id, pa:[]} — 계정별 담당 PA(여러 명) 편집
-  // 담당 브랜드 선택지 (전체 + 각 브랜드)
-  const BRAND_OPTS = [{id:'all',name:'전체'}, ...DEFAULT_BRANDS.map(b=>({id:b.id,name:b.name}))];
+  // 담당 브랜드 선택지 (전체 + 지금 있는 브랜드 전부 — 해트케처럼 나중에 추가된 브랜드도 나온다, 2026-10-06)
+  const BRAND_OPTS = [{id:'all',name:'전체'},
+    ...(brands&&brands.length?brands:DEFAULT_BRANDS).map(b=>({id:b.id,name:b.name}))];
   const brandLabel = id => (BRAND_OPTS.find(o=>o.id===id)||{}).name || '전체';
   // 담당자(PA) 선택지 — 정산 본인 조회 매핑용 ('' = 미지정)
   const PA_OPTS = ['', ...PA_LIST];
@@ -7492,7 +7493,7 @@ function AppMain({ authInfo, onLogout }) {
         setSettlements={setSettlements}
         staffPA={isManager?null:(authInfo?.pa||'')}
       />}
-      {tab==='users'&&<UserMgmtView/>}
+      {tab==='users'&&<UserMgmtView brands={brands}/>}
       {tab==='log'&&<AccessLogView/>}
     </div>
 
