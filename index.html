@@ -4378,165 +4378,60 @@ function finderApi(path,body){
 }
 const fmtK=n=>n==null?'—':n>=10000?(Math.round(n/1000)/10)+'만':n>=1000?(Math.round(n/100)/10)+'천':String(n);
 function FinderView({ brand, brands, onAddListing, onAddAuto }){
-  const LS='pa_finder_run_'+brand.id;
-  const [bridge,setBridge]=useState(null);        // null=확인중, false=꺼짐, {accounts…}
-  const [mode,setMode]=useState('seed');
-  const [seedSrc,setSeedSrc]=useState('deal');
-  const [tags,setTags]=useState('');
-  const [fMin,setFMin]=useState('1000'), [fMax,setFMax]=useState('150000'), [cnt,setCnt]=useState('40'), [age,setAge]=useState('45');
-  const [run,setRun]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS)||'null');}catch{return null;}});
-  const [job,setJob]=useState(null), [lines,setLines]=useState([]);
-  const [result,setResult]=useState(null), [pick,setPick]=useState({}), [msg,setMsg]=useState('');
-  const [past,setPast]=useState([]);
-  useEffect(()=>{try{run?localStorage.setItem(LS,JSON.stringify(run)):localStorage.removeItem(LS);}catch{}},[run]);
-
-  const ping=()=>finderApi('/api/init').then(d=>{setBridge(d);setPast(d.lists||[]);}).catch(()=>setBridge(false));
-  useEffect(()=>{ping();},[]);
-  const findAcc=bridge&&bridge.accounts?(bridge.accounts.find(a=>a.use==='find')||bridge.accounts[0]):null;
-
-  // 이 브랜드에서 진행한 사람들 = 시드 후보(최근 순)
-  const s2all=useMemo(()=>[...(brand.step2Rows||[]),...(brand.claudeStep2Rows||[])],[brand]);
-  const isDeal=r=>r.dealDone==='Y'||r.finalDone==='Y';
-  const isDm=r=>r.dmSent==='Y'||isDeal(r);
-  const seedPool=useMemo(()=>{
-    const seen=new Set(), out=[];
-    s2all.filter(seedSrc==='deal'?isDeal:isDm)
-      .sort((a,b)=>String(parseDateKey(b.dealDate||b.dmDate||b.date)||'').localeCompare(String(parseDateKey(a.dealDate||a.dmDate||a.date)||'')))
-      .forEach(r=>{const h=rowHandle(r); if(h&&!seen.has(h)){seen.add(h);out.push(h);}});
-    return out;
-  },[s2all,seedSrc]);
-  const cntOf=f=>new Set(s2all.filter(f).map(rowHandle).filter(Boolean)).size;
-  // 이미 PA에 있는 사람(모든 브랜드) — 찾기 결과에서 빼고, 결과 화면에서 '이미 있음'으로 표시
-  const have=useMemo(()=>{const s=new Set();(brands||[]).forEach(b=>[...(b.step1Rows||[]),...(b.step2Rows||[]),...(b.claudeStep2Rows||[])].forEach(r=>{const h=rowHandle(r);if(h)s.add(h);}));return s;},[brands]);
-
-  function loadResult(file){
-    if(!file) return;
-    finderApi('/api/result?file='+encodeURIComponent(file))
-      .then(d=>{ if(d.ok){setResult({...d.result,file});setPick({});} else setMsg(d.error||'결과가 아직 없어요'); })
-      .catch(()=>setMsg('브리지에 연결할 수 없어요'));
-  }
-  // 진행 중 작업 따라가기(3초마다 로그 끝부분)
+  // 이 PC의 리스트업 프로그램(「리스트업 창.bat」)을 탭 안에 그대로 띄운다 — 따로 창을 열지 않는다(2026-10-06).
+  // 꺼져 있으면 안내만 보이고 5초마다 다시 확인 → bat 을 켜면 저절로 나타난다.
+  const [on,setOn]=useState(null);              // null=확인 중, false=꺼짐, true=켜짐
+  const frame=useRef(null);
+  const ORIGIN=useMemo(()=>{try{return new URL(FINDER_URL).origin;}catch{return '';}},[]);
   useEffect(()=>{
-    if(!run||!bridge) return;
-    if(!run.jobId){ loadResult(run.listFile); return; }
-    let stop=false;
-    const tick=()=>finderApi('/api/joblog?id='+run.jobId+'&n=8').then(d=>{
-      if(stop) return;
-      if(!d.ok){ loadResult(run.listFile); return; }   // 브리지를 다시 켜면 작업 기록이 없어진다 → 결과 파일로
-      setJob(d.job); setLines(d.lines||[]);
-      if(d.job.running) setTimeout(tick,3000); else loadResult(run.listFile);
-    }).catch(()=>{ if(!stop) setTimeout(tick,5000); });
-    tick(); return ()=>{stop=true;};
-  },[run&&run.jobId,run&&run.listFile,!!bridge]);
+    let stop=false,t;
+    const ping=()=>finderApi('/api/ping')
+      .then(d=>{ if(stop) return; const ok=!!(d&&d.app==='listup-window'); setOn(ok); if(!ok) t=setTimeout(ping,5000); })
+      .catch(()=>{ if(!stop){ setOn(false); t=setTimeout(ping,5000); } });
+    ping(); return ()=>{stop=true;clearTimeout(t);};
+  },[]);
+  // 이미 PA에 있는 사람(모든 브랜드) — 추가할 때 뺀다
+  const have=useMemo(()=>{const s=new Set();(brands||[]).forEach(b=>[...(b.step1Rows||[]),...(b.step2Rows||[]),...(b.claudeStep2Rows||[])].forEach(r=>{const h=rowHandle(r);if(h)s.add(h);}));return s;},[brands]);
+  // 리스트업 창 ↔ PA: 준비되면 로그인 토큰을 넘기고(따로 PA 로그인 안 해도 됨), 고른 사람을 받아 추가한다
+  useEffect(()=>{
+    function onMsg(e){
+      if(e.origin!==ORIGIN||!e.data||!frame.current||e.source!==frame.current.contentWindow) return;
+      if(e.data.type==='finder-ready'){
+        const a=getAuth();
+        if(a&&a.token) e.source.postMessage({type:'pa-token',token:a.token,username:a.username||''},ORIGIN);
+      }
+      if(e.data.type==='pa-add'){
+        const all=Array.isArray(e.data.rows)?e.data.rows:[];
+        const seen=new Set();
+        const rows=all.filter(r=>{const u=String(r&&r.username||'').toLowerCase();if(!u||have.has(u)||seen.has(u))return false;seen.add(u);return true;})
+          .map(r=>({name:String(r.name||r.username),username:String(r.username),link:String(r.link||`https://www.instagram.com/${r.username}/`),followers:String(r.followers||''),memo:String(r.memo||'')}));
+        if(rows.length)(e.data.to==='auto'?onAddAuto:onAddListing)(rows);
+        e.source.postMessage({type:'pa-added',to:e.data.to,added:rows.length,skipped:all.length-rows.length},ORIGIN);
+      }
+    }
+    window.addEventListener('message',onMsg);
+    return ()=>window.removeEventListener('message',onMsg);
+  },[have,onAddListing,onAddAuto,ORIGIN]);
 
-  function start(){
-    setMsg('');
-    const hashtags=tags.split(/[\s,]+/).map(t=>t.replace(/^#/,'').trim()).filter(Boolean);
-    const seeds=mode==='seed'?seedPool.slice(0,FINDER_SEED_MAX):[];
-    if(mode==='seed'&&!seeds.length){setMsg('기준으로 쓸 인플루언서(인스타 링크 있는 사람)가 없어요');return;}
-    if(mode==='tag'&&!hashtags.length){setMsg('해시태그를 넣어 주세요');return;}
-    const name=`PA-${brand.name}-${mode==='seed'?'비슷한결':'해시태그'}-${Date.now().toString(36)}`;
-    finderApi('/api/run',{name,brand:brand.name,accountId:findAcc&&findAcc.id,hashtags,seeds,excludeUsers:[...have],
-      followersMin:fMin,followersMax:fMax,targetCount:cnt,maxCandidates:Math.max(170,(+cnt||40)*4),maxAgeDays:age,
-      excludeKeywords:(bridge&&bridge.defaultExcludeKeywords)||[]})
-      .then(d=>{ if(!d.ok){setMsg(d.error||'시작 실패');return;} setResult(null);setLines([]);setJob({running:true});setRun({jobId:d.jobId,listFile:d.listFile}); })
-      .catch(()=>setMsg('브리지에 연결할 수 없어요 — 이 PC에서 「리스트업 창.bat」을 켜 주세요'));
-  }
-  const stopRun=()=>run&&run.jobId&&finderApi('/api/stop',{id:run.jobId}).catch(()=>{});
-  const login=()=>findAcc&&finderApi('/api/account/login',{id:findAcc.id})
-    .then(d=>setMsg(d.ok?'크롬 창이 뜨면 인스타에 로그인해 주세요 (한 번 하면 유지돼요)':(d.error||'실패'))).catch(()=>setMsg('브리지에 연결할 수 없어요'));
-
-  const list=(result&&result.list)||[];
-  const picked=list.filter(r=>pick[r.username]);
-  const toRow=r=>({name:r.fullName&&r.fullName.trim()?r.fullName.trim():r.username,username:r.username,link:r.url||`https://www.instagram.com/${r.username}/`,
-    followers:r.followers!=null?Number(r.followers).toLocaleString():'',
-    memo:[r.lastVideoDaysAgo!=null?`최근 릴스 ${r.lastVideoDaysAgo}일 전`:'',r.viewMed?`조회 중앙값 ${fmtK(r.viewMed)}`:''].filter(Boolean).join(' · ')});
-  function add(to){
-    const rows=picked.filter(r=>!have.has(String(r.username).toLowerCase())).map(toRow);
-    if(!rows.length){setMsg('추가할 사람이 없어요 (이미 있는 사람은 빼요)');return;}
-    (to==='auto'?onAddAuto:onAddListing)(rows);
-    setMsg(`${rows.length}명을 ${to==='auto'?'🤖 자동화':'🟡 리스팅 목록'}에 넣었어요`); setPick({});
-  }
-
-  const running=!!(job&&job.running);
-  const L={fontSize:12,color:'var(--muted)',margin:'12px 0 5px'};
-  return <div className="view-wrap roomy-wrap" style={{overflow:'auto'}}>
-    <div className="view-main roomy no-cal" style={{overflow:'visible'}}>
-      <div style={{fontSize:12,color:'var(--muted)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',margin:'2px 0 10px'}}>
-        <span>💡 원하는 결의 인스타 인플루언서를 찾아 검토 후 <b style={{color:'var(--text)'}}>리스팅 목록에 추가</b>하거나 <b style={{color:'var(--text)'}}>자동화(DM)</b>로 넘깁니다. 이 PC에서 <b style={{color:'var(--text)'}}>「리스트업 창.bat」 실행 + 인스타 로그인</b>이 필요해요.</span>
-        {bridge===false&&<><span style={{color:'var(--red)',fontWeight:600}}>● 연결 안 됨</span><button className="btn btn-ghost" onClick={ping}>다시 확인</button></>}
-        {bridge&&<span style={{color:'var(--green)',fontWeight:600}}>● 연결됨</span>}
-        {bridge&&findAcc&&<button className="btn btn-ghost" onClick={login}>인스타 로그인 열기</button>}
-      </div>
-
-      <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'16px 18px'}}>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-          {[['seed','기존 인플루언서로 비슷한 결 찾기'],['tag','해시태그로 찾기']].map(([k,l])=>
-            <button key={k} className={`fchip ${mode===k?'active':''}`} style={{fontSize:12,padding:'5px 12px',border:'1px solid var(--border)'}} onClick={()=>setMode(k)}>{l}</button>)}
-        </div>
-        {mode==='seed'?<>
-          <div style={L}>기준 — <b style={{color:'var(--text)'}}>{brand.name}</b>에서 진행한 인플루언서들의 결을 따라 찾습니다</div>
-          <select className="modal-inp" style={{maxWidth:420}} value={seedSrc} onChange={e=>setSeedSrc(e.target.value)}>
-            <option value="deal">협업 성사·완료한 사람 ({cntOf(isDeal)}명)</option>
-            <option value="dm">DM 보낸 사람 전체 — 거절 포함 ({cntOf(isDm)}명)</option>
-          </select>
-          <div style={{fontSize:11,color:'var(--dim)',marginTop:5}}>최근 순으로 {Math.min(FINDER_SEED_MAX,seedPool.length)}명의 게시물에서 해시태그를 뽑아 그 풀에서 찾아요{seedPool.length>FINDER_SEED_MAX?` (전체 ${seedPool.length}명 중)`:''}</div>
-        </>:<>
-          <div style={L}>해시태그 — 띄어쓰기나 쉼표로 구분 (# 없어도 돼요)</div>
-          <textarea className="modal-inp" rows={2} style={{maxWidth:640}} value={tags} onChange={e=>setTags(e.target.value)} placeholder="러닝 러닝크루 마라톤준비"/>
+  if(on!==true) return <div className="view-wrap roomy-wrap">
+    <div className="view-main roomy no-cal" style={{alignItems:'center',justifyContent:'center',padding:24}}>
+      <div style={{maxWidth:440,textAlign:'center',lineHeight:1.8}}>
+        {on===null?<div style={{fontSize:13,color:'var(--muted)'}}>리스트업 프로그램 확인 중…</div>:<>
+          <div style={{fontSize:15,fontWeight:700,marginBottom:6}}>리스트업 프로그램이 꺼져 있어요</div>
+          <div style={{fontSize:13,color:'var(--muted)'}}>이 PC에서 <b style={{color:'var(--text)'}}>「리스트업 창.bat」</b>을 더블클릭해 주세요.<br/>켜지면 여기에 저절로 나타나요.</div>
         </>}
-        <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-          {[['팔로워 최소',fMin,setFMin],['팔로워 최대',fMax,setFMax],['최대 후보 수',cnt,setCnt],['최근 릴스 (일 이내)',age,setAge]].map(([l,v,s])=>
-            <div key={l} style={{width:130}}><div style={L}>{l}</div><input className="modal-inp" value={v} onChange={e=>s(e.target.value.replace(/[^0-9]/g,''))}/></div>)}
-        </div>
-        <div style={{display:'flex',gap:8,alignItems:'center',marginTop:16,flexWrap:'wrap'}}>
-          <button className="btn btn-primary" style={{padding:'7px 16px',fontSize:13,fontWeight:600,opacity:(!bridge||running)?.5:1}} disabled={!bridge||running} onClick={start}>🔍 인플루언서 찾기</button>
-          {running&&<button className="btn btn-ghost" onClick={stopRun}>중단</button>}
-          {past.length>0&&<select className="modal-inp" style={{width:'auto',marginLeft:'auto'}} value="" onChange={e=>{const f=e.target.value;if(f){setJob(null);setRun({jobId:null,listFile:f});}}}>
-            <option value="">지난 결과 불러오기…</option>
-            {past.map(p=><option key={p.file} value={p.file}>{p.label}</option>)}
-          </select>}
-        </div>
-        {msg&&<div style={{fontSize:12,marginTop:8,color:'var(--accent)'}}>{msg}</div>}
-        {(running||(lines.length>0&&!result))&&<div style={{marginTop:10,background:'var(--surface2)',borderRadius:8,padding:'8px 10px',fontSize:11,fontFamily:'monospace',color:'var(--muted)',whiteSpace:'pre-wrap',maxHeight:150,overflow:'auto'}}>
-          {running?'⏳ 찾는 중… (한 명 확인에 20~40초 · 다른 탭에 가도 계속 돌아요)\n':''}{lines.join('\n')}
-        </div>}
       </div>
-
-      {result&&<div style={{marginTop:16}}>
-        <div className="toolbar" style={{gap:8}}>
-          <b style={{fontSize:13}}>찾은 사람 {list.length}명</b>
-          <span className="cnt" style={{color:'var(--muted)'}}>{(result.hashtags||[]).slice(0,10).map(t=>'#'+t).join(' ')}</span>
-          <div className="sep"/>
-          <button className="fchip" onClick={()=>{const p={};list.forEach(r=>{if(!have.has(String(r.username).toLowerCase()))p[r.username]=true;});setPick(p);}}>전체 선택</button>
-          {picked.length>0&&<button className="fchip" onClick={()=>setPick({})}>선택 해제</button>}
-          <button className="btn btn-primary" style={{opacity:picked.length?1:.5}} disabled={!picked.length} onClick={()=>add('listing')}>🟡 리스팅 목록에 추가 ({picked.length})</button>
-          <button className="btn btn-ghost" style={{opacity:picked.length?1:.5}} disabled={!picked.length} onClick={()=>add('auto')}>🤖 자동화에 추가</button>
-        </div>
-        {list.length===0&&<div style={{fontSize:12,color:'var(--muted)',padding:'20px 0'}}>조건에 맞는 사람이 없었어요. 팔로워 범위나 최근 릴스 기간을 넓혀 다시 찾아 보세요.</div>}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,paddingBottom:24}}>
-          {list.map(r=>{const dup=have.has(String(r.username).toLowerCase()); const on=!!pick[r.username];
-            return <div key={r.username} onClick={()=>!dup&&setPick(p=>({...p,[r.username]:!p[r.username]}))}
-              style={{background:'var(--surface)',border:`1px solid ${on?'var(--accent)':'var(--border)'}`,boxShadow:on?'0 0 0 1px var(--accent)':'none',borderRadius:10,overflow:'hidden',cursor:dup?'default':'pointer',opacity:dup?.5:1}}>
-              <div style={{aspectRatio:'3 / 4',background:'var(--surface3)',position:'relative'}}>
-                {r.reelShot&&<img src={FINDER_URL+'/img?p='+encodeURIComponent(r.reelShot)} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>}
-                <span style={{position:'absolute',top:8,left:8,background:on?'var(--accent)':'rgba(255,255,255,.92)',color:on?'#fff':'var(--text)',borderRadius:6,fontSize:11,fontWeight:700,padding:'2px 7px'}}>{dup?'이미 있음':on?'✓ 선택':'선택'}</span>
-              </div>
-              <div style={{padding:'8px 10px 10px'}}>
-                <a href={r.url} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()} style={{fontWeight:700,fontSize:13,color:'var(--text)',textDecoration:'none'}}>@{r.username} ↗</a>
-                <div style={{fontSize:12,color:'var(--muted)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.fullName||' '}</div>
-                <div style={{fontSize:11,color:'var(--muted)',marginTop:4}}>팔로워 {fmtK(r.followers)} · 조회 {fmtK(r.viewMed)} · 릴스 {r.lastVideoDaysAgo!=null?r.lastVideoDaysAgo+'일 전':'—'}</div>
-              </div>
-            </div>;})}
-        </div>
-      </div>}
     </div>
+  </div>;
+  return <div className="view-wrap" style={{background:'#fff'}}>
+    <iframe ref={frame} title="리스트업" src={`${FINDER_URL}/?embed=1&brand=${encodeURIComponent(brand.name)}`}
+      style={{flex:1,width:'100%',height:'100%',border:0,display:'block'}}/>
   </div>;
 }
 
 /* ─── 📖 사용법 (옛 가이드 탭 대신, 2026-09-22 구조 기준) ─── */
 const HOWTO=[
-  ['🔎 인플루언서 찾기','이 PC에서 「리스트업 창.bat」을 켜 두고 → 「비슷한 결」 또는 「해시태그」로 찾기 → 카드를 골라 리스팅 목록이나 자동화에 추가. 이미 PA에 있는 사람은 자동으로 빠져요.'],
+  ['🔎 인플루언서 찾기','이 PC에서 「리스트업 창.bat」을 켜 두면 이 탭 안에 리스트업 프로그램이 나타나요 → 찾기 → 고르기(전부 선택된 채로, 싫은 사람만 눌러 빼기) → PA 리스팅 목록·자동화에 추가하거나 바로 DM. 이미 PA에 있는 사람은 자동으로 빠져요.'],
   ['👥 인플루언서 관리 · 🟡 리스팅 목록','찾은·직접 추가한 사람이 검수대기로 쌓여요. 관리자가 승인하면 「진행 중」으로 넘어가 DM 대상이 돼요.'],
   ['👥 인플루언서 관리 · 진행 중','DM 보내면 DM발송 Y. 채널명을 누르면 오른쪽 상세 창에서 단계를 진행해요: DM → 계약서 → 제품 발송 → 광고코드·입금정보 → 광고세팅·입금.'],
   ['🚫 거절','DM 후 14일 동안 답장이 없으면 자동으로 거절로 옮겨져요. 잘못 옮겨졌으면 상세 창에서 ↩ 복구.'],
