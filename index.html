@@ -3962,17 +3962,17 @@ function Step2View({ onAddProduct, actions, listing, listingCount, brand, rows, 
     if(filter==='rep') return r.replied==='Y'&&r.approved!=='Y'&&r.dealDone!=='Y'&&!isArchived(r);
     if(filter==='wait') return r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r); // 답장O·승인 전
     if(filter==='apv') return r.approved==='Y'&&r.dealDone!=='Y'&&!isArchived(r); // 승인됨(소통 진행 중)
-    if(filter==='deal') return r.dealDone==='Y';
+    if(filter==='deal') return r.dealDone==='Y'&&!isDoneRow(r)&&!isArchived(r);   // 협업성사 — 성사됐고 아직 완료 전
     if(filter==='fin') return isDoneRow(r);   // 최종완료 + 인플루언서 입금(정산)까지 끝난 건
     if(filter==='nd') return r.dmSent!=='Y'&&!isArchived(r);
     if(filter==='rej') return isRej(r);
     if(filter==='arc') return isPurged(r);
     if(filter==='apv2') return r.approved==='Y'&&r.finalDone!=='Y'&&!isArchived(r); // 자동화 '승인' — 승인 후 완료 전
     // 'all' — 컨택현황은 '진행 중'(거절·완료 제외), 자동화는 '리스트업'(거절·승인·완료 제외)
-    return !isArchived(r)&&!isDoneRow(r)&&(!isClaude||r.approved!=='Y');
+    return !isArchived(r)&&!isDoneRow(r)&&(isClaude?r.approved!=='Y':r.dealDone!=='Y');   // 진행 중 = 아직 성사 전
   }).sort(dateSort);
   },[named,dayFilter,monthFilter,colFKey,q,filter,sortDir]);
-  const cnt=useMemo(()=>({all:named.filter(r=>!isArchived(r)&&!isDoneRow(r)&&(!isClaude||r.approved!=='Y')).length,apv2:named.filter(r=>r.approved==='Y'&&r.finalDone!=='Y'&&!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y').length,fin:named.filter(isDoneRow).length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
+  const cnt=useMemo(()=>({all:named.filter(r=>!isArchived(r)&&!isDoneRow(r)&&(isClaude?r.approved!=='Y':r.dealDone!=='Y')).length,apv2:named.filter(r=>r.approved==='Y'&&r.finalDone!=='Y'&&!isArchived(r)).length,dm:named.filter(r=>r.dmSent==='Y').length,deal:named.filter(r=>r.dealDone==='Y'&&!isDoneRow(r)&&!isArchived(r)).length,fin:named.filter(isDoneRow).length,nd:named.filter(r=>r.dmSent!=='Y'&&!isArchived(r)).length,rej:named.filter(isRej).length,arc:named.filter(isPurged).length,
     rep:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length,
     wait:named.filter(r=>r.replied==='Y'&&r.approved!=='Y'&&!isArchived(r)).length,
     apv:named.filter(r=>r.approved==='Y'&&r.dealDone!=='Y'&&!isArchived(r)).length}),[named]);
@@ -4014,7 +4014,7 @@ function Step2View({ onAddProduct, actions, listing, listingCount, brand, rows, 
   </div>:null;
   const chips=(isClaude
         ? [{k:'all',l:`리스트업 (${cnt.all})`,c:''},{k:'apv2',l:`✅ 승인 (${cnt.apv2})`,c:'f-ap'},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}]
-        : [...(listing?[{k:'lst',l:`🟡 리스팅 목록 (${listingCount||0})`,c:''}]:[]),{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}])
+        : [...(listing?[{k:'lst',l:`🟡 리스팅 목록 (${listingCount||0})`,c:''}]:[]),{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'deal',l:`🤝 협업성사 (${cnt.deal})`,c:'f-ap'},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}])
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>);
   // 🟡 리스팅 목록 = 옛 STEP1 리스트업 화면 그대로. 여기서 승인하면 '진행 중'(컨택 전)으로 넘어와 DM을 보낸다.
   if(listing&&filter==='lst') return <div className="roomy" style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
