@@ -5914,10 +5914,14 @@ function UserMgmtView({ brands }) {
   const [newPw, setNewPw]     = useState('');
   const [tabEdit, setTabEdit] = useState(null); // {id, tabs:[]} — 계정별 탭 권한 편집
   const [paEdit, setPaEdit]   = useState(null); // {id, pa:[]} — 계정별 담당 PA(여러 명) 편집
+  const [brEdit, setBrEdit]   = useState(null); // {id, ids:[]} — 계정별 담당 브랜드(여러 개) 편집
   // 담당 브랜드 선택지 (전체 + 지금 있는 브랜드 전부 — 해트케처럼 나중에 추가된 브랜드도 나온다, 2026-10-06)
   const BRAND_OPTS = [{id:'all',name:'전체'},
     ...(brands&&brands.length?brands:DEFAULT_BRANDS).map(b=>({id:b.id,name:b.name}))];
-  const brandLabel = id => (BRAND_OPTS.find(o=>o.id===id)||{}).name || '전체';
+  // 담당 브랜드는 여러 개(콤마)일 수 있다 — 'all'·빈값이면 전체
+  const brandIdsOf = v => parseTabs(v).filter(x=>x&&x!=='all');
+  const brandLabel = v => { const ids=brandIdsOf(v); if(!ids.length) return '전체';
+    return ids.map(i=>(BRAND_OPTS.find(o=>o.id===i)||{}).name||i).join(', '); };
   // 담당자(PA) 선택지 — 정산 본인 조회 매핑용 ('' = 미지정)
   const PA_OPTS = ['', ...PA_LIST];
   const paLabel = pa => parseTabs(pa).join(', ') || '미지정'; // 콤마 다중 PA 표시
@@ -6021,10 +6025,14 @@ function UserMgmtView({ brands }) {
           </select>
         </div>
         <div style={{marginBottom:12}}>
-          <div className="login-lbl">담당 브랜드</div>
-          <select className="modal-sel" value={newUser.brand} onChange={e=>setNewUser(p=>({...p,brand:e.target.value}))}>
-            {BRAND_OPTS.map(o=><option key={o.id} value={o.id}>{o.id==='all'?'전체 (모든 브랜드)':o.name+'만'}</option>)}
-          </select>
+          <div className="login-lbl">담당 브랜드 <span style={{color:'var(--muted)',fontWeight:400}}>— 여러 개 선택 가능 (안 고르면 전체)</span></div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:7,marginTop:4}}>
+            {BRAND_OPTS.filter(o=>o.id!=='all').map(o=>{const ids=brandIdsOf(newUser.brand); const on=ids.includes(o.id);
+              return <label key={o.id} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,padding:'5px 11px',borderRadius:16,border:'1px solid '+(on?'var(--accent)':'var(--border)'),background:on?'var(--accent-soft)':'var(--surface)',color:on?'var(--accent)':'var(--text)',cursor:'pointer'}}>
+                <input type="checkbox" checked={on} style={{margin:0}} onChange={()=>{const next=on?ids.filter(x=>x!==o.id):[...ids,o.id]; setNewUser(p=>({...p,brand:next.length?next.join(','):'all'}));}}/>
+                {o.name}
+              </label>;})}
+          </div>
         </div>
         {newUser.role==='staff'&&<div style={{marginBottom:12}}>
           <div className="login-lbl">담당자(PA) — 정산 본인 조회용 (여러 명 선택 가능)</div>
@@ -6059,14 +6067,27 @@ function UserMgmtView({ brands }) {
             <div style={{fontSize:10,color:'var(--muted)',marginTop:2}}>생성일: {new Date(u.createdAt).toLocaleDateString('ko-KR')} · 담당: {brandLabel(u.brand||'all')}{u.role!=='manager'&&` · 담당자(PA): ${paLabel(u.pa)} · 탭 ${parseTabs(u.tabs).length||'전체'}`}</div>
           </div>
           <span style={{...roleColor(u.role),padding:'2px 8px',borderRadius:4,fontSize:10,fontWeight:700}}>{roleLabel(u.role)}</span>
-          <select className="modal-sel" style={{width:'auto',fontSize:11,padding:'2px 6px'}} value={u.brand||'all'} onChange={e=>changeBrand(u.id, e.target.value)} title="담당 브랜드">
-            {BRAND_OPTS.map(o=><option key={o.id} value={o.id}>{o.id==='all'?'전체':o.name}</option>)}
-          </select>
+          <button className="btn btn-ghost" style={{fontSize:11}} title="담당 브랜드(여러 개 선택 가능)"
+            onClick={()=>setBrEdit(brEdit&&brEdit.id===u.id?null:{id:u.id,ids:brandIdsOf(u.brand)})}>🏷 {brandLabel(u.brand)}</button>
           {u.role!=='manager'&&<button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setPaEdit(paEdit&&paEdit.id===u.id?null:{id:u.id,pa:parseTabs(u.pa)})}>👤 담당 PA</button>}
           {u.role!=='manager'&&<button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setTabEdit(tabEdit&&tabEdit.id===u.id?null:{id:u.id,tabs:parseTabs(u.tabs).length?parseTabs(u.tabs):DEFAULT_STAFF_TABS.slice()})}>🗂 탭 권한</button>}
           <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>{setPwModal(u);setNewPw('');}}>🔑 비번 변경</button>
           <button className="btn btn-ghost" style={{fontSize:11,color:'var(--red)'}} onClick={()=>delUser(u.id, u.username)}>삭제</button>
         </div>
+        {brEdit&&brEdit.id===u.id&&<div style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,padding:'10px 14px'}}>
+          <div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>담당 브랜드(여러 개 선택 가능) — 아무것도 안 고르면 전체 (해당 계정 재로그인 시 적용)</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+            {BRAND_OPTS.filter(o=>o.id!=='all').map(o=>{const on=brEdit.ids.includes(o.id);
+              return <label key={o.id} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,padding:'5px 11px',borderRadius:16,border:'1px solid '+(on?'var(--accent)':'var(--border)'),background:on?'var(--accent-soft)':'var(--surface)',color:on?'var(--accent)':'var(--text)',cursor:'pointer'}}>
+                <input type="checkbox" checked={on} onChange={()=>setBrEdit(p=>({...p,ids:on?p.ids.filter(x=>x!==o.id):[...p.ids,o.id]}))} style={{margin:0}}/>
+                {o.name}
+              </label>;})}
+          </div>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:8}}>
+            <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setBrEdit(null)}>취소</button>
+            <button className="btn btn-primary" style={{fontSize:11}} onClick={()=>{changeBrand(u.id, brEdit.ids.length?brEdit.ids.join(','):'all');setBrEdit(null);}}>저장</button>
+          </div>
+        </div>}
         {paEdit&&paEdit.id===u.id&&<div style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,padding:'10px 14px'}}>
           <div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>담당 PA(여러 명 선택 가능) — 체크 후 저장 (해당 계정 재로그인 시 적용)</div>
           <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
@@ -6262,11 +6283,13 @@ function AppMain({ authInfo, onLogout }) {
   const saved=savedRef.current;
   // 담당 브랜드 ('all'=전체, 'basetune'/'granny'=해당 브랜드만)
   const userBrand = authInfo?.brand || 'all';
+  // 담당 브랜드는 여러 개일 수 있다(콤마 구분, 2026-10-06). 'all'·빈값이면 전체.
+  const myBrandIds = parseTabs(userBrand).filter(x=>x&&x!=='all');
   const [brands,      setBrands]      = useState(saved.brands||DEFAULT_BRANDS);
   const [settlements, setSettlements] = useState(saved.settlements||{});
   const [paList,      setPaList]      = useState(saved.paList&&saved.paList.length?saved.paList:PA_LIST);
   PA_LIST = paList; // 모듈 변수 동기화 — 모든 담당자 선택·색상·매핑이 현재 목록을 사용
-  const [bId,         setBId]         = useState(userBrand!=='all'?userBrand:'basetune');
+  const [bId,         setBId]         = useState(myBrandIds.length?myBrandIds[0]:'basetune');
   const [tab,         setTab]         = useState('dashboard');
   const [s1Filter,    setS1Filter]    = useState('all');
   const [howOpen,     setHowOpen]     = useState(false);   // 📖 사용법 창(옛 가이드 탭 대신)   // 인플루언서 관리 > 리스팅 목록 안의 리스트업 필터(대기/승인/반려)
@@ -7304,11 +7327,11 @@ function AppMain({ authInfo, onLogout }) {
   // 관리자만 URL ?mode=staff 로 스태프 화면 미리보기 가능.
   IS_STAFF = isStaff || new URLSearchParams(window.location.search).get('mode')==='staff';
   // 담당 브랜드만 노출 ('all'이면 전체)
-  const allowedBrands = userBrand==='all' ? brands : brands.filter(b=>b.id===userBrand);
+  const allowedBrands = myBrandIds.length ? brands.filter(b=>myBrandIds.includes(b.id)) : brands;
   // 현재 선택된 브랜드가 허용 범위를 벗어나면 담당 브랜드로 고정
   useEffect(()=>{
     if(allowedBrands.length && !allowedBrands.some(b=>b.id===bId)) setBId(allowedBrands[0].id);
-  },[userBrand,brands.length]);
+  },[userBrand,brands.length]);   // 담당 브랜드(여러 개)가 바뀌면 다시 확인
   // 계정별 탭 권한(스태프) — authInfo.tabs 있으면 그 탭만. 없으면(기존 계정) 전체 스태프 탭.
   const myTabs = !isManager && authInfo?.tabs ? (s=>{ if(s.has('step1')) s.add('step2'); return s; })(new Set(parseTabs(authInfo.tabs))) : null;   // 옛 '리스트업' 권한 = 인플루언서 관리
   const visibleTabs=[
