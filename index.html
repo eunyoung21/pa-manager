@@ -4377,6 +4377,14 @@ function finderApi(path,body){
     .then(r=>r.json());
 }
 const fmtK=n=>n==null?'—':n>=10000?(Math.round(n/1000)/10)+'만':n>=1000?(Math.round(n/100)/10)+'천':String(n);
+// 같은 브랜드에서 '다른 제품으로 이미 끝난 행'인가 — 끝남 = 반려·거절·무응답·완료·정산(진행 중이면 어느 제품이든 막는다)
+const finderRowEnded=r=>{ if(!r) return true;
+  if(r.reviewStatus==='반려') return true;
+  if(r.reviewStatus==='승인'&&r.promotedToStep2) return true;
+  if(String(r.contactStatus||'').replace(/\s+/g,'')==='거절'||r.endReason) return true;
+  if(r.infSettled==='Y'||r.finalDone==='Y'||r.privacyPurged) return true;
+  return false; };
+const finderOtherProductEnded=(r,product)=>{const rp=String(r&&r.product||'').trim(); return !!product&&!!rp&&rp!==product&&finderRowEnded(r);};
 function FinderView({ brand, brands, onAddListing, onAddAuto }){
   // 이 PC의 리스트업 프로그램(「리스트업 창.bat」)을 탭 안에 그대로 띄운다 — 따로 창을 열지 않는다(2026-10-06).
   // 꺼져 있으면 안내만 보이고 5초마다 다시 확인 → bat 을 켜면 저절로 나타난다.
@@ -4390,8 +4398,13 @@ function FinderView({ brand, brands, onAddListing, onAddAuto }){
       .catch(()=>{ if(!stop){ setOn(false); t=setTimeout(ping,5000); } });
     ping(); return ()=>{stop=true;clearTimeout(t);};
   },[]);
-  // 이미 PA에 있는 사람(모든 브랜드) — 추가할 때 뺀다
-  const have=useMemo(()=>{const s=new Set();(brands||[]).forEach(b=>[...(b.step1Rows||[]),...(b.step2Rows||[]),...(b.claudeStep2Rows||[])].forEach(r=>{const h=rowHandle(r);if(h)s.add(h);}));return s;},[brands]);
+  // 이 브랜드의 협찬 제품 — 인플루언서 관리 제품 탭과 같은 목록(브랜드에 등록한 제품 + 행에 적힌 제품)
+  const products=useMemo(()=>brandProducts(brand,[...(brand.step2Rows||[]),...(brand.claudeStep2Rows||[])]),[brand]);
+  // 이미 PA에 있는 사람 — 추가할 때 뺀다. 제품을 정해 추가하면 같은 브랜드의 '다른 제품으로 이미 끝난 건'은 없는 셈 친다
+  // (2026-10-08 사용자 결정 "제품이 다르면 다시 후보로" · 진행 중인 건과 제품이 안 적힌 옛 행은 그대로 막는다 — 리스트업 lib/product.mjs 와 같은 규칙)
+  const haveFor=useCallback(product=>{const s=new Set();(brands||[]).forEach(b=>[...(b.step1Rows||[]),...(b.step2Rows||[]),...(b.claudeStep2Rows||[])].forEach(r=>{
+    if(product&&b.id===brand.id&&finderOtherProductEnded(r,product)) return;
+    const h=rowHandle(r);if(h)s.add(h);}));return s;},[brands,brand]);
   // 리스트업 창 ↔ PA: 준비되면 로그인 토큰을 넘기고(따로 PA 로그인 안 해도 됨), 고른 사람을 받아 추가한다
   useEffect(()=>{
     function onMsg(e){
@@ -4402,16 +4415,18 @@ function FinderView({ brand, brands, onAddListing, onAddAuto }){
       }
       if(e.data.type==='pa-add'){
         const all=Array.isArray(e.data.rows)?e.data.rows:[];
+        const product=String(e.data.product||'').trim();
+        const have=haveFor(products.includes(product)?product:'');
         const seen=new Set();
         const rows=all.filter(r=>{const u=String(r&&r.username||'').toLowerCase();if(!u||have.has(u)||seen.has(u))return false;seen.add(u);return true;})
-          .map(r=>({name:String(r.name||r.username),username:String(r.username),link:String(r.link||`https://www.instagram.com/${r.username}/`),followers:String(r.followers||''),memo:String(r.memo||'')}));
+          .map(r=>({name:String(r.name||r.username),username:String(r.username),link:String(r.link||`https://www.instagram.com/${r.username}/`),followers:String(r.followers||''),memo:String(r.memo||''),...(products.includes(product)?{product}:{})}));
         if(rows.length)(e.data.to==='auto'?onAddAuto:onAddListing)(rows);
         e.source.postMessage({type:'pa-added',to:e.data.to,added:rows.length,skipped:all.length-rows.length},ORIGIN);
       }
     }
     window.addEventListener('message',onMsg);
     return ()=>window.removeEventListener('message',onMsg);
-  },[have,onAddListing,onAddAuto,ORIGIN]);
+  },[haveFor,products,onAddListing,onAddAuto,ORIGIN]);
 
   if(on!==true) return <div className="view-wrap roomy-wrap">
     <div className="view-main roomy no-cal" style={{alignItems:'center',justifyContent:'center',padding:24}}>
@@ -4424,7 +4439,7 @@ function FinderView({ brand, brands, onAddListing, onAddAuto }){
     </div>
   </div>;
   return <div className="view-wrap" style={{background:'#fff'}}>
-    <iframe ref={frame} title="리스트업" src={`${FINDER_URL}/?embed=1&brand=${encodeURIComponent(brand.name)}`}
+    <iframe ref={frame} title="리스트업" src={`${FINDER_URL}/?embed=1&brand=${encodeURIComponent(brand.name)}${products.length>1?`&products=${encodeURIComponent(JSON.stringify(products))}`:''}`}
       style={{flex:1,width:'100%',height:'100%',border:0,display:'block'}}/>
   </div>;
 }
@@ -6643,7 +6658,7 @@ function AppMain({ authInfo, onLogout }) {
           const s2row={
             id:makeId(),step1Id:id,date:updated.date||today(),
             name:updated.name,link:updated.link,followers:updated.followers,
-            pa:updated.pa,contactStatus:'컨택 전',
+            pa:updated.pa,contactStatus:'컨택 전',...(updated.product?{product:updated.product}:{}),
             dmSent:'N',dealDone:'N',finalDone:'N',rate:'',
             shipDate:'',expectedPost:'',shippingDone:'미완료',
             contractDone:'미완료',contractUrl:'',memo:'',
@@ -6698,7 +6713,7 @@ function AppMain({ authInfo, onLogout }) {
           const s2row={
             id:makeId(),step1Id:id,date:updated.date||today(),
             name:updated.name,link:updated.link,followers:updated.followers,
-            pa:updated.pa,category:updated.category||nicheOf([updated.name,updated.persona,updated.feedMemo,updated.hypothesis].join(' ')),contactStatus:'컨택 전',
+            pa:updated.pa,category:updated.category||nicheOf([updated.name,updated.persona,updated.feedMemo,updated.hypothesis].join(' ')),contactStatus:'컨택 전',...(updated.product?{product:updated.product}:{}),
             dmSent:'N',dealDone:'N',finalDone:'N',rate:'',
             shipDate:'',expectedPost:'',shippingDone:'미완료',
             contractDone:'미완료',contractUrl:'',memo:'',
@@ -6734,11 +6749,11 @@ function AppMain({ authInfo, onLogout }) {
   // 🔎 인플루언서 찾기 결과 → 🟡 리스팅 목록(검수대기) / 🤖 자동화(컨택 전)
   function addFinderListing(list){
     const td=today();
-    updateBrand(bId,b=>({...b,step1Rows:[...(b.step1Rows||[]),...list.map(r=>({id:makeId(),date:td,pa:'',reviewStatus:'검수대기',name:r.name,username:r.username,link:r.link,followers:r.followers,persona:'',memo:r.memo,promotedToStep2:false}))]}));
+    updateBrand(bId,b=>({...b,step1Rows:[...(b.step1Rows||[]),...list.map(r=>({id:makeId(),date:td,pa:'',reviewStatus:'검수대기',name:r.name,username:r.username,link:r.link,followers:r.followers,persona:'',memo:r.memo,promotedToStep2:false,...(r.product?{product:r.product}:{})}))]}));
   }
   function addFinderAuto(list){
     const td=today();
-    updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...list.map(r=>({id:makeId(),date:td,name:r.name,username:r.username,link:r.link,followers:r.followers,pa:'',category:nicheOf([r.name,r.memo].join(' '))||'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:r.memo}))]}));
+    updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...list.map(r=>({id:makeId(),date:td,name:r.name,username:r.username,link:r.link,followers:r.followers,pa:'',category:nicheOf([r.name,r.memo].join(' '))||'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:r.memo,...(r.product?{product:r.product}:{})}))]}));
   }
   // 컨택현황에 빈 행 추가 — 직접 인플루언서 입력용.
   function addClaudeS2Row(){
