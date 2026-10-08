@@ -4999,6 +4999,14 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
       ||(n&&n.length>=3&&s2all.find(x=>{const m=mk(x.name);return m&&has(x)&&(m.startsWith(n)||n.startsWith(m));}));
     return hit?String(hit.rate).trim():'';};
   const settleState=r=>{const st=settleOf(r);return st.privacyPurged?'purged':st.infSettled==='Y'?'paid':'unpaid';};
+  // 제품별 보기 — 영상검수 행에는 제품이 없으니 인플루언서 관리·자동화에서 이름으로 찾아온다
+  const revProducts=useMemo(()=>brandProducts(brand,s2all),[brand,s2all]);
+  const prodMap=useMemo(()=>{const m={};
+    s2all.forEach(x=>{const pr=String(x.product||'').trim(); if(!pr) return;
+      [x.name,x.realName].forEach(v=>{const k=mk(v); if(k&&!m[k]) m[k]=pr;});});
+    return m;},[s2all]);
+  const prodOfRev=r=>prodMap[mk(r.channelName)]||prodMap[mk(r.realName)]||'';
+  const [prodF,setProdF]=useState('all');
   // 검색어가 있으면 상태 칩·열 필터·날짜 필터를 다 무시하고 전체에서 찾는다 — 필터에 걸려 안 보이는 일이 없게.
   const byDay=q?rows:(dayFilter?rows.filter(r=>parseDateKey(r.date)===dayFilter):monthFilter?rows.filter(r=>parseYM(r.date)===monthFilter):rows);
   const shown=byDay
@@ -5010,6 +5018,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
       if(filter==='unpaid'&&ss!=='unpaid') return false;
       if(filter==='purged'&&ss!=='purged') return false;
       if(filter==='live'&&r.live!=='Y') return false;
+      if(prodF==='__none__'){ if(prodOfRev(r)) return false; } else if(prodF!=='all'&&prodOfRev(r)!==prodF) return false;
       return true;
     });
   const cnt={all:rows.length,
@@ -5032,6 +5041,11 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
   return <div className="view-wrap roomy-wrap">
     <div className="view-main roomy no-cal">
     <ReviewChecklist brandId={brand?.id} brandName={brand?.name}/>
+    {revProducts.length>1&&<div className="prod-tabs">
+      {[{k:'all',l:`전체 (${rows.length})`},...revProducts.map(pn=>({k:pn,l:`${pn} (${rows.filter(r=>prodOfRev(r)===pn).length})`})),
+        ...(rows.some(r=>!prodOfRev(r))?[{k:'__none__',l:'제품 미지정'}]:[])]
+        .map(({k,l})=><button key={k} className={`prod-tab ${prodF===k?'active':''}`} onClick={()=>setProdF(k)}>{l}</button>)}
+    </div>}
     <div className="toolbar">
       {[{k:'all',l:`전체 (${cnt.all})`,c:''},{k:'paid',l:`✅ 정산완료 (${cnt.paid})`,c:'f-ap'},{k:'unpaid',l:`⏳ 미정산 (${cnt.unpaid})`,c:'f-wt'},{k:'purged',l:`🗑️ 폐기완료 (${cnt.purged})`,c:'f-rj'},{k:'live',l:`🔴 라이브 (${cnt.live})`,c:'f-deal'}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
