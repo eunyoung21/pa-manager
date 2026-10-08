@@ -4464,6 +4464,16 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
   const [showColF,setShowColF]=useState(false);
   const q=useDeferredValue(search).trim().toLowerCase();   // 표 필터는 한 박자 늦게 — 타자가 안 밀리게
   const product=shipProductOf(brand?.id); // 브랜드별 고정 상품명(행에 제품이 따로 있으면 그 값을 쓴다)
+  // 이 줄의 협찬 제품 — 출고 행 → 인플루언서 관리(제품) → 브랜드 고정 상품명 순(2026-10-08, 해트케처럼 한 브랜드에 제품이 여럿일 때)
+  const nzs=v=>String(v||'').normalize('NFC').toLowerCase().replace(/[^0-9a-z가-힣]/g,'');
+  const s2prod=useMemo(()=>{const m={};
+    [...(step2Rows||[]),...((brand&&brand.claudeStep2Rows)||[])].forEach(x=>{const pr=String(x.product||'').trim(); if(!pr) return;
+      [x.name,x.realName].forEach(v=>{const k=nzs(v); if(k&&!m[k]) m[k]=pr;});});
+    return m;},[step2Rows,brand]);
+  const prodOfShip=r=>String(r.product||'').trim()||s2prod[nzs(r.channelName)]||s2prod[nzs(r.recipient)]||product||(brand&&brand.name)||'';
+  // 제품이 여러 개인 브랜드(해트케 등)는 제품별로 나눠 본다
+  const shipProducts=useMemo(()=>brandProducts(brand,[...(rows||[]),...(step2Rows||[])]),[brand,rows,step2Rows]);
+  const [prodF,setProdF]=useState('all');
   // 요청자 필터 옵션 — 실제 출고행에 있는 요청자(공백 제외) 모음
   const reqOpts=Array.from(new Set((rows||[]).map(r=>r.requester).filter(Boolean)));
   // 수령자명(본명)으로 개인정보에서 채널명을 찾고, 그 채널의 라이브 여부를 컨택현황/영상검수에서 확인 — 출고↔영상 매칭.
@@ -4501,6 +4511,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
       if(filter==='done'&&!isLiveRow(r)) return false;
       if(filter==='pend'&&(isLiveRow(r)||r.status?.includes('완료'))) return false;
       if(reqF&&(r.requester||'')!==reqF) return false;
+      if(prodF!=='all'&&prodOfShip(r)!==prodF) return false;
       if(colFActive.length && !colFActive.every(([f,v])=>fieldVal(r,f).toLowerCase().includes(String(v).trim().toLowerCase()))) return false;
       return true;
     });
@@ -4511,6 +4522,10 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
   function setCol(f,v){setColF(p=>({...p,[f]:v}));}
   return <div className="view-wrap roomy-wrap">
     <div className="view-main roomy no-cal">
+    {shipProducts.length>1&&<div className="prod-tabs">
+      {[{k:'all',l:`전체 (${rows.length})`},...shipProducts.map(pn=>({k:pn,l:`${pn} (${rows.filter(r=>prodOfShip(r)===pn).length})`}))]
+        .map(({k,l})=><button key={k} className={`prod-tab ${prodF===k?'active':''}`} onClick={()=>setProdF(k)}>{l}</button>)}
+    </div>}
     <div className="toolbar">
       {[{k:'all',l:`전체 (${cnt.all})`,c:''},{k:'done',l:`완료 (${cnt.done})`,c:'f-done'},{k:'pend',l:`처리중 (${cnt.pend})`,c:'f-wt'}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
@@ -4561,12 +4576,12 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
             <td data-label="요청자"><Cell value={r.requester||''} onChange={v=>up(r.id,'requester',v)} type="select" chips options={PA_LIST}/></td>
             <td data-label="채널명"><Cell value={r.channelName||''} onChange={v=>up(r.id,'channelName',v)} placeholder={chanOf(r.recipient)||'채널명'} style={{color:'var(--blue)',fontSize:11,width:84}}/></td>
             <td data-label="수령자명"><span style={{display:'flex',alignItems:'center',gap:2}}>
-              <ShipCopyBtn row={r} product={product}/>
+              <ShipCopyBtn row={r} product={prodOfShip(r)}/>
               <Cell value={r.recipient} onChange={v=>up(r.id,'recipient',v)} placeholder="수령자명" style={{flex:1,minWidth:0}}/>
             </span></td>
             <td data-label="연락처"><Cell value={r.phone} onChange={v=>up(r.id,'phone',v)}/></td>
             <td data-label="배송지 주소"><Cell value={r.address} onChange={v=>up(r.id,'address',v)}/></td>
-            <td data-label="상품명" style={{whiteSpace:'nowrap',fontWeight:600}}>{product}</td>
+            <td data-label="상품명" style={{whiteSpace:'nowrap',fontWeight:600}}>{prodOfShip(r)}</td>
             <td data-label="비고"><Cell value={r.notes} onChange={v=>up(r.id,'notes',v)}/></td>
             <td data-label="처리 상태"><Cell value={r.status} onChange={v=>up(r.id,'status',v)} type="select" options={['처리중','✅ 완료']}/></td>
             <td data-label="출고일자"><Cell value={r.shipDate||''} onChange={v=>up(r.id,'shipDate',v)} type="date" style={{width:80}} placeholder="출고일"/></td>
