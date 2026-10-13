@@ -1176,6 +1176,9 @@ function contractMailDefaults({ brandName, company, name, fee, date, phone, rrn,
 
 // 모두싸인 자동 발송 브리지(관리자 PC, D:\Git\pa-modusign-bridge) — 테스트는 window.MS_BRIDGE 로 바꿔 끼운다
 const MS_BRIDGE = window.MS_BRIDGE || 'http://localhost:8791';
+const SEAL_COMPANIES_DEFAULT = ['드래프터','썸웨어코드','발전존중','제노바','크롬스','데이즈','더스크랙'];
+// 브랜드의 직인 회사: ① 직접 고른 값(brand.sealCompany) ② 앱에 등록된 광고주 회사(CONTRACT_BRANDS)
+const sealCompanyOf = brand => String((brand&&brand.sealCompany)||(window.CONTRACT_BRANDS?.[brand&&brand.id]?.company)||'').replace(/^주식회사\s*/,'').trim();
 const MS_BRIDGE_DOWN = '모두싸인 브리지가 꺼져 있습니다 — 이 PC에서 「모두싸인_시작.bat」을 켜 주세요.';
 // 계약서에 쓸 양식: ① 이 건에만 첨부한 파일(r.contractFile) → ② 브랜드 등록 양식(📄 계약서 생성 ⚙) → ③ 앱 내장 양식(드래프터 등)
 function contractTplFor(brand, r){
@@ -3970,7 +3973,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
 }
 
 /* ─── STEP2 VIEW ─── */
-function Step2View({ onAddProduct, onSaveProducts, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
+function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
@@ -4142,7 +4145,7 @@ function Step2View({ onAddProduct, onSaveProducts, actions, listing, listingCoun
     </div>
     </div>
     <CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
-    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSettle={onSettle} onShip={onShip} onUnship={onUnship} onSaveProducts={onSaveProducts}/>}
+    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSettle={onSettle} onShip={onShip} onUnship={onUnship} onSaveProducts={onSaveProducts} onSaveSeal={onSaveSeal}/>}
   </div>;
 }
 
@@ -4236,7 +4239,7 @@ function purgeRejected(b,cap){
   if(!n) return {b,n:0};
   return {b:{...b,step2Rows:s2.kept,claudeStep2Rows:cs2.kept,rejectedBilling:[...(b.rejectedBilling||[]),...billingAdd]},n};
 }
-function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship, onSaveProducts }){
+function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship, onSaveProducts, onSaveSeal }){
   const rv=s2Review(brand,r);
   const [pcOpen,setPcOpen]=useState(false);   // ⚙ 제품·옵션 창
   const brandProdList=brandProducts(brand||{},[...((brand&&brand.step2Rows)||[]),...((brand&&brand.claudeStep2Rows)||[])]);
@@ -4249,7 +4252,15 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     realName:r.realName||(rv&&rv.realName)||'',phone:r.phone||'',address:r.address||'',email:r.email||'',
     contractDate:r.contractDate||today(),contractUrl:r.contractUrl||'',rate:r.rate||'',adCode:(rv&&rv.paCode)||'',rrn:''});
   const [f,setF]=useState(init);
-  useEffect(()=>{setF(init());},[r.id]);
+  // 모두싸인 발송(관리자) — 첫 클릭은 받는 곳 확인, 같은 내용으로 한 번 더 누르면 보낸다(주민번호는 계약서에만 넣고 저장 안 함)
+  const [msAsk,setMsAsk]=useState(''), [msBusy,setMsBusy]=useState(false), [msMsg,setMsMsg]=useState(null);
+  const ctRef=useRef(null);
+  // 직인 회사 목록 — 관리자 PC 브리지가 모두싸인 「사인·도장」에서 읽어 줌(꺼져 있으면 기본 목록)
+  const [sealList,setSealList]=useState(SEAL_COMPANIES_DEFAULT);
+  useEffect(()=>{ if(IS_STAFF) return; let on=true;
+    fetch(MS_BRIDGE+'/seals').then(x=>x.json()).then(j=>{ if(on&&j&&Array.isArray(j.items)&&j.items.length) setSealList(j.items); }).catch(()=>{});
+    return ()=>{on=false;}; },[]);
+  useEffect(()=>{setF(init());setMsAsk('');setMsMsg(null);},[r.id]);
   const u=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const upd=patch=>H.current.onUpdate(r.id,patch);
   const dates=[r.date,r.dmDate,r.dealDate,r.contractDate||(rv&&rv.contractDate),r.shipDate,r.finalDate];
@@ -4307,13 +4318,86 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{const info={realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()};
       upd({...info,shippingDone:'✅ 완료',shipDate:r.shipDate||today()});
       onShip&&onShip(r,info);}}>제품 발송 완료 →</button></div></>;
-  else if(st===3){
-    // 계약서는 이제 앱 밖에서 모두싸인으로 바로 보낸다(2026-09-29) — 여기선 이름·연락처만 받고 완료/거절만 표시.
+  else if(st===3&&IS_STAFF){
+    // 알바: 이름·연락처만 받고 완료/거절만 표시(모두싸인 발송은 관리자 PC에서만)
     action=<>
-      <p className="s2p-help">모두싸인으로 계약서를 바로 보냈다면, 서명 완료 후 계약완료를 눌러주세요.</p>
+      <p className="s2p-help">계약서는 관리자가 모두싸인으로 보내요. 서명 완료 후 계약완료를 눌러주세요.</p>
       {fld('이름','realName','홍길동')}
       {fld('연락처','phone','010-0000-0000')}
       <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:today(),realName:f.realName.trim(),phone:f.phone.trim()})}>계약완료 →</button>{reject}</div></>;
+  }
+  else if(st===3){
+    // 관리자(2026-10-13 다시 켬): 등록 양식 + 이 정보로 계약서를 만들어 관리자 PC 모두싸인 브리지(localhost:8791)로 보낸다
+    const ctT=contractTplFor(brand,r);
+    const ctVals=()=>({name:f.realName.trim()||'모델',fee:f.rate.replace(/[^0-9]/g,''),date:ymdFromDisp(f.contractDate)||ymdFromDisp(today()),
+      phone:f.phone.trim(),addr:f.address.trim(),rrn:f.rrn.trim()});
+    const previewCt=async()=>{
+      try{ downloadBuiltDocx(await buildBrandContract(brand,r,ctVals())); }
+      catch(e){ setMsMsg({err:'계약서 만들기 실패: '+(e&&e.message||e)}); }
+    };
+    const pickCt=async e=>{
+      const file=e.target.files&&e.target.files[0]; e.target.value=''; if(!file) return;
+      try{ const cf=await uploadContractFile(file); upd({contractFile:cf}); setMsAsk(''); setMsMsg({ok:`계약서 파일을 ${file.name} 로 바꿨습니다(이 건만).`}); }
+      catch(e2){ setMsMsg({err:'첨부 실패: '+(e2&&e2.message||e2)}); }
+    };
+    const sendMs=async()=>{
+      const name=f.realName.trim(), phone=f.phone.trim(), fee=f.rate.replace(/[^0-9]/g,''), date=ymdFromDisp(f.contractDate)||ymdFromDisp(today());
+      if(!name) return setMsMsg({err:'실명(계약자)을 입력하세요.'});
+      if(!/^010\d{8}$/.test(phone.replace(/[^0-9]/g,''))) return setMsMsg({err:'카카오톡으로 받을 010 휴대폰 번호를 입력하세요.'});
+      if(!fee) return setMsMsg({err:'모델료(진행 단가)를 입력하세요.'});
+      if(!sealCompanyOf(brand)) return setMsMsg({err:'직인 회사를 고르세요(광고주 대표자 (인)에 찍을 도장).'});
+      const ask=`${name} 님 · 카카오톡 ${phone} · ${Number(fee).toLocaleString()}원`;
+      if(msAsk!==ask){ setMsAsk(ask); setMsMsg(null); return; }
+      setMsAsk(''); setMsBusy(true); setMsMsg(null);
+      try{
+        const built=await buildBrandContract(brand,r,{name,fee,date,phone,addr:f.address.trim(),rrn:f.rrn.trim()});
+        const dataUrl=await bytesToDataUrl(built.bytes, built.type);
+        await sendModusign({ name, method:'KAKAO', to:phone, data:dataUrl, title:built.filename.replace(/\.docx$/i,''),
+          needRrn:!f.rrn.trim(), needAddr:!f.address.trim(), needPhone:false,
+          // 라벨 = '<브랜드>_협찬'(브리지가 찾고 없으면 만듦) · 직인 = '<회사>_사용인감'(회사 = 브랜드 설정, 없으면 파일명 앞)
+          brand:(brand&&brand.name)||'', seal:sealCompanyOf(brand),
+          by:(getAuth()||{}).username||'' });
+        upd({realName:name,phone,address:f.address.trim(),rate:f.rate.trim(),contractDate:f.contractDate.trim()||today(),contractSent:today()});
+        setMsMsg({ok:`${name} 님에게 모두싸인 서명 요청을 보냈습니다.`});
+      }catch(e){ setMsMsg({err:'모두싸인 발송 실패: '+(e&&e.message||e)}); }
+      finally{ setMsBusy(false); }
+    };
+    action=<>
+      <p className="s2p-help">아래 정보로 {(brand&&brand.name)||''} 계약서 양식을 채워 모두싸인(카카오톡)으로 보냅니다. 이 PC에서 「모두싸인_시작.bat」이 켜져 있어야 해요.</p>
+      {fld('실명 (계약자)','realName','홍길동')}
+      {fld('연락처 (카카오톡 받을 번호)','phone','010-0000-0000')}
+      {fld('주소','address','주소 입력',true)}
+      {fld('주민등록번호 (선택 — 비우면 모델이 서명할 때 입력 · 저장 안 됨)','rrn','')}
+      {fld('모델료 (진행 단가)','rate','예: 80,000')}
+      {fld('계약일자','contractDate','YY.MM.DD')}
+      {/* 계약서 파일 — 기본은 등록 양식(없으면 앱 내장 양식). 이 건만 다른 파일로 바꿀 수 있다 */}
+      <div className="s2p-fg ct-file"><label>계약서 파일</label>
+        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',fontSize:12}}>
+          <span className="ct-file-name" style={{fontWeight:600}}>📄 {ctT?(ctT.tpl?ctT.tpl.name:ctT.builtinName+'.docx'):'없음'}</span>
+          <span style={{color:'var(--muted)'}}>{ctT?ctT.kind:''}</span>
+        </div>
+        <div className="s2p-btns" style={{marginTop:6}}>
+          <button className="btn s2p-outline" disabled={msBusy||!ctT} onClick={previewCt} title="지금 입력한 값을 넣은 계약서를 내려받아 확인">⬇ 값 넣어 내려받기</button>
+          <button className="btn s2p-outline" disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 다른 파일로</button>
+          {r.contractFile&&<button className="btn s2p-outline" disabled={msBusy} onClick={()=>{upd({contractFile:null});setMsMsg(null);}}>↺ 기본으로</button>}
+          <input ref={ctRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickCt}/>
+        </div>
+      </div>
+      <div className="s2p-fg ct-seal"><label>직인 회사 <span style={{fontWeight:400,color:'var(--muted)'}}>· 광고주 대표자 (인)에 찍힘 · {(brand&&brand.name)||''} 전체에 저장</span></label>
+        <select value={sealCompanyOf(brand)} disabled={msBusy} onChange={e=>{onSaveSeal&&onSaveSeal(e.target.value);setMsAsk('');setMsMsg(null);}}>
+          <option value="">고르세요</option>
+          {[...new Set([...sealList, sealCompanyOf(brand)].filter(Boolean))].map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      {msAsk&&!msBusy&&<p className="s2p-help ms-ask" style={{color:'var(--text)'}}>{msAsk} 으로 보냅니다. 맞으면 버튼을 한 번 더 누르세요.</p>}
+      {msMsg&&<p className="s2p-help ms-msg" style={{color:msMsg.err?'var(--red)':'var(--green,#15803d)'}}>{msMsg.err||('✅ '+msMsg.ok)}</p>}
+      {r.contractSent&&!msMsg&&<p className="s2p-help">✍️ {r.contractSent} 모두싸인 발송함 — 서명되면 '계약완료'를 누르세요.</p>}
+      <div className="s2p-btns" style={{marginBottom:10}}>
+        <button className="btn btn-primary ms-send" disabled={msBusy} onClick={sendMs}>{msBusy?'모두싸인에서 보내는 중…':msAsk?'✅ 확인 — 보내기':'✍️ 모두싸인으로 계약서 보내기'}</button>
+        <a className="s2p-help" href="https://app.modusign.co.kr/esign/documents/documents" target="_blank" rel="noopener" style={{margin:0}}>문서함 ↗</a>
+      </div>
+      <div className="s2p-hr"/>
+      <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),rate:f.rate.trim(),realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()})}>계약완료 →</button>{reject}</div></>;
   }
   else if(st===4) action=<>
     {fld('광고 코드','adCode','광고 코드 입력')}
@@ -6819,6 +6903,11 @@ function AppMain({ authInfo, onLogout }) {
   }
   // 브랜드 안 협찬 제품 추가(해트케처럼 한 브랜드에 제품이 여러 개일 때)
   // ⚙ 제품·옵션 저장 — 이 브랜드의 협찬 제품 목록과 제품별 옵션(2026-10-13, 모든 브랜드)
+  // 모두싸인 계약서에 찍을 직인 회사(모두싸인 사인·도장의 '<회사>_사용인감') — 브랜드마다
+  function saveBrandSeal(v){
+    updateBrand(bId,b=>({...b,sealCompany:String(v||'').replace(/^주식회사\s*/,'').trim()}));
+    immediateRef.current=true;
+  }
   function saveBrandProducts(products,productOptions){
     updateBrand(bId,b=>({...b,products:[...new Set((products||[]).map(x=>String(x).trim()).filter(Boolean))],productOptions:productOptions||{}}));
   }
@@ -7451,6 +7540,7 @@ function AppMain({ authInfo, onLogout }) {
       {tab==='step2'&&<Step2View
         onAddProduct={addBrandProduct}
         onSaveProducts={saveBrandProducts}
+        onSaveSeal={saveBrandSeal}
         listing={<Step1View
         rows={brand.step1Rows||[]}
         onUpdate={updateStep1Row}
@@ -7479,6 +7569,7 @@ function AppMain({ authInfo, onLogout }) {
           brand={brand}
           isClaude={true}
           onSaveProducts={saveBrandProducts}
+          onSaveSeal={saveBrandSeal}
           actions={<>
             <button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={addClaudeS2Row}>＋ 인플루언서 추가</button>
             {(brand.claudeStep1Rows||[]).length>0&&<button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
