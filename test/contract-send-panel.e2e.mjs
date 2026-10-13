@@ -27,7 +27,7 @@ let savedData = { brands: [
     step2Rows: [S2('g2_a', '그래니채널', '안민영', { realName: '박바다', phone: '010-1111-2222', rate: '50000' })],
     shippingRows: [], reviewRows: [], privacyRows: [] },
   { id: 'hattke', name: '해트케', step1Rows: [], claudeStep1Rows: [], claudeStep2Rows: [],
-    step2Rows: [S2('h2_a', '해트채널', '안민영', { realName: '최하늘', phone: '010-3333-4444', rate: '70000' })],
+    step2Rows: [S2('h2_a', '해트채널', '안민영', { realName: '최하늘', phone: '010-3333-4444', rate: '70000', contractFile: { name: '옛파일.docx', url: '/api/pfile?id=900099' } })],
     shippingRows: [], reviewRows: [], privacyRows: [],
     contractTemplate: { name: '해트케_계약서.docx', url: '/api/pfile?id=900001', slots: { name: true, fee: true, date: true, phone: true, rrn: true, addr: true } } },
 ], settlements: {} };
@@ -61,6 +61,7 @@ const server = http.createServer((req, res) => {
     // 테스트가 서버 쪽에 직접 심어둔 계약서 양식은, 그걸 아직 모르는(먼저 로드된) 탭의 저장으로 지워지면 안 된다.
     if (b.action === 'save') { const tpl = savedData.brands[0].contractTemplate; savedData = b.data; if (tpl && !savedData.brands[0].contractTemplate) savedData.brands[0].contractTemplate = tpl; rev++; return send({ ok: true, rev }); }
     if (b.action === '_setTpl') { tplData = b.data; return send({ ok: true }); }
+    if (b.action === 'pfileSave') return send({ ok: true, id: 900002, url: '/api/pfile?id=900002' });
     if (b.action === 'pfileGet') return send(b.id === '900001' && tplData ? { ok: true, dataUrl: tplData } : { ok: false, error: 'no file' });
     if (b.action === 'contractMail') {
       mailCall = b;
@@ -144,7 +145,7 @@ await openCh('에이채널');
 console.log('\n[화면] 계약서발송/수집 단계 — 관리자 모두싸인 발송');
 let p = await panel();
 chk(['실명 (계약자)', '연락처 (카카오톡', '주소', '주민등록번호', '모델료', '계약일자', '✍️ 모두싸인으로 계약서 보내기', '계약서 파일', '계약완료'].every(s => p.includes(s)), '입력칸·모두싸인 버튼·계약완료', p);
-chk(/📄 드래프터_광고(모델)?계약서.docx/.test(p) && p.includes('기본 (등록 양식)'), '계약서 파일 기본 = 등록된 드래프터 양식', (p.match(/📄[^\n]*/) || [''])[0]);
+chk(/📄 드래프터_광고(모델)?계약서.docx/.test(p) && p.includes('베이스튠 전체 양식'), '계약서 파일 기본 = 베이스튠 전체 양식(드래프터)', (p.match(/📄[^\n]*/) || [''])[0]);
 chk(await evalJs(`[...document.querySelectorAll('.s2p input')].some(i=>i.value==='김하늘')`), '앞 단계에서 넣은 실명이 채워져 있음');
 
 console.log('\n[막기] 모델료 없으면 안 보냄 · 첫 클릭은 확인만');
@@ -203,6 +204,16 @@ chk(await evalJs(`document.querySelector('.s2p .ct-seal select').value`) === '',
 msCall = null;
 await click('.s2p button', '모두싸인으로 계약서 보내기'); await wait(300);
 chk(/직인 회사/.test(await msg()) && msCall === null, '직인 회사 없으면 안 보냄', await msg());
+chk((await panel()).includes('옛파일.docx'), '이 건에만 붙은 옛 파일 표시');
+console.log('\n[계약서 올리기] 발송 창에서 올리면 브랜드 전체 양식 · 바로 발송(다시 안 받아옴)');
+await evalJs(`(async()=>{const b=await window.buildContractDocx('basetune','','','',{});const f=new File([b.bytes],'해트케_협찬계약서.docx',{type:b.type});
+  const inp=document.querySelector('.s2p .ct-file input[type=file]');const dt=new DataTransfer();dt.items.add(f);inp.files=dt.files;inp.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
+await msgIs(/전체 계약서로 저장했습니다/);
+await wait(1800);
+chk(savedData.brands[2].contractTemplate && savedData.brands[2].contractTemplate.name === '해트케_협찬계약서.docx' && /900002/.test(savedData.brands[2].contractTemplate.url), '해트케 브랜드 양식으로 저장', savedData.brands[2].contractTemplate);
+chk(!savedData.brands[2].step2Rows[0].contractFile, '이 건의 옛 파일은 떼어냄');
+p = await panel();
+chk(p.includes('해트케_협찬계약서.docx') && p.includes('해트케 전체 양식'), '화면에 「해트케 전체 양식」', (p.match(/📄[^\n]*\n?[^\n]*/) || [''])[0]);
 await evalJs(`(()=>{const el=document.querySelector('.s2p .ct-seal select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(el,'신규회사');el.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
 await wait(1800);
 chk(savedData.brands[2].sealCompany === '신규회사', '고른 직인 회사가 해트케 브랜드에 저장', savedData.brands[2].sealCompany);

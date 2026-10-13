@@ -1112,7 +1112,7 @@ async function loadContractTemplate(t){
       try{ const j = await callApi('pfileGet',{id}); dataUrl = (j && j.dataUrl) || ''; why = (j && j.error) || why; }
       catch(e){ dataUrl=''; why = (e && e.message) || String(e); }
     }
-    if(!/^data:/.test(dataUrl)) throw new Error(`저장된 계약서 양식(${t.name||'파일'} · #${id})을 불러오지 못했습니다${why?' — '+why:''}. 📎 다른 파일로 다시 올려 주세요.`);
+    if(!/^data:/.test(dataUrl)) throw new Error(`저장된 계약서 양식(${t.name||'파일'} · #${id})을 불러오지 못했습니다${why?' — '+why:''}. 📎 계약서 올리기로 다시 올려 주세요.`);
   }
   if(!/^data:/.test(dataUrl)) throw new Error('저장된 계약서 양식을 불러오지 못했습니다.');
   const bin = atob(dataUrl.split(',')[1]||'');
@@ -3980,7 +3980,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
 }
 
 /* ─── STEP2 VIEW ─── */
-function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
+function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
@@ -4152,7 +4152,7 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, actions, listing,
     </div>
     </div>
     <CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
-    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSettle={onSettle} onShip={onShip} onUnship={onUnship} onSaveProducts={onSaveProducts} onSaveSeal={onSaveSeal}/>}
+    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSettle={onSettle} onShip={onShip} onUnship={onUnship} onSaveProducts={onSaveProducts} onSaveSeal={onSaveSeal} onUploadContract={onUploadContract}/>}
   </div>;
 }
 
@@ -4246,7 +4246,7 @@ function purgeRejected(b,cap){
   if(!n) return {b,n:0};
   return {b:{...b,step2Rows:s2.kept,claudeStep2Rows:cs2.kept,rejectedBilling:[...(b.rejectedBilling||[]),...billingAdd]},n};
 }
-function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship, onSaveProducts, onSaveSeal }){
+function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship, onSaveProducts, onSaveSeal, onUploadContract }){
   const rv=s2Review(brand,r);
   const [pcOpen,setPcOpen]=useState(false);   // ⚙ 제품·옵션 창
   const brandProdList=brandProducts(brand||{},[...((brand&&brand.step2Rows)||[]),...((brand&&brand.claudeStep2Rows)||[])]);
@@ -4344,7 +4344,13 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     };
     const pickCt=async e=>{
       const file=e.target.files&&e.target.files[0]; e.target.value=''; if(!file) return;
-      try{ const cf=await uploadContractFile(file); upd({contractFile:cf}); setMsAsk(''); setMsMsg({ok:`계약서 파일을 ${file.name} 로 바꿨습니다(이 건만).`}); }
+      // 여기서 올린 계약서 = 이 브랜드 전체 양식(2026-10-13 사용자: 두 군데 올리기 싫음). 이 건에만 붙어 있던 옛 파일은 뗀다.
+      try{
+        if(!onUploadContract) throw new Error('관리자만 올릴 수 있습니다.');
+        await onUploadContract(file);
+        if(r.contractFile) upd({contractFile:null});
+        setMsAsk(''); setMsMsg({ok:`${file.name} 을 ${(brand&&brand.name)||''} 전체 계약서로 저장했습니다 — 다음 건부터 다시 안 올려도 돼요.`});
+      }
       catch(e2){ setMsMsg({err:'첨부 실패: '+(e2&&e2.message||e2)}); }
     };
     const sendMs=async()=>{
@@ -4377,16 +4383,16 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
       {fld('주민등록번호 (선택 — 비우면 모델이 서명할 때 입력 · 저장 안 됨)','rrn','')}
       {fld('모델료 (진행 단가)','rate','예: 80,000')}
       {fld('계약일자','contractDate','YY.MM.DD')}
-      {/* 계약서 파일 — 기본은 등록 양식(없으면 앱 내장 양식). 이 건만 다른 파일로 바꿀 수 있다 */}
+      {/* 계약서 파일 — 여기서 올리면 브랜드 전체 양식(brand.contractTemplate)으로 저장. 없으면 앱 내장 양식 */}
       <div className="s2p-fg ct-file"><label>계약서 파일</label>
         <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',fontSize:12}}>
-          <span className="ct-file-name" style={{fontWeight:600}}>📄 {ctT?(ctT.tpl?ctT.tpl.name:ctT.builtinName+'.docx'):'없음'}</span>
-          <span style={{color:'var(--muted)'}}>{ctT?ctT.kind:''}</span>
+          <span className="ct-file-name" style={{fontWeight:600}}>📄 {ctT?(ctT.tpl?ctT.tpl.name:ctT.builtinName+'.docx'):'아직 없음'}</span>
+          <span style={{color:'var(--muted)'}}>{ctT?(ctT.tpl&&!r.contractFile?`${(brand&&brand.name)||''} 전체 양식`:ctT.kind):'— 📎로 올려 주세요(브랜드 전체에 저장)'}</span>
         </div>
         <div className="s2p-btns" style={{marginTop:6}}>
           <button className="btn s2p-outline" disabled={msBusy||!ctT} onClick={previewCt} title="지금 입력한 값을 넣은 계약서를 내려받아 확인">⬇ 값 넣어 내려받기</button>
-          <button className="btn s2p-outline" disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 다른 파일로</button>
-          {r.contractFile&&<button className="btn s2p-outline" disabled={msBusy} onClick={()=>{upd({contractFile:null});setMsMsg(null);}}>↺ 기본으로</button>}
+          <button className="btn s2p-outline" disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 계약서 올리기·바꾸기</button>
+          {r.contractFile&&<button className="btn s2p-outline" disabled={msBusy} onClick={()=>{upd({contractFile:null});setMsMsg(null);}}>↺ 브랜드 양식으로</button>}
           <input ref={ctRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickCt}/>
         </div>
       </div>
@@ -7373,6 +7379,7 @@ function AppMain({ authInfo, onLogout }) {
       if(d&&d.ok&&d.url) url=d.url;
     }catch(e){}
     if(!url) url=dataUrl;   // 첨부 저장소가 안 되면 본문에 보관(양식은 30KB 안팎이라 부담 없음)
+    CT_TPL_CACHE.set(url, buf);   // 방금 올린 양식은 다시 받아오지 않게
     updateBrand(bId, b=>({...b, contractTemplate:{
       name:file.name, url, size:file.size, at:today(), by:authInfo?.username||'', slots:an.slots
     }}));
@@ -7548,6 +7555,7 @@ function AppMain({ authInfo, onLogout }) {
         onAddProduct={addBrandProduct}
         onSaveProducts={saveBrandProducts}
         onSaveSeal={saveBrandSeal}
+        onUploadContract={uploadContractTemplate}
         listing={<Step1View
         rows={brand.step1Rows||[]}
         onUpdate={updateStep1Row}
@@ -7577,6 +7585,7 @@ function AppMain({ authInfo, onLogout }) {
           isClaude={true}
           onSaveProducts={saveBrandProducts}
           onSaveSeal={saveBrandSeal}
+          onUploadContract={uploadContractTemplate}
           actions={<>
             <button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={addClaudeS2Row}>＋ 인플루언서 추가</button>
             {(brand.claudeStep1Rows||[]).length>0&&<button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
