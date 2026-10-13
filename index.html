@@ -1442,14 +1442,61 @@ const SHIP_PRODUCT = { basetune:'베이스튠(1)', granny:'그래니살라(2)' }
 const shipProductOf = brandId => SHIP_PRODUCT[brandId] || '';
 // 브랜드 안의 제품 목록 — brand.products(수동 추가) + 행에 실제로 쓰인 제품명(2026-09-30, 해트케 합류)
 // 협찬 제품 옵션(2026-10-13) — 상세 창에서 고르고, 출고 상품명·출고 복사에 같이 붙는다. 행에는 opt:{그룹:값} 로 저장.
-// 새 제품에 옵션이 생기면 여기에 한 줄 추가.
+// 제품·옵션은 브랜드마다 PA 데이터(brand.productOptions)에 저장 — 상세 창 [⚙ 제품·옵션]에서 누구든 관리자가 추가한다.
+// 아래는 처음 만든 해트케 옵션(브랜드에 저장된 값이 없을 때만 쓰는 기본값).
 const PRODUCT_OPTIONS={
   '휘핑크림 차렵이불':[{k:'색상',v:['화이트 크림','얼그레이 크림','블루베리 크림']},{k:'사이즈',v:['S-SS','Q-K']}],
   '해트케 압력이불':[{k:'무게',v:['3.2kg','4.5kg','5.4kg','6.8kg','7.7kg']}],
 };
-const optionsOf=product=>PRODUCT_OPTIONS[String(product||'').trim()]||[];
+const optionsOf=(brand,product)=>{const p=String(product||'').trim(); const own=brand&&brand.productOptions;
+  return (own&&Object.prototype.hasOwnProperty.call(own,p))?(own[p]||[]):(PRODUCT_OPTIONS[p]||[]);};
 // '얼그레이 크림 / Q-K' — 그 제품의 옵션 순서대로, 고른 것만
-const optText=(product,opt)=>optionsOf(product).map(g=>(opt||{})[g.k]).filter(Boolean).join(' / ');
+const optText=(brand,product,opt)=>optionsOf(brand,product).map(g=>(opt||{})[g.k]).filter(Boolean).join(' / ');
+
+// ⚙ 제품·옵션 관리 — 이 브랜드의 협찬 제품과 옵션(색상·사이즈 등)을 추가·수정
+// 이미 행에 쓰인 제품은 이름을 못 바꾸고 못 지운다(그 행들의 제품이 끊기지 않게).
+function ProductConfigModal({ brand, onSave, onClose }){
+  const used=useMemo(()=>{const s=new Set();['step1Rows','step2Rows','claudeStep2Rows','shippingRows','reviewRows'].forEach(k=>(brand[k]||[]).forEach(r=>{const p=String(r.product||'').trim(); if(p) s.add(p);}));return s;},[brand]);
+  const [list,setList]=useState(()=>brandProducts(brand,[...(brand.step2Rows||[]),...(brand.claudeStep2Rows||[])])
+    .map(p=>({name:p,fixed:used.has(p),groups:optionsOf(brand,p).map(g=>({k:g.k,v:g.v.join(', ')}))})));
+  const set=(i,patch)=>setList(l=>l.map((x,j)=>j===i?{...x,...patch}:x));
+  const setG=(i,gi,patch)=>set(i,{groups:list[i].groups.map((g,k)=>k===gi?{...g,...patch}:g)});
+  const names=list.map(x=>x.name.trim()).filter(Boolean);
+  const dupName=names.length!==new Set(names).size;
+  function save(){
+    const products=[], productOptions={};
+    list.forEach(x=>{const n=x.name.trim(); if(!n) return; products.push(n);
+      productOptions[n]=x.groups.map(g=>({k:g.k.trim(),v:[...new Set(String(g.v).split(/[,\n]/).map(s=>s.trim()).filter(Boolean))]})).filter(g=>g.k&&g.v.length);});
+    onSave(products,productOptions);
+  }
+  return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal" style={{maxWidth:640}}>
+      <div className="modal-title">⚙ {brand.name} · 협찬 제품·옵션</div>
+      <div style={{fontSize:12,color:'var(--muted)',margin:'-4px 0 12px'}}>옵션 값은 쉼표로 구분 (예: 화이트, 블랙). 상세 창에서 제품 옆에 선택칸으로 나오고, 출고 상품명에 붙어요.</div>
+      <div style={{maxHeight:'60vh',overflowY:'auto'}}>
+        {list.map((x,i)=><div key={i} className="pc-prod" style={{borderTop:'1px solid var(--border)',padding:'12px 0'}}>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <input className="modal-inp" style={{flex:1,fontWeight:600}} value={x.name} placeholder="제품 이름" readOnly={x.fixed}
+              title={x.fixed?'이미 쓰인 제품이라 이름은 못 바꿔요':''} onChange={e=>set(i,{name:e.target.value})}/>
+            {!x.fixed&&<button className="btn btn-ghost" style={{padding:'4px 10px',fontSize:12}} onClick={()=>setList(l=>l.filter((_,j)=>j!==i))}>제품 빼기</button>}
+          </div>
+          {x.groups.map((g,gi)=><div key={gi} style={{display:'flex',gap:8,marginTop:8,paddingLeft:14}}>
+            <input className="modal-inp" style={{width:110}} value={g.k} placeholder="옵션 (예: 색상)" onChange={e=>setG(i,gi,{k:e.target.value})}/>
+            <input className="modal-inp" style={{flex:1}} value={g.v} placeholder="값 (예: 화이트, 블랙)" onChange={e=>setG(i,gi,{v:e.target.value})}/>
+            <button className="btn btn-ghost" style={{padding:'4px 8px',fontSize:12}} title="이 옵션 빼기" onClick={()=>set(i,{groups:x.groups.filter((_,k)=>k!==gi)})}>✕</button>
+          </div>)}
+          <button className="btn btn-ghost" style={{padding:'3px 10px',fontSize:12,marginTop:8,marginLeft:14}} onClick={()=>set(i,{groups:[...x.groups,{k:'',v:''}]})}>＋ 옵션 추가</button>
+        </div>)}
+        <button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,marginTop:10}} onClick={()=>setList(l=>[...l,{name:'',fixed:false,groups:[]}])}>＋ 제품 추가</button>
+      </div>
+      {dupName&&<div style={{color:'var(--red)',fontSize:12,marginTop:8}}>같은 이름의 제품이 두 개예요</div>}
+      <div className="modal-foot">
+        <button className="btn btn-ghost" onClick={onClose}>취소</button>
+        <button className="btn btn-primary" disabled={dupName} onClick={save}>저장</button>
+      </div>
+    </div>
+  </div>;
+}
 function brandProducts(brand, rows){
   const out=[...(brand&&brand.products||[])];
   (rows||[]).forEach(r=>{const v=String(r&&r.product||'').trim(); if(v&&!out.includes(v)) out.push(v);});
@@ -3923,7 +3970,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
 }
 
 /* ─── STEP2 VIEW ─── */
-function Step2View({ onAddProduct, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
+function Step2View({ onAddProduct, onSaveProducts, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
@@ -4095,7 +4142,7 @@ function Step2View({ onAddProduct, actions, listing, listingCount, brand, rows, 
     </div>
     </div>
     <CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
-    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSettle={onSettle} onShip={onShip} onUnship={onUnship}/>}
+    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSettle={onSettle} onShip={onShip} onUnship={onUnship} onSaveProducts={onSaveProducts}/>}
   </div>;
 }
 
@@ -4189,8 +4236,10 @@ function purgeRejected(b,cap){
   if(!n) return {b,n:0};
   return {b:{...b,step2Rows:s2.kept,claudeStep2Rows:cs2.kept,rejectedBilling:[...(b.rejectedBilling||[]),...billingAdd]},n};
 }
-function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship }){
+function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship, onSaveProducts }){
   const rv=s2Review(brand,r);
+  const [pcOpen,setPcOpen]=useState(false);   // ⚙ 제품·옵션 창
+  const brandProdList=brandProducts(brand||{},[...((brand&&brand.step2Rows)||[]),...((brand&&brand.claudeStep2Rows)||[])]);
   // 🤖 자동화 행의 정산(입금) 기록은 기존 규칙대로 컨택현황 행에 남으므로 그쪽도 본다
   const settledElsewhere=(brand&&brand.step2Rows||[]).some(x=>x.id!==r.id&&x.infSettled==='Y'&&s2nz(x.name)===s2nz(r.name));
   const st=s2Stage(settledElsewhere?{...r,infSettled:'Y'}:r,rv);
@@ -4303,20 +4352,21 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
         <div className="s2p-sec">기본 정보</div>
         {fld('이름 (별칭)','name','채널명')}
         <div className="s2p-fg"><label>협찬 제품</label>
-          {(brand&&brandProducts(brand,brand.step2Rows).length)
-            ? <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-                {/* 제품을 바꾸면 옵션은 비운다(다른 제품의 옵션이 남지 않게) */}
-                <select value={r.product||''} onChange={e=>upd({product:e.target.value,opt:{}})}>
-                  <option value="">미지정</option>
-                  {brandProducts(brand,brand.step2Rows).map(pn=><option key={pn} value={pn}>{pn}</option>)}
-                </select>
-                {optionsOf(r.product).map(g=><select key={g.k} value={(r.opt||{})[g.k]||''} title={g.k}
-                  onChange={e=>upd({opt:{...(r.opt||{}),[g.k]:e.target.value}})}>
-                  <option value="">{g.k} 선택</option>
-                  {g.v.map(v=><option key={v} value={v}>{v}</option>)}
-                </select>)}
-              </div>
-            : <input value={productOfRow(r,brand)} readOnly/>}
+          {/* 모든 브랜드(2026-10-13): 제품 선택 + 그 제품 옵션 선택. 제품·옵션은 [⚙ 제품·옵션]에서 추가 */}
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+            {/* 제품을 바꾸면 옵션은 비운다(다른 제품의 옵션이 남지 않게) */}
+            <select value={r.product||''} onChange={e=>upd({product:e.target.value,opt:{}})}>
+              <option value="">{brandProdList.length?'미지정':(productOfRow(r,brand)||'미지정')}</option>
+              {brandProdList.map(pn=><option key={pn} value={pn}>{pn}</option>)}
+            </select>
+            {optionsOf(brand,r.product).map(g=><select key={g.k} value={(r.opt||{})[g.k]||''} title={g.k}
+              onChange={e=>upd({opt:{...(r.opt||{}),[g.k]:e.target.value}})}>
+              <option value="">{g.k} 선택</option>
+              {g.v.map(v=><option key={v} value={v}>{v}</option>)}
+            </select>)}
+            {!IS_STAFF&&onSaveProducts&&<button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} title="이 브랜드의 협찬 제품·옵션 추가·수정" onClick={()=>setPcOpen(true)}>⚙ 제품·옵션</button>}
+          </div>
+          {pcOpen&&<ProductConfigModal brand={brand} onClose={()=>setPcOpen(false)} onSave={(p,o)=>{onSaveProducts(p,o);setPcOpen(false);}}/>}
         </div>
         {fld('팔로워 수','followers','12,400')}
         {fld('모집일','date','YY.MM.DD')}
@@ -4506,10 +4556,10 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
   const prodOfShip=r=>String(r.product||'').trim()||s2prod[nzs(r.channelName)]||s2prod[nzs(r.recipient)]||product||(brand&&brand.name)||'';
   // 협찬 제품 옵션(색상·사이즈·무게) — 출고 행에 없으면 인플루언서 관리 행에서 찾는다(2026-10-13)
   const s2opt=useMemo(()=>{const m={};
-    [...(step2Rows||[]),...((brand&&brand.claudeStep2Rows)||[])].forEach(x=>{const t=optText(x.product,x.opt); if(!t) return;
+    [...(step2Rows||[]),...((brand&&brand.claudeStep2Rows)||[])].forEach(x=>{const t=optText(brand,x.product,x.opt); if(!t) return;
       [x.name,x.realName].forEach(v=>{const k=nzs(v); if(k&&!m[k]) m[k]={p:String(x.product||'').trim(),t};});});
     return m;},[step2Rows,brand]);
-  const optOfShip=r=>{const own=optText(prodOfShip(r),r.opt); if(own) return own;
+  const optOfShip=r=>{const own=optText(brand,prodOfShip(r),r.opt); if(own) return own;
     const hit=s2opt[nzs(r.channelName)]||s2opt[nzs(r.recipient)]; return hit&&hit.p===prodOfShip(r)?hit.t:'';};
   const shipLabel=r=>{const o=optOfShip(r); return prodOfShip(r)+(o?' · '+o:'');};
   // 제품이 여러 개인 브랜드(해트케 등)는 제품별로 나눠 본다
@@ -6768,6 +6818,10 @@ function AppMain({ authInfo, onLogout }) {
     updateBrand(bId,b=>({...b,claudeStep2Rows:(b.claudeStep2Rows||[]).filter(r=>r.id!==id)}));
   }
   // 브랜드 안 협찬 제품 추가(해트케처럼 한 브랜드에 제품이 여러 개일 때)
+  // ⚙ 제품·옵션 저장 — 이 브랜드의 협찬 제품 목록과 제품별 옵션(2026-10-13, 모든 브랜드)
+  function saveBrandProducts(products,productOptions){
+    updateBrand(bId,b=>({...b,products:[...new Set((products||[]).map(x=>String(x).trim()).filter(Boolean))],productOptions:productOptions||{}}));
+  }
   function addBrandProduct(name){
     const n=String(name||'').trim(); if(!n) return;
     updateBrand(bId,b=>({...b,products:[...new Set([...(b.products||[]),n])]}));
@@ -7396,6 +7450,7 @@ function AppMain({ authInfo, onLogout }) {
       {tab==='dashboard'&&<DashboardView brand={brand} paList={paList} paFocus={dashPa} setPaFocus={setDashPa} isStaff={IS_STAFF} A={infA} go={go} settlements={settlements}/>}
       {tab==='step2'&&<Step2View
         onAddProduct={addBrandProduct}
+        onSaveProducts={saveBrandProducts}
         listing={<Step1View
         rows={brand.step1Rows||[]}
         onUpdate={updateStep1Row}
@@ -7423,6 +7478,7 @@ function AppMain({ authInfo, onLogout }) {
         <Step2View
           brand={brand}
           isClaude={true}
+          onSaveProducts={saveBrandProducts}
           actions={<>
             <button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={addClaudeS2Row}>＋ 인플루언서 추가</button>
             {(brand.claudeStep1Rows||[]).length>0&&<button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}

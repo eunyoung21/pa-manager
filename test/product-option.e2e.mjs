@@ -99,6 +99,7 @@ savedData = { paList: ['박민선', '기타'], brands: [
       { id: 'sh1', date: '26.10.13', channelName: '사랑', recipient: '김사랑', phone: '010', address: '서울', status: '처리중' },
       { id: 'sh2', date: '26.10.13', channelName: '압력이', recipient: '박압력', phone: '010', address: '부산', status: '처리중', product: '해트케 압력이불' },
     ] },
+  { ...EMPTY, id: 'basetune', name: '베이스튠', step2Rows: [S2('b1', '이어폰러', 'ear_one', { contactStatus: '진행중' })] },
 ], settlements: {} };
 const openCh = (n) => evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent===${J(n)});if(!s)throw new Error('채널명 없음 '+${J(n)});s.click();return 1})()`);
 const optSelects = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('협찬 제품')).querySelectorAll('select').length`);
@@ -136,6 +137,46 @@ await click('.step-tab', '출고'); await wait(800);
 const cells = await evalJs(`[...document.querySelectorAll('td[data-label="상품명"]')].map(t=>t.textContent.replace(/\\s+/g,' ').trim())`);
 chk(cells.some((t) => t === '휘핑크림 차렵이불 · 블루베리 크림 / S-SS'), '출고 행(제품 칸 비어 있음) → 인플루언서 관리에서 제품·옵션 찾아 표시', cells);
 chk(cells.some((t) => t === '해트케 압력이불 · 5.4kg'), '압력이불 · 5.4kg', cells);
+
+// ── 모든 브랜드: ⚙ 제품·옵션에서 직접 추가(2026-10-13) ──
+const B = () => savedData.brands.find((b) => b.id === 'basetune');
+const setInp = (sel, idx, v) => evalJs(`(()=>{const el=[...document.querySelectorAll(${J(sel)})][${idx}];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,${J(v)});el.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);
+const modalInputs = () => evalJs(`[...document.querySelectorAll('.overlay .modal input')].map(i=>i.value+(i.readOnly?'[고정]':''))`);
+
+console.log('\n[베이스튠 · 제품 없던 브랜드] ⚙ 제품·옵션 → 제품·옵션 추가');
+await click('.brand-tab', '베이스튠'); await wait(500);
+await click('.step-tab', '인플루언서 관리'); await wait(600);
+await openCh('이어폰러'); await waitFor(`document.querySelector('.s2p')`, '상세 창(베이스튠)');
+chk(await optSelects() === 1, '처음엔 제품 선택칸만', await optSelects());
+await click('.s2p button', '제품·옵션'); await waitFor(`document.querySelector('.overlay .modal')`, '제품·옵션 창');
+await click('.overlay .modal button', '＋ 제품 추가'); await wait(200);
+await setInp('.overlay .modal input', 0, '골전도 이어폰'); await wait(100);
+await click('.overlay .modal button', '＋ 옵션 추가'); await wait(200);
+await setInp('.overlay .modal input', 1, '색상'); await setInp('.overlay .modal input', 2, '블랙, 화이트,  블랙'); await wait(100);
+await click('.overlay .modal .modal-foot button', '저장'); await wait(1500);
+chk(JSON.stringify(B().products) === '["골전도 이어폰"]' && JSON.stringify(B().productOptions) === JSON.stringify({ '골전도 이어폰': [{ k: '색상', v: ['블랙', '화이트'] }] }), '저장: 제품 + 옵션(중복 값 정리)', { p: B().products, o: B().productOptions });
+await pick(0, '골전도 이어폰'); await wait(800);
+chk(await optSelects() === 2, '새 제품 고르면 색상 칸 생김', await optSelects());
+await pick(1, '화이트'); await wait(1500);
+const b1 = B().step2Rows.find((r) => r.id === 'b1');
+chk(b1.product === '골전도 이어폰' && b1.opt && b1.opt['색상'] === '화이트', '행에 제품·옵션 저장', { p: b1.product, o: b1.opt });
+await evalJs(`(()=>{const b=[...document.querySelectorAll('.s2p button')].find(x=>x.textContent.includes('닫기'));b&&b.click();return 1})()`); await wait(300);
+
+console.log('\n[해트케] 기존 옵션 값 추가 · 쓰인 제품 이름은 고정');
+await click('.brand-tab', '해트케'); await wait(500);
+await click('.step-tab', '인플루언서 관리'); await wait(600);
+await openCh('압력이'); await waitFor(`document.querySelector('.s2p')`, '상세 창(해트케)');
+await click('.s2p button', '제품·옵션'); await waitFor(`document.querySelector('.overlay .modal')`, '제품·옵션 창(해트케)');
+const mi = await modalInputs();
+chk(mi.includes('해트케 압력이불[고정]') && mi.includes('3.2kg, 4.5kg, 5.4kg, 6.8kg, 7.7kg'), '기존 제품(고정)·기본 옵션이 그대로 보임', mi);
+const wi = mi.indexOf('3.2kg, 4.5kg, 5.4kg, 6.8kg, 7.7kg');
+await setInp('.overlay .modal input', wi, '3.2kg, 4.5kg, 5.4kg, 6.8kg, 7.7kg, 9.0kg'); await wait(100);
+await click('.overlay .modal .modal-foot button', '저장'); await wait(1500);
+const hw = ((H().productOptions || {})['해트케 압력이불'] || [])[0];
+chk(hw && hw.k === '무게' && hw.v.includes('9.0kg') && ((H().productOptions || {})['휘핑크림 차렵이불'] || []).length === 2, '압력이불 무게에 9.0kg 추가 · 차렵이불 옵션 유지', H().productOptions);
+chk((H().step2Rows.find((r) => r.id === 's1').opt || {})['무게'] === '5.4kg', '이미 고른 옵션(5.4kg)은 그대로', H().step2Rows.find((r) => r.id === 's1').opt);
+const wOpts = await evalJs(`[...[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('협찬 제품')).querySelectorAll('select')[1].options].map(o=>o.value)`);
+chk(wOpts.includes('9.0kg'), '상세 창 무게 선택에 9.0kg 바로 나옴', wOpts);
 
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close(); finder.close();
