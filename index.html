@@ -750,7 +750,13 @@ window.needPDF=function(){return Promise.all([
     } else {
       var pr=px.match(/<w:pPr>[\s\S]*?<\/w:pPr>/);
       var cut = pr ? px.indexOf(pr[0])+pr[0].length : px.indexOf('>')+1;
-      np=px.slice(0,cut)+runXml+px.slice(cut);    // 기존 '(인)' 앞에 값 삽입
+      var rest=px.slice(cut);
+      // '        (인)' 처럼 공백으로 자리를 잡아 둔 칸: 넣은 이름 폭만큼 앞 공백을 줄여 (인)이 다음 줄로 밀리지 않게(해트케, 2026-10-13)
+      if(/\(\s*인\s*\)/.test(textOf(rest))){
+        var cutN=String(value).length*2+1;
+        rest=rest.replace(/(<w:t\b[^>]*>)( +)/, function(_,tag,sp){ return tag+sp.slice(Math.min(cutN, Math.max(0, sp.length-2))); });
+      }
+      np=px.slice(0,cut)+runXml+rest;    // 기존 '(인)' 앞에 값 삽입
     }
     return cellXml.slice(0,p.start)+np+cellXml.slice(p.end);
   }
