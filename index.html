@@ -1441,6 +1441,15 @@ const DEFAULT_BRANDS = [
 const SHIP_PRODUCT = { basetune:'베이스튠(1)', granny:'그래니살라(2)' };
 const shipProductOf = brandId => SHIP_PRODUCT[brandId] || '';
 // 브랜드 안의 제품 목록 — brand.products(수동 추가) + 행에 실제로 쓰인 제품명(2026-09-30, 해트케 합류)
+// 협찬 제품 옵션(2026-10-13) — 상세 창에서 고르고, 출고 상품명·출고 복사에 같이 붙는다. 행에는 opt:{그룹:값} 로 저장.
+// 새 제품에 옵션이 생기면 여기에 한 줄 추가.
+const PRODUCT_OPTIONS={
+  '휘핑크림 차렵이불':[{k:'색상',v:['화이트 크림','얼그레이 크림','블루베리 크림']},{k:'사이즈',v:['S-SS','Q-K']}],
+  '해트케 압력이불':[{k:'무게',v:['3.2kg','4.5kg','5.4kg','6.8kg','7.7kg']}],
+};
+const optionsOf=product=>PRODUCT_OPTIONS[String(product||'').trim()]||[];
+// '얼그레이 크림 / Q-K' — 그 제품의 옵션 순서대로, 고른 것만
+const optText=(product,opt)=>optionsOf(product).map(g=>(opt||{})[g.k]).filter(Boolean).join(' / ');
 function brandProducts(brand, rows){
   const out=[...(brand&&brand.products||[])];
   (rows||[]).forEach(r=>{const v=String(r&&r.product||'').trim(); if(v&&!out.includes(v)) out.push(v);});
@@ -4295,10 +4304,18 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
         {fld('이름 (별칭)','name','채널명')}
         <div className="s2p-fg"><label>협찬 제품</label>
           {(brand&&brandProducts(brand,brand.step2Rows).length)
-            ? <select value={r.product||''} onChange={e=>upd({product:e.target.value})}>
-                <option value="">미지정</option>
-                {brandProducts(brand,brand.step2Rows).map(pn=><option key={pn} value={pn}>{pn}</option>)}
-              </select>
+            ? <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+                {/* 제품을 바꾸면 옵션은 비운다(다른 제품의 옵션이 남지 않게) */}
+                <select value={r.product||''} onChange={e=>upd({product:e.target.value,opt:{}})}>
+                  <option value="">미지정</option>
+                  {brandProducts(brand,brand.step2Rows).map(pn=><option key={pn} value={pn}>{pn}</option>)}
+                </select>
+                {optionsOf(r.product).map(g=><select key={g.k} value={(r.opt||{})[g.k]||''} title={g.k}
+                  onChange={e=>upd({opt:{...(r.opt||{}),[g.k]:e.target.value}})}>
+                  <option value="">{g.k} 선택</option>
+                  {g.v.map(v=><option key={v} value={v}>{v}</option>)}
+                </select>)}
+              </div>
             : <input value={productOfRow(r,brand)} readOnly/>}
         </div>
         {fld('팔로워 수','followers','12,400')}
@@ -4487,6 +4504,14 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
       [x.name,x.realName].forEach(v=>{const k=nzs(v); if(k&&!m[k]) m[k]=pr;});});
     return m;},[step2Rows,brand]);
   const prodOfShip=r=>String(r.product||'').trim()||s2prod[nzs(r.channelName)]||s2prod[nzs(r.recipient)]||product||(brand&&brand.name)||'';
+  // 협찬 제품 옵션(색상·사이즈·무게) — 출고 행에 없으면 인플루언서 관리 행에서 찾는다(2026-10-13)
+  const s2opt=useMemo(()=>{const m={};
+    [...(step2Rows||[]),...((brand&&brand.claudeStep2Rows)||[])].forEach(x=>{const t=optText(x.product,x.opt); if(!t) return;
+      [x.name,x.realName].forEach(v=>{const k=nzs(v); if(k&&!m[k]) m[k]={p:String(x.product||'').trim(),t};});});
+    return m;},[step2Rows,brand]);
+  const optOfShip=r=>{const own=optText(prodOfShip(r),r.opt); if(own) return own;
+    const hit=s2opt[nzs(r.channelName)]||s2opt[nzs(r.recipient)]; return hit&&hit.p===prodOfShip(r)?hit.t:'';};
+  const shipLabel=r=>{const o=optOfShip(r); return prodOfShip(r)+(o?' · '+o:'');};
   // 제품이 여러 개인 브랜드(해트케 등)는 제품별로 나눠 본다
   const shipProducts=useMemo(()=>brandProducts(brand,[...(rows||[]),...(step2Rows||[])]),[brand,rows,step2Rows]);
   const [prodF,setProdF]=useState('all');
@@ -4592,12 +4617,12 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
             <td data-label="요청자"><Cell value={r.requester||''} onChange={v=>up(r.id,'requester',v)} type="select" chips options={PA_LIST}/></td>
             <td data-label="채널명"><Cell value={r.channelName||''} onChange={v=>up(r.id,'channelName',v)} placeholder={chanOf(r.recipient)||'채널명'} style={{color:'var(--blue)',fontSize:11,width:84}}/></td>
             <td data-label="수령자명"><span style={{display:'flex',alignItems:'center',gap:2}}>
-              <ShipCopyBtn row={r} product={prodOfShip(r)}/>
+              <ShipCopyBtn row={r} product={shipLabel(r)}/>
               <Cell value={r.recipient} onChange={v=>up(r.id,'recipient',v)} placeholder="수령자명" style={{flex:1,minWidth:0}}/>
             </span></td>
             <td data-label="연락처"><Cell value={r.phone} onChange={v=>up(r.id,'phone',v)}/></td>
             <td data-label="배송지 주소"><Cell value={r.address} onChange={v=>up(r.id,'address',v)}/></td>
-            <td data-label="상품명" style={{whiteSpace:'nowrap',fontWeight:600}}>{prodOfShip(r)}</td>
+            <td data-label="상품명" style={{whiteSpace:'nowrap',fontWeight:600}}>{prodOfShip(r)}{optOfShip(r)?<span style={{fontWeight:400,color:'var(--muted)'}}> · {optOfShip(r)}</span>:null}</td>
             <td data-label="비고"><Cell value={r.notes} onChange={v=>up(r.id,'notes',v)}/></td>
             <td data-label="처리 상태"><Cell value={r.status} onChange={v=>up(r.id,'status',v)} type="select" options={['처리중','✅ 완료']}/></td>
             <td data-label="출고일자"><Cell value={r.shipDate||''} onChange={v=>up(r.id,'shipDate',v)} type="date" style={{width:80}} placeholder="출고일"/></td>
