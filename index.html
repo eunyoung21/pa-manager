@@ -1211,7 +1211,7 @@ const MS_BRIDGE = window.MS_BRIDGE || 'http://localhost:8791';
 const SEAL_COMPANIES_DEFAULT = ['드래프터','썸웨어코드','발전존중','제노바','크롬스','데이즈','더스크랙'];
 // 브랜드의 직인 회사: ① 직접 고른 값(brand.sealCompany) ② 앱에 등록된 광고주 회사(CONTRACT_BRANDS)
 const sealCompanyOf = brand => String((brand&&brand.sealCompany)||(window.CONTRACT_BRANDS?.[brand&&brand.id]?.company)||'').replace(/^주식회사\s*/,'').trim();
-const MS_BRIDGE_DOWN = '모두싸인 브리지가 꺼져 있습니다 — 이 PC에서 「모두싸인_시작.bat」을 켜 주세요.';
+const MS_BRIDGE_DOWN = '모두싸인 브리지가 꺼져 있습니다 — 이 PC에서 「모두싸인 계약서 발송.bat」을 켜 주세요.';
 // 계약서에 쓸 양식: ① 이 건에만 첨부한 파일(r.contractFile) → ② 브랜드 등록 양식(📄 계약서 생성 ⚙) → ③ 앱 내장 양식(드래프터 등)
 function contractTplFor(brand, r){
   if(r && r.contractFile) return { tpl:r.contractFile, kind:'이 건만 바꾼 파일' };
@@ -4402,7 +4402,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
       finally{ setMsBusy(false); }
     };
     action=<>
-      <p className="s2p-help">아래 정보로 {(brand&&brand.name)||''} 계약서 양식을 채워 모두싸인(카카오톡)으로 보냅니다. 이 PC에서 「모두싸인_시작.bat」이 켜져 있어야 해요.</p>
+      <p className="s2p-help">아래 정보로 {(brand&&brand.name)||''} 계약서 양식을 채워 모두싸인(카카오톡)으로 보냅니다. 이 PC에서 「모두싸인 계약서 발송.bat」이 켜져 있어야 해요.</p>
       {fld('실명 (계약자)','realName','홍길동')}
       {fld('연락처 (카카오톡 받을 번호)','phone','010-0000-0000')}
       {fld('주소','address','주소 입력',true)}

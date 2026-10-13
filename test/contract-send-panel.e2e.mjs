@@ -178,8 +178,8 @@ await click('.s2p button', '모두싸인으로 계약서 보내기'); await wait
 await msgIs(/모두싸인 발송 실패.*로그인/);
 chk(true, '브리지 오류 표시'); msFails = false; msDown = true;
 await click('.s2p button', '모두싸인으로 계약서 보내기'); await wait(300); await click('.s2p button', '확인 — 보내기');
-await msgIs(/모두싸인_시작\.bat/);
-chk(true, '브리지 꺼짐 → 「모두싸인_시작.bat」 켜라는 안내'); msDown = false;
+await msgIs(/모두싸인 계약서 발송/);
+chk(true, '브리지 꺼짐 → 「모두싸인 계약서 발송.bat」 켜라는 안내'); msDown = false;
 await wait(1500);
 chk(JSON.stringify(row(0, '에이채널')) === beforeRow, '실패하면 데이터 안 바뀜');
 
