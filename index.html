@@ -697,11 +697,31 @@ window.needPDF=function(){return Promise.all([
           diag.hit.name=(diag.hit.name||0)+1; diag.via.name=diag.via.name||'양식 빈칸';
           if(v.name) edits.push({ start:m.index, end:m.index+m[0].length, text:v.name });
         }
+        // ②-b 이름 자리가 띄어쓰기로만 비어 있는 양식(해트케): '…와           (이하’모델’)'
+        {
+          re=/([와과])(\s{3,})(?=[(（]\s*이하\s*[‘’'"“”]?\s*모델)/g;
+          while((m=re.exec(flat))){
+            diag.hit.name=(diag.hit.name||0)+1; diag.via.name=diag.via.name||'양식 빈칸';
+            if(v.name) edits.push({ start:m.index+1, end:m.index+m[0].length, text:' '+v.name+' ' });
+          }
+        }
         // ③ 모델료 자리: ______원정 / ______ 원
         re=/[_＿]{3,}(?=\s*원)/g;
         while((m=re.exec(flat))){
           diag.hit.fee=(diag.hit.fee||0)+1; diag.via.fee=diag.via.fee||'양식 빈칸';
           if(v.fee) edits.push({ start:m.index, end:m.index+m[0].length, text:v.fee });
+        }
+        // ③-b 띄어쓰기로 비운 금액: '일금            원정'(해트케)
+        re=/(일금)(\s{3,})(?=원)/g;
+        while((m=re.exec(flat))){
+          diag.hit.fee=(diag.hit.fee||0)+1; diag.via.fee=diag.via.fee||'양식 빈칸';
+          if(v.fee) edits.push({ start:m.index+m[1].length, end:m.index+m[0].length, text:' '+v.fee+' ' });
+        }
+        // ④-b 값 없이 끝나는 '계약일자 :'(해트케) — 콜론 뒤에 날짜
+        re=/^(\s*계약\s*일자\s*[:：])\s*$/;
+        if((m=re.exec(flat))){
+          diag.hit.date=(diag.hit.date||0)+1; diag.via.date=diag.via.date||'양식 빈칸';
+          if(v.date) edits.push({ start:m[1].length-1, end:m[1].length, text:m[1].slice(-1)+' '+v.date });
         }
         // ④ 계약일자 자리: '년   월   일' (숫자 없이 빈칸)
         re=/[_＿\s]*년[_＿\s]*월[_＿\s]*일/g;
