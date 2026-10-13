@@ -1105,8 +1105,14 @@ async function loadContractTemplate(t){
   let dataUrl = t.url;
   const id = pfileId(t.url);
   if(id){
-    const j = await callApi('pfileGet',{id});
-    dataUrl = (j && j.dataUrl) || '';
+    // 막 올린 파일은 드라이브 이름 검색에 늦게 잡힐 때가 있어(2026-10-13 해트케) 몇 번 다시 시도한다
+    let why='';
+    for(let k=0;k<4&&!/^data:/.test(dataUrl);k++){
+      if(k) await new Promise(r=>setTimeout(r,2000*k));
+      try{ const j = await callApi('pfileGet',{id}); dataUrl = (j && j.dataUrl) || ''; why = (j && j.error) || why; }
+      catch(e){ dataUrl=''; why = (e && e.message) || String(e); }
+    }
+    if(!/^data:/.test(dataUrl)) throw new Error(`저장된 계약서 양식(${t.name||'파일'} · #${id})을 불러오지 못했습니다${why?' — '+why:''}. 📎 다른 파일로 다시 올려 주세요.`);
   }
   if(!/^data:/.test(dataUrl)) throw new Error('저장된 계약서 양식을 불러오지 못했습니다.');
   const bin = atob(dataUrl.split(',')[1]||'');
@@ -1204,6 +1210,7 @@ async function uploadContractFile(file){
   const dataUrl = await bytesToDataUrl(new Uint8Array(await file.arrayBuffer()), file.type||'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   let url='';
   try{ const d=await callApi('pfileSave',{data:dataUrl,name:file.name,type:file.type||'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}); if(d&&d.ok&&d.url) url=d.url; }catch(e){}
+  if(url) CT_TPL_CACHE.set(url, new Uint8Array(await file.arrayBuffer()));   // 방금 올린 파일은 다시 받아오지 않게
   return { name:file.name, url:url||dataUrl, size:file.size, at:today(), slots:an.slots };
 }
 async function sendModusign(payload){
