@@ -377,6 +377,12 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 .talk-item{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:12px;}
 .talk-item:hover{background:var(--surface2);}
 .talk-item .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* 끝난 이유 배지·메모 한 줄(2026-10-14) — 새 칸 없이 기존 자리에 */
+.end-chip{display:inline-block;border-radius:20px;padding:2px 9px;font-weight:600;font-size:11px;white-space:nowrap;}
+.memo-line{font-size:11px;font-weight:400;color:var(--muted);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px;}
+.talk-item .memo-line{max-width:100%;}
+.end-sum{font-size:12px;color:var(--muted);margin:-2px 0 10px;}
+.end-sum b{font-weight:700;margin-right:2px;}
 .talk-dup{background:#fffbeb;border:1px solid #fcd34d;color:#b45309;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px;}
 .todo-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;}
 .todo-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;}
@@ -2227,6 +2233,14 @@ function parseDateKey(s){
   return null;
 }
 function parseYM(d){const dk=parseDateKey(d);return dk?dk.slice(0,7):null;}
+/* 끝난 이유(2026-10-14) — 거절 버튼은 하나, 누른 시점으로 이유가 정해진다.
+   무응답(DM 후 7일 자동) · 반려(승인 전) · 불발(승인 후 성사 전) · 하차(성사 후).
+   예전 '거절' 기록도 같은 규칙으로 읽는다. 불발·하차는 자동 삭제하지 않는다(다시 DM 안 가게). */
+const END_KINDS={'무응답':'#888888','반려':'#e74c3c','불발':'#f97316','하차':'#8b5cf6'};
+const autoEndReason=r=>(r&&r.dealDone==='Y')?'하차':(r&&r.approved==='Y')?'불발':'반려';
+const endKind=r=>{ if(!r||!(normStatus(r.contactStatus)==='거절'||r.endReason)) return '';
+  return END_KINDS[r.endReason]?r.endReason:autoEndReason(r); };
+const memoLine=m=>String(m||'').split('\n').map(x=>x.trim()).find(Boolean)||'';
 // 정산완료일(YY.MM.DD 등)로부터 경과한 일수. 사본 폐기(완료 후 30일) 카운트다운에 사용.
 function daysSinceKey(s){const k=parseDateKey(s);if(!k)return null;const[y,m,d]=k.split('-').map(Number);const then=new Date(y,m-1,d);const now=new Date();const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());return Math.floor((t0-then)/86400000);}
 // 날짜(YY.MM.DD 등)에 n일 더해 YY.MM.DD로 반환 — 출고일+7일 같은 예상일 계산용. 못 읽으면 ''.
@@ -3454,7 +3468,7 @@ const STAGE_IDX=Object.fromEntries(INF_STAGES.map(s=>[s.key,s.id]));
 const INF_NEXT_LABEL={0:'DM 발송',1:'답장옴',2:'제품 발송',3:'제품 발송 완료',4:'계약 완료',5:'수집 완료',6:'세팅·입금 완료'};
 const AUTO_PA='🤖 자동화';
 const nzName=s=>String(s||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,'');
-const infStageInfo=inf=>inf.status==='rejected'?{name:inf.endReason||'거절',short:inf.endReason||'거절',color:inf.endReason==='무응답'?'#888888':'#e74c3c'}:inf.status==='done'?{name:'완료',short:'완료',color:'#22c55e'}:INF_STAGES[inf.stage];
+const infStageInfo=inf=>inf.status==='rejected'?{name:inf.endReason||'반려',short:inf.endReason||'반려',color:END_KINDS[inf.endReason]||'#e74c3c'}:inf.status==='done'?{name:'완료',short:'완료',color:'#22c55e'}:INF_STAGES[inf.stage];
 
 function buildInfluencers(brand,paList){
   const P=v=>{const s=String(v||'').trim(); if(!s) return ''; return (paList||[]).includes(s)?s:(sanitizePA(s)||s);};
@@ -3499,7 +3513,7 @@ function buildInfluencers(brand,paList){
     const done=!!contact&&(c.stage==='done'||c.infSettled==='Y'||!!c.privacyPurged);
     usedName.add(k);
     out.push({id:key,name,src,step1,contact,review,shipping,privacy:pv,realName,pa,shipped,stage,listType,dmType,noContract:noContractOf(brand,c),
-      endReason:ended?(c.endReason||'거절'):'',
+      endReason:ended?(endKind(c)||'반려'):'',
       status:ended?'rejected':done?'done':'active',
       link:c.link||(step1&&step1.link)||'',
       followers:c.followers||(step1&&step1.followers)||'',
@@ -3542,7 +3556,7 @@ function useInfActions(A){
     // ② 답장 확인 — 자동 건은 담당자 칩(pa 지정+답장옴), 수동 건은 pa 유지
     replied:(inf,pa)=>up(inf,{replied:'Y',replyDate:td,stage:'replied',contactStatus:'진행중',...(pa!==undefined?{pa}:{})}),
     noReply:inf=>up(inf,{endReason:'무응답',contactStatus:'거절',rejectDate:td}),
-    reject:inf=>{ if(inf.contact||inf.src!=='s1') up(inf,{endReason:'거절',contactStatus:'거절',rejectDate:td}); else A.updateStep1Row(inf.step1.id,{reviewStatus:'반려'}); },
+    reject:inf=>{ if(inf.contact||inf.src!=='s1') up(inf,{endReason:autoEndReason(inf.contact),contactStatus:'거절',rejectDate:td}); else A.updateStep1Row(inf.step1.id,{reviewStatus:'반려'}); },
     restore:inf=>{ if(inf.contact) up(inf,{endReason:'',contactStatus:inf.stage>=2?'진행중':inf.contact.dmSent==='Y'?'컨택 완료':'컨택 전',rejectDate:''}); else if(inf.step1) A.updateStep1Row(inf.step1.id,{reviewStatus:'검수대기'}); },
     setPa:(inf,pa)=>{ if(inf.step1) A.updateStep1Row(inf.step1.id,{pa}); if(inf.contact) up(inf,{pa}); if(inf.review) A.updateReviewRow(inf.review.id,{pa}); },
     // 이 사람에게 지금 누를 버튼이 '다음 처리' 하나인가 (칩 선택이 필요한 자동 DM 건·자동 DM 대기 건은 아님)
@@ -3588,6 +3602,8 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const act=useInfActions(A);
   const infs=paFocus?infsAll.filter(i=>(i.pa||'미지정')===paFocus):infsAll;
   const active=infs.filter(i=>i.status==='active');
+  // 하차했는데 제품을 이미 보낸 사람 → 관리자 할 일(회수 확인)
+  const dropShip=infs.filter(i=>i.status==='rejected'&&i.endReason==='하차'&&i.shipped&&i.contact&&i.contact.returnChecked!=='Y');
   const byStage=id=>active.filter(i=>i.stage===id);
   // 📦 출고 정보 복사 필요 — 알바가 컨택현황에서 제품 발송을 완료하면 출고 탭에 '처리중'으로 자동 등록되는데,
   // 그건 실제 회사 출고 시트로 옮겨 적어야 할 일이 남았다는 뜻(2026-09-29). 관리자가 옮겨 적고 출고 탭에서
@@ -3622,8 +3638,19 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   // 이미 다 처리된 건(최종완료 = 영상·광고코드까지 끝, 광고세팅·입금완료 단계)은 할 일에 안 띄운다 — 카드 숫자에는 그대로 둠
   const bossStages=INF_STAGES.filter(s=>s.role==='boss'&&s.key!=='adset');
   const bossItems=bossStages.flatMap(s=>byStage(s.id));
-  const bossTodo=bossItems.length?[
+  const dropItem=i=>{ const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
+    return <div key={i.id} className="todo-item" onClick={()=>go('manage','all',paFocus,'',i)}>
+      <span className="todo-name">{i.name}</span>
+      <div className="todo-right">
+        {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
+        <span className="todo-stage" style={{background:END_KINDS['하차']+'22',color:END_KINDS['하차']}}>하차 · 제품 회수</span>
+        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title="회수 확인 끝"
+          onClick={e=>{e.stopPropagation(); act.up(i,{returnChecked:'Y'});}}>✓</button>
+      </div>
+    </div>; };
+  const bossTodo=(bossItems.length||dropShip.length)?[
     <div key="boss" className="todo-group">
+      {dropShip.map(dropItem)}
       {bossItems.slice(0,MAX).map(item)}{moreRow(bossItems.length,()=>go('manage','all',paFocus))}
     </div>
   ]:[];
@@ -3631,6 +3658,13 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   // 매니저 할 일 — 매니저가 여러 명이라 사람별로 묶는다
   // 💬 담당자별 소통 중 — DM을 보내 대화가 시작된 뒤 아직 끝나지 않은 사람(완료·거절·DM 전은 뺀다)
   // 답장옴~광고코드(2~5단계)만. DM만 보내고 답장 전인 사람은 뺐다(2026-10-14 사용자 요청 — 소통 중이 아님, 수는 DM발송 카드에 있음).
+  // 이번 달 종료 한 줄(2026-10-14) — 지금 남아 있는 종료 건 + 이미 자동 삭제된 수(brand.endCounts)
+  const thisYM=parseYM(today());
+  const endSum=useMemo(()=>{ const c={};
+    if(!paFocus) Object.entries((brand.endCounts||{})[thisYM]||{}).forEach(([k,v])=>{c[k]=(c[k]||0)+v;});
+    [...(brand.step2Rows||[]),...(brand.claudeStep2Rows||[])].forEach(r=>{ const k=endKind(r); if(!k||parseYM(r.rejectDate)!==thisYM) return;
+      if(paFocus&&(sanitizePA(r.pa)||'미지정')!==paFocus) return; c[k]=(c[k]||0)+1; });
+    return Object.keys(END_KINDS).filter(k=>c[k]).map(k=>[k,c[k]]); },[brand,paFocus,thisYM]);
   const talkBy={};
   {
     const seen=new Set();
@@ -3674,6 +3708,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       <div className="role-header" style={{color:'var(--text)',marginTop:18}}>💬 담당자별 소통 중
         <span className="text-muted" style={{fontWeight:400}}>— 답장 온 뒤 진행 중인 사람 · 이름을 누르면 상세</span>
       </div>
+      {endSum.length>0&&<div className="end-sum">이번 달 종료 · {endSum.map(([k,n],j)=><span key={k}>{j?' · ':''}<b style={{color:END_KINDS[k]}}>{k}</b> {n}</span>)}</div>}
       {dupTalk.length>0&&!paFocus&&<div className="talk-dup">⚠️ 두 명 이상이 동시에 연락 중: {dupTalk.slice(0,8).map(d=>d.name+' ('+d.pas.join(', ')+')').join(' · ')}{dupTalk.length>8?` 외 ${dupTalk.length-8}명`:''}</div>}
       {talkOrder.length===0?<div className="todo-box" style={{marginBottom:20}}><div className="todo-none">소통 중인 인플루언서 없음</div></div>:
       <div className="talk-grid">
@@ -3696,7 +3731,8 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
               {q&&l.length>0&&!l.some(hit)&&<div className="todo-none" style={{padding:'6px 8px'}}>'{talkQ[p]}' 없음</div>}
               {l.filter(hit).map(({inf:i,k})=>{const s=INF_STAGES[i.stage];
                 return <div key={i.id} className="talk-item" onClick={()=>go('manage','all',paFocus,'',i)} title={i.name}>
-                  <span className="nm">{i.name}</span>
+                  <span style={{minWidth:0,flex:1}}><div className="nm">{i.name}</div>
+                    {memoLine(i.contact&&i.contact.memo)&&<div className="memo-line" title={i.contact.memo}>{memoLine(i.contact.memo)}</div>}</span>
                   <span style={{display:'flex',gap:5,alignItems:'center',flexShrink:0}}>
                     {k&&<span className="text-muted" style={{fontSize:10}}>{String(k).slice(5).replace('-','.')}</span>}
                     <span className="todo-stage" style={{background:s.color+'22',color:s.color}}>{lbl(i)}</span>
@@ -3721,7 +3757,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       </div>}
       <div className="todo-grid">
         <div className="todo-box">
-          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length})</span>}</h3>
+          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length+dropShip.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length+dropShip.length})</span>}</h3>
           {bossTodo.length?bossTodo:empty}
         </div>
         <div className="todo-box">
@@ -4065,7 +4101,7 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
     onUpdate(r.id,patch);}
   function setDm(r,v){const patch={dmSent:v};if(v==='Y'&&!r.dmDate)patch.dmDate=today();if(v!=='Y')patch.dmDate='';onUpdate(r.id,patch);}
   // 진행 상태를 '거절'로 바꾸면 거절일 자동 기록(그달 DM 수당 정산 기준), 벗어나면 제거.
-  function setStatus(r,v){const patch={contactStatus:v};if(v==='거절'&&!r.rejectDate)patch.rejectDate=today();if(v!=='거절'){patch.rejectDate='';patch.endReason='';}onUpdate(r.id,patch);}
+  function setStatus(r,v){const patch={contactStatus:v};if(v==='거절'){if(!r.rejectDate)patch.rejectDate=today();if(!END_KINDS[r.endReason])patch.endReason=autoEndReason(r);}if(v!=='거절'){patch.rejectDate='';patch.endReason='';}onUpdate(r.id,patch);}
   // 답장(매니저가 체크) — 답장 온 사람만 따로 모아보기 위한 표시. Y로 바꾸면 답장일 자동 기록.
   function setReplied(r,v){const patch={replied:v};if(v==='Y'&&!r.replyDate)patch.replyDate=today();if(v!=='Y'){patch.replyDate='';}onUpdate(r.id,patch);}
   // 승인(관리자만) — 승인하면 그때부터 매니저가 소통 진행. 승인 시 답장도 자동 Y(답장 없이 승인되는 일 방지).
@@ -4221,6 +4257,7 @@ function shouldPurgeReject(r){
   if(normStatus(r.contactStatus)!=='거절') return false;
   if(r.importedFrom) return false;   // 다른 프로그램에서 옮겨온 기록은 자동 삭제하지 않는다(2026-09-30)
   if(r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) return false; // 실제 진행된 건은 보호
+  const ek=endKind(r); if(ek==='불발'||ek==='하차') return false;   // 불발·하차는 남긴다(2026-10-14)
   const d=daysSinceKey(r.rejectDate);
   return d!=null&&d>=REJECT_PURGE_DAYS;
 }
@@ -4228,7 +4265,7 @@ function shouldPurgeReject(r){
 // 30%씩 나눠 지운다(저장 끝나면 다음 묶음). 오래된 거절부터. 안전장치 자체는 그대로 둔다(2026-09-22).
 const REJECT_PURGE_CAP=0.3;
 function purgeRejected(b,cap){
-  const billingAdd=[];
+  const billingAdd=[], endAdd={};   // endAdd: 지운 사람 수를 달·이유별로 남겨 대시보드 '이번 달 종료'가 줄지 않게
   const sweep=(rows,claude)=>{
     rows=rows||[];
     let due=rows.filter(shouldPurgeReject);
@@ -4239,6 +4276,7 @@ function purgeRejected(b,cap){
     rows.forEach(r=>{
       if(!dueSet.has(r)){ kept.push(r); return; }
       cut++;
+      { const ym=parseYM(r.rejectDate), ek=endKind(r); if(ym&&ek){ endAdd[ym]=endAdd[ym]||{}; endAdd[ym][ek]=(endAdd[ym][ek]||0)+1; } }
       if(!claude&&r.dmSent==='Y'&&r.name){   // 정산은 이름 있는 행만 센다 — 같은 기준으로 옮겨 담아야 금액이 그대로 // 자동화는 DM 자동발송이라 수당 없음 — 컨택현황만 옮겨 담는다
         const ym=parseYM(r.dmDate)||parseYM(r.date);
         if(ym) billingAdd.push({id:'rb_'+r.id,pa:sanitizePA(r.pa)||'미지정',ym,at:today(),name:r.name});
@@ -4249,7 +4287,9 @@ function purgeRejected(b,cap){
   const s2=sweep(b.step2Rows,false), cs2=sweep(b.claudeStep2Rows,true);
   const n=s2.cut+cs2.cut;
   if(!n) return {b,n:0};
-  return {b:{...b,step2Rows:s2.kept,claudeStep2Rows:cs2.kept,rejectedBilling:[...(b.rejectedBilling||[]),...billingAdd]},n};
+  const endCounts={...(b.endCounts||{})};
+  Object.entries(endAdd).forEach(([ym,o])=>{ const c={...(endCounts[ym]||{})}; Object.entries(o).forEach(([k,v])=>{c[k]=(c[k]||0)+v;}); endCounts[ym]=c; });
+  return {b:{...b,step2Rows:s2.kept,claudeStep2Rows:cs2.kept,rejectedBilling:[...(b.rejectedBilling||[]),...billingAdd],endCounts},n};
 }
 function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship, onSaveProducts, onSaveSeal, onUploadContract }){
   const rv=s2Review(brand,r);
@@ -4305,7 +4345,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
 
   let action=null;
   if(st==='rejected') action=<>
-    <p className="s2p-help">{r.endReason==='무응답'?`DM 후 ${NO_REPLY_DAYS}일 동안 답장이 없어 자동으로 거절로 옮겼어요.`:'거절 처리된 인플루언서입니다.'}{r.rejectDate?` (거절일 ${r.rejectDate})`:''}</p>
+    <p className="s2p-help"><span className="end-chip" style={{background:END_KINDS[endKind(r)]+'22',color:END_KINDS[endKind(r)],marginRight:6}}>{endKind(r)}</span>{r.endReason==='무응답'?`DM 후 ${NO_REPLY_DAYS}일 동안 답장이 없어 자동으로 옮겼어요.`:{반려:'승인 전에 끝난 인플루언서예요.',불발:'승인 후 협업이 성사되지 않았어요.',하차:'협업 성사 후 진행을 그만뒀어요.'}[endKind(r)]||''}{r.rejectDate?` (거절일 ${r.rejectDate})`:''}</p>
     <button className="btn s2p-outline" onClick={()=>H.current.setStatus(r,r.dmSent==='Y'?'진행중':'컨택 전')}>↩ 복구</button></>;
   else if(st==='done') action=<>
     <p style={{color:'var(--green)',fontWeight:700,marginBottom:6}}>✓ 모든 단계 완료</p>
@@ -4505,11 +4545,14 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                 {/* 🚫 거절 버튼은 뺐다(2026-09-22) — 거절은 승인 칸의 N으로 */}
               </span></td>
               <td data-label="날짜"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
-              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}><span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>{r.product?<span className="prod-badge">{r.product}</span>:null}</td>
+              <td data-label="채널명" style={{fontWeight:500,whiteSpace:'nowrap'}}><span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>{r.product?<span className="prod-badge">{r.product}</span>:null}
+                {!isClaude&&endKind(r)&&<span className="end-chip" style={{marginLeft:6,background:END_KINDS[endKind(r)]+'22',color:END_KINDS[endKind(r)]}}>{endKind(r)}</span>}
+                {memoLine(r.memo)&&<div className="memo-line" title={r.memo}>{memoLine(r.memo)}</div>}</td>
               <td data-label="팔로워" className="td-dim"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
               <td data-label="담당 PA" style={{textAlign:'center',whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
                 style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
-              {isClaude&&<td data-label="진행 상태" style={{textAlign:'center'}}><Cell value={normStatus(r.contactStatus)} onChange={v=>H.current.setStatus(r,v)} type="select" options={CONTACT_STATUS}
+              {isClaude&&endKind(r)&&<td data-label="진행 상태" style={{textAlign:'center'}}><span className="end-chip" title={r.rejectDate?'종료 '+r.rejectDate:''} style={{background:END_KINDS[endKind(r)]+'22',color:END_KINDS[endKind(r)]}}>{endKind(r)}</span></td>}
+              {isClaude&&!endKind(r)&&<td data-label="진행 상태" style={{textAlign:'center'}}><Cell value={normStatus(r.contactStatus)} onChange={v=>H.current.setStatus(r,v)} type="select" options={CONTACT_STATUS}
                 style={r.contactStatus?{...csColor(r.contactStatus),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap'}:undefined}/></td>}
               <td data-label="DM발송" style={{textAlign:'center'}}><YN value={r.dmSent} onChange={v=>H.current.setDm(r,v)}/></td>
               {isClaude&&<td data-label="답장" style={{textAlign:'center'}} title={r.replyDate?`답장일 ${r.replyDate}`:'답장 오면 체크'}><YN value={r.replied} onChange={v=>H.current.setReplied(r,v)}/></td>}
@@ -4522,7 +4565,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                       <button className={`yn-btn ${r.approved==='Y'?'yn-y':'yn-n'}`} style={{padding:'2px 7px'}} title={r.approved==='Y'?'승인 취소':'승인 — 매니저가 소통 진행'}
                         onClick={()=>{if(r.approved==='Y'){H.current.setApproved(r,'N');return;}const patch={approved:'Y',approveDate:r.approveDate||today()};if(r.replied!=='Y'){patch.replied='Y';if(!r.replyDate)patch.replyDate=today();}if(isRej(r)){patch.contactStatus='진행중';patch.rejectDate='';}H.current.onUpdate(r.id,patch);}}>Y</button>
                       <button className={`yn-btn ${isRej(r)?'yn-rej':'yn-n'}`} style={{padding:'2px 7px'}} title={isRej(r)?'거절 취소 (컨택 전으로 되돌림)':'승인 안 함 → 거절(보관)으로 이동'}
-                        onClick={()=>{if(isRej(r)){H.current.setStatus(r,'컨택 전');return;}const patch={approved:'',approveDate:'',contactStatus:'거절'};if(!r.rejectDate)patch.rejectDate=today();H.current.onUpdate(r.id,patch);}}>N</button>
+                        onClick={()=>{if(isRej(r)){H.current.setStatus(r,'컨택 전');return;}const patch={approved:'',approveDate:'',contactStatus:'거절',endReason:autoEndReason(r)};if(!r.rejectDate)patch.rejectDate=today();H.current.onUpdate(r.id,patch);}}>N</button>
                     </span>}
               </td>}
               <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>H.current.setDeal(r,v)}/></td>
