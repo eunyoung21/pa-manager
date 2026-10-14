@@ -141,7 +141,7 @@ chk(cells.some((t) => t === '해트케 압력이불 · 5.4kg'), '압력이불 ·
 // ── 모든 브랜드: ⚙ 제품·옵션에서 직접 추가(2026-10-13) ──
 const B = () => savedData.brands.find((b) => b.id === 'basetune');
 const setInp = (sel, idx, v) => evalJs(`(()=>{const el=[...document.querySelectorAll(${J(sel)})][${idx}];Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,${J(v)});el.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);
-const modalInputs = () => evalJs(`[...document.querySelectorAll('.overlay .modal input')].map(i=>i.value+(i.readOnly?'[고정]':''))`);
+const modalInputs = () => evalJs(`[...document.querySelectorAll('.overlay .modal input:not([type=checkbox])')].map(i=>i.value+(i.readOnly?'[고정]':''))`);
 
 console.log('\n[베이스튠 · 제품 없던 브랜드] ⚙ 제품·옵션 → 제품·옵션 추가');
 await click('.brand-tab', '베이스튠'); await wait(500);
@@ -150,9 +150,9 @@ await openCh('이어폰러'); await waitFor(`document.querySelector('.s2p')`, '�
 chk(await optSelects() === 1, '처음엔 제품 선택칸만', await optSelects());
 await click('.s2p button', '제품·옵션'); await waitFor(`document.querySelector('.overlay .modal')`, '제품·옵션 창');
 await click('.overlay .modal button', '＋ 제품 추가'); await wait(200);
-await setInp('.overlay .modal input', 0, '골전도 이어폰'); await wait(100);
+await setInp('.overlay .modal input:not([type=checkbox])', 0, '골전도 이어폰'); await wait(100);
 await click('.overlay .modal button', '＋ 옵션 추가'); await wait(200);
-await setInp('.overlay .modal input', 1, '색상'); await setInp('.overlay .modal input', 2, '블랙, 화이트,  블랙'); await wait(100);
+await setInp('.overlay .modal input:not([type=checkbox])', 1, '색상'); await setInp('.overlay .modal input:not([type=checkbox])', 2, '블랙, 화이트,  블랙'); await wait(100);
 await click('.overlay .modal .modal-foot button', '저장'); await wait(1500);
 chk(JSON.stringify(B().products) === '["골전도 이어폰"]' && JSON.stringify(B().productOptions) === JSON.stringify({ '골전도 이어폰': [{ k: '색상', v: ['블랙', '화이트'] }] }), '저장: 제품 + 옵션(중복 값 정리)', { p: B().products, o: B().productOptions });
 await pick(0, '골전도 이어폰'); await wait(800);
@@ -170,7 +170,7 @@ await click('.s2p button', '제품·옵션'); await waitFor(`document.querySelec
 const mi = await modalInputs();
 chk(mi.includes('해트케 압력이불[고정]') && mi.includes('3.2kg, 4.5kg, 5.4kg, 6.8kg, 7.7kg'), '기존 제품(고정)·기본 옵션이 그대로 보임', mi);
 const wi = mi.indexOf('3.2kg, 4.5kg, 5.4kg, 6.8kg, 7.7kg');
-await setInp('.overlay .modal input', wi, '3.2kg, 4.5kg, 5.4kg, 6.8kg, 7.7kg, 9.0kg'); await wait(100);
+await setInp('.overlay .modal input:not([type=checkbox])', wi, '3.2kg, 4.5kg, 5.4kg, 6.8kg, 7.7kg, 9.0kg'); await wait(100);
 await click('.overlay .modal .modal-foot button', '저장'); await wait(1500);
 const hw = ((H().productOptions || {})['해트케 압력이불'] || [])[0];
 chk(hw && hw.k === '무게' && hw.v.includes('9.0kg') && ((H().productOptions || {})['휘핑크림 차렵이불'] || []).length === 2, '압력이불 무게에 9.0kg 추가 · 차렵이불 옵션 유지', H().productOptions);
