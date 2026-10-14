@@ -4183,9 +4183,9 @@ function s2Stage(r,rv){
    답장·승인·성사·완료·정산 중 하나라도 있으면 대상 아님. 컨택현황은 '진행중·계약서 작성'도 대화 중이라 제외
    (자동화 탭의 '컨택 중'은 자동 DM 발송 표시라 상태값으로 거르지 않고 답장 칸으로만 본다).
    한 번 자동 처리된 행은 noReplyAuto 가 남아, 사람이 거절을 풀면 다시 끌려가지 않는다. */
-const NO_REPLY_DAYS=14;
-// 라이브 적용(2026-09-22) 때 사용자 결정: 8월까지 DM 보낸 사람만 옮긴다. 9월 DM부터 14일 규칙을 켜려면 이 날짜를 비우거나 늦춘다.
-const NO_REPLY_DM_UNTIL='2026-08-31';
+// 2026-10-14 사용자: 7일로, 기간 제한 없이 항상(예전엔 14일·8월 DM까지만).
+const NO_REPLY_DAYS=7;
+const NO_REPLY_DM_UNTIL='';
 function isNoReply(r,claude,cutKey){
   if(r.dmSent!=='Y'||r.noReplyAuto||r.endReason) return false;
   if(r.importedFrom) return false;   // 다른 프로그램에서 옮겨온 기록은 그대로 둔다(2026-09-30)
@@ -4206,7 +4206,7 @@ function sweepNoReply(b){
 /* 거절 3일 뒤 데이터 자동 삭제 (2026-09-22) — "해당 데이터는 지워도 되지만, DM 비용까지 날리면 안 된다"는 요청.
    → 거절된 지 3일 지난 행은 통째로 지운다. 단, 컨택현황(step2Rows·수동 DM)에서 DM을 보냈던 건은
    지우기 전에 DM 수당(2,000원)만 brand.rejectedBilling 에 옮겨 담아 정산에서 계속 잡히게 한다
-   (정산 화면 '채널별 수당 내역'에는 이름 대신 '🚫 거절(삭제됨)'으로만 표시 — 신원은 안 남는다).
+   (정산 화면 '채널별 수당 내역'에는 채널명 + '🚫 거절(삭제됨)'으로 표시 — 2026-10-14 사용자 요청으로 채널명은 남긴다).
    자동화(claudeStep2Rows)는 DM을 회사가 자동 발송해 수당이 원래 없으므로 그냥 지운다.
    실제 진행(성사·완료·정산·개인정보)이 있던 행은 회계 증빙이라 안전하게 보호하고 절대 건드리지 않는다. */
 const REJECT_PURGE_DAYS=3;
@@ -4241,7 +4241,7 @@ function purgeRejected(b,cap){
       cut++;
       if(!claude&&r.dmSent==='Y'&&r.name){   // 정산은 이름 있는 행만 센다 — 같은 기준으로 옮겨 담아야 금액이 그대로 // 자동화는 DM 자동발송이라 수당 없음 — 컨택현황만 옮겨 담는다
         const ym=parseYM(r.dmDate)||parseYM(r.date);
-        if(ym) billingAdd.push({id:'rb_'+r.id,pa:sanitizePA(r.pa)||'미지정',ym,at:today()});
+        if(ym) billingAdd.push({id:'rb_'+r.id,pa:sanitizePA(r.pa)||'미지정',ym,at:today(),name:r.name});
       }
     });
     return {kept,cut};
@@ -4623,7 +4623,7 @@ const HOWTO=[
   ['🔎 인플루언서 찾기','이 PC에서 「리스트업 창.bat」을 켜 두면 이 탭 안에 리스트업 프로그램이 나타나요 → 찾기 → 고르기(전부 선택된 채로, 싫은 사람만 눌러 빼기) → PA 리스팅 목록·자동화에 추가하거나 바로 DM. 이미 PA에 있는 사람은 자동으로 빠져요.'],
   ['👥 인플루언서 관리 · 🟡 리스팅 목록','찾은·직접 추가한 사람이 검수대기로 쌓여요. 관리자가 승인하면 「진행 중」으로 넘어가 DM 대상이 돼요.'],
   ['👥 인플루언서 관리 · 진행 중','DM 보내면 DM발송 Y. 채널명을 누르면 오른쪽 상세 창에서 단계를 진행해요: DM → 계약서 → 제품 발송 → 광고코드·입금정보 → 광고세팅·입금.'],
-  ['🚫 거절','DM 후 14일 동안 답장이 없으면 자동으로 거절로 옮겨져요. 잘못 옮겨졌으면 상세 창에서 ↩ 복구.'],
+  ['🚫 거절','DM 후 7일 동안 답장이 없으면 자동으로 거절로 옮겨져요. 잘못 옮겨졌으면 상세 창에서 ↩ 복구.'],
   ['🤖 자동화','자동 DM 대상 목록. 답장 오면 답장 Y, 관리자가 승인 Y(진행) / N(거절).'],
   ['📦 출고 · 🎬 영상검수','상세 창에서 제품 발송을 누르면 출고에 자동으로 생겨요. 영상검수에서 광고코드·계약서·라이브·정산을 확인해요.'],
   ['📄 계약서 생성','모델 이름·모델료·날짜를 넣으면 편집 잠금 PDF가 만들어지고 바로 메일로 보낼 수 있어요.'],
@@ -5711,11 +5711,11 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
       m[pa].rows.push({...r,dm,deal,subtotal});
       m[pa].dmTotal+=dm; m[pa].dealTotal+=deal; m[pa].total+=subtotal;
     });
-    // 거절 후 삭제된 행의 DM 수당 — 이름 대신 '거절(삭제됨)'로만 표시
+    // 거절 후 삭제된 행의 DM 수당 — 채널명은 남기고 '거절(삭제됨)' 표시(옛 기록은 이름이 없어 표시만)
     rejBilling.filter(e=>month==='all'||e.ym===month).forEach(e=>{
       const pa=e.pa||'미지정';
       if(!m[pa])m[pa]={rows:[],dmTotal:0,dealTotal:0,total:0};
-      m[pa].rows.push({id:e.id,name:'🚫 거절(삭제됨)',dm:RATE_DM,deal:0,subtotal:RATE_DM});
+      m[pa].rows.push({id:e.id,name:e.name?e.name+' · 🚫 거절(삭제됨)':'🚫 거절(삭제됨)',dm:RATE_DM,deal:0,subtotal:RATE_DM});
       m[pa].dmTotal+=RATE_DM; m[pa].total+=RATE_DM;
     });
     return m;

@@ -1,6 +1,6 @@
 /* 거절 3일 뒤 데이터 자동 삭제 E2E — node test/reject-purge.e2e.mjs
    확인: 거절된 지 3일 지난 행은 컨택현황/자동화에서 통째로 사라짐(2일 이내는 그대로) ·
-        컨택현황(수동 DM)에서 지워진 행은 DM 수당(2천원)이 정산에 '🚫 거절(삭제됨)'으로만 남음(이름은 안 남음) ·
+        컨택현황(수동 DM)에서 지워진 행은 DM 수당(2천원)이 정산에 '채널명 · 🚫 거절(삭제됨)'으로 남음(2026-10-14부터 채널명 유지) ·
         자동화(자동 DM)는 수당이 없어 그냥 지워짐(정산에 안 남음) · 실제 진행(성사·완료)된 건은 거절이어도 보호 ·
         DM 안 보낸 거절 건은 남길 비용이 없어 조용히 지워짐. */
 import fs from 'fs';
@@ -109,7 +109,7 @@ chk(!!row('보호'), '성사(dealDone) 있던 건은 거절이어도 보호');
 console.log('\n[정산] 삭제된 컨택현황 건의 DM 수당(2천원)은 정산에 남음 — 이름 없이 거절 표시만');
 const rb = B().rejectedBilling || [];
 chk(rb.length === 1 && rb[0].pa === '박민선' && rb[0].ym === ym(10), '박민선에게 DM 수당 1건 보존', rb);
-chk(!JSON.stringify(rb).includes('아이'), '보존된 기록에 원래 이름은 안 남음', rb);
+chk(JSON.stringify(rb).includes('"name":"아이"'), '보존된 기록에 채널명 남음(2026-10-14)', rb);
 chk(!(B().rejectedBilling || []).some(e => e.pa === undefined), '자동화(라자동)·DM 안 보낸(공짜) 건은 수당 기록 안 남김');
 
 console.log('\n[화면] 정산 탭 — 전체 누적에서 박민선에게 거절(삭제됨) 2,000원이 잡힘');
@@ -120,7 +120,7 @@ const minTxt = () => evalJs(`(()=>{const b=[...document.querySelectorAll('.pa-ba
 chk((await minTxt()).includes('DM 1건') || (await minTxt()).includes('DM'), '박민선 DM 건수에 반영', await minTxt());
 await evalJs(`(()=>{const tr=[...document.querySelectorAll('.pa-badge')].find(x=>x.textContent==='박민선').closest('tr');const btn=tr.querySelector('td:last-child button');btn&&btn.click();return 1})()`);
 await wait(300);
-chk((await evalJs(`document.body.innerText`)).includes('거절(삭제됨)'), '펼치면 채널명 대신 「거절(삭제됨)」만 보임');
+chk((await evalJs(`document.body.innerText`)).includes('아이 · 🚫 거절(삭제됨)'), '펼치면 「채널명 · 거절(삭제됨)」으로 보임');
 
 console.log('\n' + (fail ? ('❌ 실패 ' + fail + '건') : '✅ 전부 통과'));
 try { chrome.kill(); } catch {}
