@@ -2234,10 +2234,9 @@ function parseDateKey(s){
 }
 function parseYM(d){const dk=parseDateKey(d);return dk?dk.slice(0,7):null;}
 /* 끝난 이유(2026-10-14) — 거절 버튼은 하나, 누른 시점으로 이유가 정해진다.
-   무응답(DM 후 7일 자동) · 반려(승인 전) · 불발(승인 후 성사 전) · 하차(성사 후).
-   예전 '거절' 기록도 같은 규칙으로 읽는다. 불발·하차는 자동 삭제하지 않는다(다시 DM 안 가게). */
-const END_KINDS={'무응답':'#888888','반려':'#e74c3c','불발':'#f97316','하차':'#8b5cf6'};
-const autoEndReason=r=>(r&&r.dealDone==='Y')?'하차':(r&&r.approved==='Y')?'불발':'반려';
+   무응답(DM 후 7일 자동) · 거절(성사 전) · 하차(성사 후 그만둠 — 제품 회수 챙김, 자동 삭제 안 함). */
+const END_KINDS={'무응답':'#888888','거절':'#e74c3c','하차':'#8b5cf6'};
+const autoEndReason=r=>(r&&r.dealDone==='Y')?'하차':'거절';
 const endKind=r=>{ if(!r||!(normStatus(r.contactStatus)==='거절'||r.endReason)) return '';
   return END_KINDS[r.endReason]?r.endReason:autoEndReason(r); };
 const memoLine=m=>String(m||'').split('\n').map(x=>x.trim()).find(Boolean)||'';
@@ -3468,7 +3467,7 @@ const STAGE_IDX=Object.fromEntries(INF_STAGES.map(s=>[s.key,s.id]));
 const INF_NEXT_LABEL={0:'DM 발송',1:'답장옴',2:'제품 발송',3:'제품 발송 완료',4:'계약 완료',5:'수집 완료',6:'세팅·입금 완료'};
 const AUTO_PA='🤖 자동화';
 const nzName=s=>String(s||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,'');
-const infStageInfo=inf=>inf.status==='rejected'?{name:inf.endReason||'반려',short:inf.endReason||'반려',color:END_KINDS[inf.endReason]||'#e74c3c'}:inf.status==='done'?{name:'완료',short:'완료',color:'#22c55e'}:INF_STAGES[inf.stage];
+const infStageInfo=inf=>inf.status==='rejected'?{name:inf.endReason||'거절',short:inf.endReason||'거절',color:END_KINDS[inf.endReason]||'#e74c3c'}:inf.status==='done'?{name:'완료',short:'완료',color:'#22c55e'}:INF_STAGES[inf.stage];
 
 function buildInfluencers(brand,paList){
   const P=v=>{const s=String(v||'').trim(); if(!s) return ''; return (paList||[]).includes(s)?s:(sanitizePA(s)||s);};
@@ -3513,7 +3512,7 @@ function buildInfluencers(brand,paList){
     const done=!!contact&&(c.stage==='done'||c.infSettled==='Y'||!!c.privacyPurged);
     usedName.add(k);
     out.push({id:key,name,src,step1,contact,review,shipping,privacy:pv,realName,pa,shipped,stage,listType,dmType,noContract:noContractOf(brand,c),
-      endReason:ended?(endKind(c)||'반려'):'',
+      endReason:ended?(endKind(c)||'거절'):'',
       status:ended?'rejected':done?'done':'active',
       link:c.link||(step1&&step1.link)||'',
       followers:c.followers||(step1&&step1.followers)||'',
@@ -4257,7 +4256,7 @@ function shouldPurgeReject(r){
   if(normStatus(r.contactStatus)!=='거절') return false;
   if(r.importedFrom) return false;   // 다른 프로그램에서 옮겨온 기록은 자동 삭제하지 않는다(2026-09-30)
   if(r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) return false; // 실제 진행된 건은 보호
-  const ek=endKind(r); if(ek==='불발'||ek==='하차') return false;   // 불발·하차는 남긴다(2026-10-14)
+  if(endKind(r)==='하차') return false;   // 하차는 남긴다(2026-10-14)
   const d=daysSinceKey(r.rejectDate);
   return d!=null&&d>=REJECT_PURGE_DAYS;
 }
@@ -4345,7 +4344,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
 
   let action=null;
   if(st==='rejected') action=<>
-    <p className="s2p-help"><span className="end-chip" style={{background:END_KINDS[endKind(r)]+'22',color:END_KINDS[endKind(r)],marginRight:6}}>{endKind(r)}</span>{r.endReason==='무응답'?`DM 후 ${NO_REPLY_DAYS}일 동안 답장이 없어 자동으로 옮겼어요.`:{반려:'승인 전에 끝난 인플루언서예요.',불발:'승인 후 협업이 성사되지 않았어요.',하차:'협업 성사 후 진행을 그만뒀어요.'}[endKind(r)]||''}{r.rejectDate?` (거절일 ${r.rejectDate})`:''}</p>
+    <p className="s2p-help"><span className="end-chip" style={{background:END_KINDS[endKind(r)]+'22',color:END_KINDS[endKind(r)],marginRight:6}}>{endKind(r)}</span>{r.endReason==='무응답'?`DM 후 ${NO_REPLY_DAYS}일 동안 답장이 없어 자동으로 옮겼어요.`:{거절:'협업이 성사되지 않았어요.',하차:'협업 성사 후 진행을 그만뒀어요.'}[endKind(r)]||''}{r.rejectDate?` (거절일 ${r.rejectDate})`:''}</p>
     <button className="btn s2p-outline" onClick={()=>H.current.setStatus(r,r.dmSent==='Y'?'진행중':'컨택 전')}>↩ 복구</button></>;
   else if(st==='done') action=<>
     <p style={{color:'var(--green)',fontWeight:700,marginBottom:6}}>✓ 모든 단계 완료</p>
