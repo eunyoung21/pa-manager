@@ -4206,7 +4206,7 @@ function sweepNoReply(b){
 /* 거절 3일 뒤 데이터 자동 삭제 (2026-09-22) — "해당 데이터는 지워도 되지만, DM 비용까지 날리면 안 된다"는 요청.
    → 거절된 지 3일 지난 행은 통째로 지운다. 단, 컨택현황(step2Rows·수동 DM)에서 DM을 보냈던 건은
    지우기 전에 DM 수당(2,000원)만 brand.rejectedBilling 에 옮겨 담아 정산에서 계속 잡히게 한다
-   (정산 화면 '채널별 수당 내역'에는 채널명 + '🚫 거절(삭제됨)'으로 표시 — 2026-10-14 사용자 요청으로 채널명은 남긴다).
+   (정산 화면 '채널별 수당 내역'에는 그 인플루언서 채널명 그대로 표시 — 2026-10-14 사용자 요청).
    자동화(claudeStep2Rows)는 DM을 회사가 자동 발송해 수당이 원래 없으므로 그냥 지운다.
    실제 진행(성사·완료·정산·개인정보)이 있던 행은 회계 증빙이라 안전하게 보호하고 절대 건드리지 않는다. */
 const REJECT_PURGE_DAYS=3;
@@ -5711,11 +5711,11 @@ function SettleView({ brand, settlements, setSettlements, staffPA }) {
       m[pa].rows.push({...r,dm,deal,subtotal});
       m[pa].dmTotal+=dm; m[pa].dealTotal+=deal; m[pa].total+=subtotal;
     });
-    // 거절 후 삭제된 행의 DM 수당 — 채널명은 남기고 '거절(삭제됨)' 표시(옛 기록은 이름이 없어 표시만)
+    // 거절 후 삭제된 행의 DM 수당 — 그 인플루언서 채널명 그대로 표시(2026-10-14). 이름 없는 옛 기록만 '거절(삭제됨)'
     rejBilling.filter(e=>month==='all'||e.ym===month).forEach(e=>{
       const pa=e.pa||'미지정';
       if(!m[pa])m[pa]={rows:[],dmTotal:0,dealTotal:0,total:0};
-      m[pa].rows.push({id:e.id,name:e.name?e.name+' · 🚫 거절(삭제됨)':'🚫 거절(삭제됨)',dm:RATE_DM,deal:0,subtotal:RATE_DM});
+      m[pa].rows.push({id:e.id,name:e.name||'🚫 거절(삭제됨)',dm:RATE_DM,deal:0,subtotal:RATE_DM});
       m[pa].dmTotal+=RATE_DM; m[pa].total+=RATE_DM;
     });
     return m;

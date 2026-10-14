@@ -120,7 +120,7 @@ const minTxt = () => evalJs(`(()=>{const b=[...document.querySelectorAll('.pa-ba
 chk((await minTxt()).includes('DM 1건') || (await minTxt()).includes('DM'), '박민선 DM 건수에 반영', await minTxt());
 await evalJs(`(()=>{const tr=[...document.querySelectorAll('.pa-badge')].find(x=>x.textContent==='박민선').closest('tr');const btn=tr.querySelector('td:last-child button');btn&&btn.click();return 1})()`);
 await wait(300);
-chk((await evalJs(`document.body.innerText`)).includes('아이 · 🚫 거절(삭제됨)'), '펼치면 「채널명 · 거절(삭제됨)」으로 보임');
+{ const t = await evalJs(`document.body.innerText`); chk(t.includes('아이') && !t.includes('거절(삭제됨)'), '펼치면 채널명(아이)만 보임'); }
 
 console.log('\n' + (fail ? ('❌ 실패 ' + fail + '건') : '✅ 전부 통과'));
 try { chrome.kill(); } catch {}
