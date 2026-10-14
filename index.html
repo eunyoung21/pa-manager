@@ -4336,7 +4336,11 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     if(i<=2&&cur>2) onUnship&&onUnship(r);   // 제품 발송 완료를 되돌리면 출고 탭 행도
     if(cur===6) onSettle&&onSettle(r.name,false,{});
   }
-  const reject=<button className="btn s2p-danger" onClick={()=>H.current.setStatus(r,'거절')}>✕ 거절됨으로</button>;
+  // 성사 후에는 같은 버튼이 '하차'(2026-10-14) — 알바가 상세 창에서 바로 누른다. 하차는 지워지지 않고 제품 회수가 관리자 할 일에 뜬다.
+  const reject=r.dealDone==='Y'
+    ?<button className="btn s2p-danger" onClick={()=>{if(confirm(`${r.name} — 협업 성사 후 그만뒀나요?
+하차로 표시해요(제품을 보냈으면 관리자에게 회수 확인이 떠요).`))H.current.setStatus(r,'거절');}}>✕ 하차</button>
+    :<button className="btn s2p-danger" onClick={()=>H.current.setStatus(r,'거절')}>✕ 거절됨으로</button>;
   const fld=(label,k,ph,area)=><div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph}/>:<input value={f[k]} onChange={u(k)} placeholder={ph}/>}</div>;
   // 입력도 되고 복사도 되는 칸 — 앞 단계에서 비워두고 넘어와도 여기서 채울 수 있게. 칸을 벗어나면 바뀐 경우에만 저장.
   const editCopy=(label,k,ph,orig,save)=><div className="s2p-fg"><label>{label}</label><div className="s2p-copy"><input value={f[k]} onChange={u(k)} placeholder={ph} onBlur={()=>{const v=f[k].trim();if(v!==String(orig||''))save(v);}}/><CopyBtn value={f[k]}/></div></div>;
@@ -4371,7 +4375,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     <div className="s2p-btns" style={{marginBottom:8}}><CopyBtn value={[f.realName,f.phone,f.address].map(x=>x.trim()).filter(Boolean).join('\n')}/><span className="s2p-help" style={{margin:0}}>실명·연락처·주소 한 번에 복사</span></div>
     <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{const info={realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()};
       upd({...info,shippingDone:'✅ 완료',shipDate:r.shipDate||today()});
-      onShip&&onShip(r,info);}}>제품 발송 완료 →</button></div></>;
+      onShip&&onShip(r,info);}}>제품 발송 완료 →</button>{reject}</div></>;
   else if(st===3&&IS_STAFF){
     // 알바: 이름·연락처만 받고 완료/거절만 표시(모두싸인 발송은 관리자 PC에서만)
     action=<>
@@ -4464,7 +4468,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     <div className="s2p-btns" style={{marginBottom:10}}>
       <button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 통장사본·신분증 제출</button>
     </div>
-    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{if(f.adCode.trim())onSetAdCode&&onSetAdCode(r,f.adCode.trim());H.current.setFinal(r,'Y');}}>협찬 완료</button></div></>;
+    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{if(f.adCode.trim())onSetAdCode&&onSetAdCode(r,f.adCode.trim());H.current.setFinal(r,'Y');}}>협찬 완료</button>{reject}</div></>;
   else if(st===5) action=<>
     <p className="s2p-help">광고 세팅 및 인플루언서 입금을 진행해주세요.</p>
     {editCopy('광고코드 (복사용)','adCode','광고 코드 입력',(rv&&rv.paCode)||'',v=>onSetAdCode&&onSetAdCode(r,v))}
