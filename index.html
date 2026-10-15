@@ -3647,11 +3647,29 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
           onClick={e=>{e.stopPropagation(); act.up(i,{returnChecked:'Y'});}}>✓</button>
       </div>
     </div>; };
-  const bossTodo=(bossItems.length||dropShip.length)?[
+  // 💰 정산 대기(2026-10-14) — 광고코드까지 끝나 인플루언서 입금만 남은 사람(광고세팅·입금 단계).
+  // 관리자가 여기서 ✓ 입금을 누르면 상세 창의 '광고세팅 및 입금 완료'와 같은 기록(infSettled)이 남는다.
+  const settleItems=byStage(STAGE_IDX.adset);
+  const settleItem=i=>{ const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
+    const rate=String((i.contact&&i.contact.rate)||'').trim(); const c=INF_STAGES[STAGE_IDX.adset].color;
+    return <div key={i.id} className="todo-item" onClick={()=>go('manage','all',paFocus,'',i)}>
+      <span className="todo-name">{i.name}</span>
+      <div className="todo-right">
+        {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
+        <span className="todo-stage" style={{background:c+'22',color:c}}>정산{rate?' · '+rate:''}</span>
+        {!isStaff&&<button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title="광고세팅·입금 완료"
+          onClick={e=>{e.stopPropagation(); if(confirm(`${i.name} — 광고세팅·입금 완료로 처리할까요?${rate?' (단가 '+rate+')':''}`)) act.next(i,false);}}>✓ 입금</button>}
+      </div>
+    </div>; };
+  const bossTodo=(bossItems.length||dropShip.length||settleItems.length)?[
     <div key="boss" className="todo-group">
       {dropShip.map(dropItem)}
       {bossItems.slice(0,MAX).map(item)}{moreRow(bossItems.length,()=>go('manage','all',paFocus))}
-    </div>
+    </div>,
+    ...(settleItems.length?[<div key="settle" className="todo-group">
+      <div className="todo-group-h" style={{color:INF_STAGES[STAGE_IDX.adset].color}}>💰 정산 대기 <span>{settleItems.length}</span></div>
+      {settleItems.slice(0,MAX).map(settleItem)}{moreRow(settleItems.length,()=>go('manage',String(STAGE_IDX.adset),paFocus))}
+    </div>]:[])
   ]:[];
 
   // 매니저 할 일 — 매니저가 여러 명이라 사람별로 묶는다
@@ -3756,7 +3774,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       </div>}
       <div className="todo-grid">
         <div className="todo-box">
-          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length+dropShip.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length+dropShip.length})</span>}</h3>
+          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length+dropShip.length+settleItems.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length+dropShip.length+settleItems.length})</span>}</h3>
           {bossTodo.length?bossTodo:empty}
         </div>
         <div className="todo-box">
