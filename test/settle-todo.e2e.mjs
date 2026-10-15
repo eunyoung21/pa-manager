@@ -113,6 +113,20 @@ chk(c1.infSettled === 'Y' || c1.stage === 'done', '✓ 입금 → 정산 완료 
 t = await todo();
 chk(!t.includes('정산할사람'), '처리하면 목록에서 사라짐', t);
 
+console.log('\n[더 보기 → 팝업 전체]');
+for (let k = 0; k < 7; k++) savedData.brands[0].claudeStep2Rows.push(S2('m' + k, '대기' + k, 'wait_' + k, { ...fin, rate: '30,000' }));
+await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩 2');
+await evalJs(`window.confirm=()=>true;1`);
+await click('.step-tab', '대시보드'); await wait(900);
+await evalJs(`(()=>{const g=[...document.querySelectorAll('.todo-group')].find(x=>x.innerText.includes('정산 대기'));[...g.querySelectorAll('.todo-item')].find(x=>x.innerText.includes('더 보기')).click();return 1})()`); await wait(500);
+const popN = () => evalJs(`(()=>{const m=document.querySelector('.overlay .modal');return m?m.querySelectorAll('.todo-item').length:-1})()`);
+chk(await popN() === 7, '팝업에 7명 전부', await popN());
+await evalJs(`(()=>{const it=document.querySelector('.overlay .modal .todo-item');[...it.querySelectorAll('button')].find(b=>b.textContent.includes('입금')).click();return 1})()`); await wait(1500);
+chk(await popN() === 6, '팝업 안에서 ✓ 입금 → 바로 빠짐(6명)', await popN());
+await click('.overlay .modal button', '닫기'); await wait(300);
+chk(await popN() === -1, '닫기');
+
 console.log('\n[알바] 버튼 없음');
 savedData.brands[0].claudeStep2Rows.find((r) => r.id === 'c1').infSettled = '';
 savedData.brands[0].claudeStep2Rows.find((r) => r.id === 'c1').stage = 'adset';

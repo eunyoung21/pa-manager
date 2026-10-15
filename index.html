@@ -3598,6 +3598,8 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   // 대시보드는 사람(담당자) 업무만 — 담당자가 안 붙은 🤖 자동화 건은 뺀다(2026-09-22). 담당자가 붙은 자동화 건은 그 담당자 업무로 남는다.
   const infsAll=useMemo(()=>buildInfluencers(brand,paList).filter(i=>i.pa!==AUTO_PA),[brand,paList]);
   const [talkQ,setTalkQ]=useState({}); // 소통 중 칸별 검색어 {담당자: 검색어}
+  // '외 N명 더 보기' → 그 자리에서 전체 목록 팝업(2026-10-15). {kind:'settle'|'boss'|'pa', pa}. 목록은 열 때마다 다시 계산(✓ 누르면 바로 빠짐)
+  const [pop,setPop]=useState(null);
   const act=useInfActions(A);
   const infs=paFocus?infsAll.filter(i=>(i.pa||'미지정')===paFocus):infsAll;
   const active=infs.filter(i=>i.status==='active');
@@ -3664,11 +3666,11 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const bossTodo=(bossItems.length||dropShip.length||settleItems.length)?[
     <div key="boss" className="todo-group">
       {dropShip.map(dropItem)}
-      {bossItems.slice(0,MAX).map(item)}{moreRow(bossItems.length,()=>go('manage','all',paFocus))}
+      {bossItems.slice(0,MAX).map(item)}{moreRow(bossItems.length,()=>setPop({kind:'boss'}))}
     </div>,
     ...(settleItems.length?[<div key="settle" className="todo-group">
       <div className="todo-group-h" style={{color:INF_STAGES[STAGE_IDX.adset].color}}>💰 정산 대기 <span>{settleItems.length}</span></div>
-      {settleItems.slice(0,MAX).map(settleItem)}{moreRow(settleItems.length,()=>go('manage',String(STAGE_IDX.adset),paFocus))}
+      {settleItems.slice(0,MAX).map(settleItem)}{moreRow(settleItems.length,()=>setPop({kind:'settle'}))}
     </div>]:[])
   ]:[];
 
@@ -3708,11 +3710,24 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
         <span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:c,marginRight:6}}/>{p} <span>{l.length}</span>
         <span className="todo-group-sub">{perStage.map(([id,n])=>INF_STAGES[id].short+' '+n).join(' · ')}</span>
       </div>
-      {l.length?l.slice(0,MAX).map(item):<div className="todo-none" style={{paddingLeft:16}}>할 일 없음 ✓</div>}{moreRow(l.length,()=>go('manage','all',p))}
+      {l.length?l.slice(0,MAX).map(item):<div className="todo-none" style={{paddingLeft:16}}>할 일 없음 ✓</div>}{moreRow(l.length,()=>setPop({kind:'pa',pa:p}))}
     </div>;});
+
+  const popList=!pop?[]:pop.kind==='settle'?settleItems:pop.kind==='boss'?bossItems:((groups[pop.pa]||[]).slice().sort((a,b)=>b.stage-a.stage));
+  const popTitle=!pop?'':pop.kind==='settle'?'💰 정산 대기':pop.kind==='boss'?'🔴 관리자 할 일':'🟡 '+pop.pa+' 할 일';
+  const popUp=pop&&<div className="overlay" onClick={e=>e.target===e.currentTarget&&setPop(null)}>
+    <div className="modal" style={{maxWidth:620}}>
+      <div className="modal-title">{popTitle} <span style={{fontWeight:400,color:'var(--muted)'}}>{popList.length}명</span></div>
+      <div style={{maxHeight:'65vh',overflowY:'auto'}}>
+        {popList.length?popList.map(pop.kind==='settle'?settleItem:item):<div className="todo-none">할 일 없음 ✓</div>}
+      </div>
+      <div className="modal-foot"><button className="btn btn-ghost" onClick={()=>setPop(null)}>닫기</button></div>
+    </div>
+  </div>;
 
   return (
     <div className="hk-page"><div className="hk-in">
+      {popUp}
       <PaTabs infs={infsAll} paFocus={paFocus} setPaFocus={setPaFocus} paList={paList}/>
       <div className="role-section">
         <div className="role-header part">🟡 매니저 담당</div>
