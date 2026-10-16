@@ -4264,6 +4264,21 @@ function isNoReply(r,claude,cutKey){
   return !!k&&k<=cutKey&&(!NO_REPLY_DM_UNTIL||k<=NO_REPLY_DM_UNTIL);
 }
 function noReplyCutKey(){ const d=new Date(); d.setDate(d.getDate()-NO_REPLY_DAYS); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+/* 이름 = 인스타 계정명 1회 이관(2026-10-16 사용자: 표시이름이라 헷갈림).
+   성사 전 사람만 바꾼다 — 성사 이후는 출고·영상검수·개인정보·정산이 이름으로 이어져 있어 그대로 둔다.
+   리스트업(step1)은 같은 이름의 진행 행이 성사 이후면 같이 둔다(이름으로 짝지어지므로). 브랜드마다 1번(nameHandleMig). */
+function migNameToHandle(b){
+  if(b.nameHandleMig) return {b,n:0};
+  const nz=x=>String(x||'').normalize('NFC').trim().toLowerCase().replace(/s+/g,'');
+  const hd=r=>String(r.username||'').trim().replace(/^@/,'').toLowerCase()||igHandle(r.link);
+  const keep=new Set([...(b.shippingRows||[]),...(b.reviewRows||[]),...(b.privacyRows||[])].map(x=>nz(x.channelName)).filter(Boolean));
+  [...(b.step2Rows||[]),...(b.claudeStep2Rows||[])].forEach(r=>{ if(r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) keep.add(nz(r.name)); });
+  let n=0;
+  const fix=rows=>(rows||[]).map(r=>{ const u=hd(r), nm=String(r.name||'').trim();
+    if(!u||!nm||nz(nm)===nz(u)||keep.has(nz(nm))) return r;
+    n++; return {...r,name:u,...(r.nameBefore?{}:{nameBefore:nm})}; });   // 원래 이름은 nameBefore 에 남긴다(되돌릴 수 있게)
+  return {b:{...b,step1Rows:fix(b.step1Rows),step2Rows:fix(b.step2Rows),claudeStep2Rows:fix(b.claudeStep2Rows),nameHandleMig:today()},n};
+}
 function sweepNoReply(b){
   const cut=noReplyCutKey(), td=today(); let n=0;
   const fix=(rows,claude)=>(rows||[]).map(r=>{ if(!isNoReply(r,claude,cut)) return r; n++;
@@ -6688,6 +6703,17 @@ function AppMain({ authInfo, onLogout }) {
   // 매 저장마다 그 용량을 다시 올려야 했다(모바일 저장 실패·락 경합·로컬백업 초과의 직접 원인).
   // 관리자가 접속하면 한 번 정리한다. 실패하면 다음 접속에 다시 시도(참조 교체된 것만 반영).
   // DM 후 2주 답장 없는 사람 → 거절(무응답)로 자동 이동. 접속 때마다 1회 — 일반 편집처럼 저장(병합)된다.
+  // 이름 → 인스타 계정명 1회 이관(관리자 접속 때, 브랜드마다 한 번) — migNameToHandle 참고
+  const nameMigRef=useRef(false);
+  useEffect(()=>{
+    if(!serverLoadedRef.current||nameMigRef.current) return;
+    if((authInfo?.role||'')!=='manager') return;
+    nameMigRef.current=true;
+    if(brands.every(b=>b.nameHandleMig)) return;
+    const tot=brands.reduce((s,b)=>s+migNameToHandle(b).n,0);
+    setBrands(prev=>prev.map(b=>migNameToHandle(b).b));
+    if(tot) setMsg(`🔤 이름을 인스타 계정명으로 바꿨어요(성사 전 ${tot}명)`);
+  },[brands]);
   const sweepRef=useRef(false);
   useEffect(()=>{
     if(!serverLoadedRef.current||sweepRef.current) return;

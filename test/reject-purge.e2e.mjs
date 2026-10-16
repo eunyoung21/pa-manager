@@ -19,7 +19,7 @@ const S2 = (id, name, pa, x = {}) => ({ id, step1Id: '', date: ymd(10), name, li
   shippingDone: '미완료', contractDone: '미완료', contractUrl: '', memo: '', ...x });
 
 let savedData = { paList: ['박민선', '안민영'], brands: [
-  { id: 'basetune', name: '베이스튠', step1Rows: [], claudeStep1Rows: [],
+  { id: 'basetune', name: '베이스튠', nameHandleMig: 'test', step1Rows: [], claudeStep1Rows: [],
     claudeStep2Rows: [
       S2('c2_ra', '라자동', '', { contactStatus: '거절', endReason: '무응답', dmSent: 'Y', dmDate: ymd(10), rejectDate: ymd(5) }), // 자동화 · 5일 전 거절 → 삭제, 수당 없음
     ],
@@ -31,7 +31,7 @@ let savedData = { paList: ['박민선', '안민영'], brands: [
       S2('s2_x', '공짜', '박민선', { contactStatus: '거절', dmSent: 'N', rejectDate: ymd(9) }),                            // DM 안 보냄 → 조용히 삭제, 수당 없음
     ],
     shippingRows: [], reviewRows: [], privacyRows: [] },
-  { id: 'granny', name: '그래니샐러드', step1Rows: [], claudeStep1Rows: [], claudeStep2Rows: [], step2Rows: [], shippingRows: [], reviewRows: [], privacyRows: [] },
+  { id: 'granny', name: '그래니샐러드', nameHandleMig: 'test', step1Rows: [], claudeStep1Rows: [], claudeStep2Rows: [], step2Rows: [], shippingRows: [], reviewRows: [], privacyRows: [] },
 ], settlements: {} };
 let rev = 1;
 const PORT = 8952;
