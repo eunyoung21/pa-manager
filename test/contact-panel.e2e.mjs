@@ -135,7 +135,7 @@ const copyVals=await evalJs(`[...document.querySelectorAll('.s2p .s2p-copy input
 chk(J(copyVals)===J(['홍길동','010-1234-5678','서울시 강남구 1']),'받는 분·연락처·주소가 복사칸에',copyVals);
 
 console.log('\n[4→5] 제품 발송 완료');
-await pbtn('제품 발송 완료');
+await pbtn('완료 →');
 r=await saved('에이');
 chk(r.shippingDone==='✅ 완료'&&!!r.shipDate,'출고 완료·발송일',r);
 let sh=B().shippingRows.find(x=>x.channelName==='에이');
@@ -176,7 +176,7 @@ await evalJs(`(()=>{const i=document.querySelector('.s2p .s2p-copy input');i.dis
 r=await saved('비비');
 chk(r.realName==='김비비','칸을 벗어나면 바로 저장',r.realName);
 await fill('연락처','010-2222-3333'); await fill('배송 주소','부산시 해운대구 2');
-await pbtn('제품 발송 완료');
+await pbtn('완료 →');
 r=await saved('비비');
 chk(r.phone==='010-2222-3333'&&r.address==='부산시 해운대구 2'&&r.shippingDone==='✅ 완료','[제품 발송 완료]가 입력값도 같이 저장',r);
 sh=B().shippingRows.find(x=>x.channelName==='비비');

@@ -4401,14 +4401,14 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
       <button className="btn btn-primary" onClick={()=>H.current.setDeal(r,'Y')}>협찬 성사 완료</button>{reject}
     </div></>;
   else if(st===2) action=<>
-    <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '제품 발송 완료'를 눌러주세요. 누르면 📦 출고 탭에도 '처리중'으로 자동 등록돼요(관리자가 실제 출고 시트에 옮겨 적으면 출고 탭에서 완료로 바꿔주세요).</p>
+    <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '완료'를 눌러주세요. 누르면 📦 출고 탭에도 '처리중'으로 자동 등록돼요(관리자가 실제 출고 시트에 옮겨 적으면 출고 탭에서 완료로 바꿔주세요).</p>
     {editCopy('실명 (받는 분)','realName','홍길동',r.realName,v=>upd({realName:v}))}
     {editCopy('연락처','phone','010-0000-0000',r.phone,v=>upd({phone:v}))}
     {editCopy('배송 주소','address','우편번호 / 주소 입력',r.address,v=>upd({address:v}))}
     <div className="s2p-btns" style={{marginBottom:8}}><CopyBtn value={[f.realName,f.phone,f.address].map(x=>x.trim()).filter(Boolean).join('\n')}/><span className="s2p-help" style={{margin:0}}>실명·연락처·주소 한 번에 복사</span></div>
     <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{const info={realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()};
       upd({...info,shippingDone:'✅ 완료',shipDate:r.shipDate||today()});
-      onShip&&onShip(r,info);}}>제품 발송 완료 →</button>{reject}</div></>;
+      onShip&&onShip(r,info);}}>완료 →</button>{reject}</div></>;
   else if(st===3&&IS_STAFF){
     // 알바: 이름·연락처만 받고 완료/거절만 표시(모두싸인 발송은 관리자 PC에서만)
     action=<>
