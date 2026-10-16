@@ -4423,8 +4423,10 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
       <button className={'btn '+(r.productOnly==='Y'?'btn-primary':'s2p-outline')} onClick={()=>upd({productOnly:r.productOnly==='Y'?'':'Y'})}>📦 제품만 협찬{r.productOnly==='Y'?' ✓':''}</button>
       <span className="s2p-help" style={{margin:0}}>계약서 단계 건너뛰고 바로 제품 발송</span>
     </div>}
+    {/* 모델료(2026-10-16) — 성사 때 적어 두면 계약서 발송 단계 모델료 칸에 그대로 채워진다(같은 rate 칸) */}
+    {fld('모델료 (협의된 금액)','rate','예: 80,000')}
     <div className="s2p-btns">
-      <button className="btn btn-primary" onClick={()=>H.current.setDeal(r,'Y')}>협찬 성사 완료</button>{reject}
+      <button className="btn btn-primary" onClick={()=>{const v=f.rate.trim(); if(v!==String(r.rate||'')) upd({rate:v}); H.current.setDeal(r,'Y');}}>협찬 성사 완료</button>{reject}
     </div></>;
   else if(st===2) action=<>
     <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '완료'를 눌러주세요. 누르면 📦 출고 탭에도 '처리중'으로 자동 등록돼요(관리자가 실제 출고 시트에 옮겨 적으면 출고 탭에서 완료로 바꿔주세요).</p>
