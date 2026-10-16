@@ -3456,7 +3456,7 @@ function AddShipModal({ onConfirm, onCancel }) {
 const INF_STAGES=[
   {id:0,key:'listup', name:'리스트업',             short:'리스트업',   color:'#6c757d',role:'part'},
   {id:1,key:'dm',     name:'DM발송',               short:'DM발송',     color:'#0dcaf0',role:'part'},
-  {id:2,key:'replied',name:'답장옴(진행대기)',      short:'답장옴',     color:'#3b82f6',role:'part'},
+  {id:2,key:'replied',name:'협의 중',            short:'협의 중',     color:'#3b82f6',role:'part'},
   {id:3,key:'ship',   name:'제품발송',             short:'제품발송',   color:'#8b5cf6',role:'boss'},
   {id:4,key:'contract',name:'계약서발송',           short:'계약서',     color:'#20c997',role:'boss'},
   {id:5,key:'adcode', name:'광고코드·입금정보수집', short:'광고코드',   color:'#f97316',role:'part'},
@@ -3464,7 +3464,7 @@ const INF_STAGES=[
 ];
 const STAGE_IDX=Object.fromEntries(INF_STAGES.map(s=>[s.key,s.id]));
 // 각 단계에서 '다음 처리' 버튼 글자
-const INF_NEXT_LABEL={0:'DM 발송',1:'답장옴',2:'제품 발송',3:'제품 발송 완료',4:'계약 완료',5:'수집 완료',6:'세팅·입금 완료'};
+const INF_NEXT_LABEL={0:'DM 발송',1:'답장 확인',2:'제품 발송',3:'제품 발송 완료',4:'계약 완료',5:'수집 완료',6:'세팅·입금 완료'};
 const AUTO_PA='🤖 자동화';
 const nzName=s=>String(s||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,'');
 const infStageInfo=inf=>inf.status==='rejected'?{name:inf.endReason||'거절',short:inf.endReason||'거절',color:END_KINDS[inf.endReason]||'#e74c3c'}:inf.status==='done'?{name:'완료',short:'완료',color:'#22c55e'}:INF_STAGES[inf.stage];
