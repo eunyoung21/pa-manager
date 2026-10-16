@@ -314,6 +314,8 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 .s2p{position:fixed;top:0;right:0;width:460px;max-width:100%;height:100vh;background:var(--surface);border-left:1px solid var(--border);z-index:61;overflow-y:auto;box-shadow:-8px 0 24px rgba(0,0,0,.12);}
 .s2p-head{position:sticky;top:0;background:var(--surface);z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 20px;border-bottom:1px solid var(--border);}
 .s2p-head h2{font-size:16px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.s2p-ig{color:inherit;text-decoration:none;}
+.s2p-ig:hover{text-decoration:underline;}
 .s2p-body{padding:18px 20px 40px;}
 .s2p-sec{font-size:12px;font-weight:700;color:var(--muted);margin:4px 0 10px;}
 .s2p-tl{margin-bottom:20px;}
@@ -4539,7 +4541,8 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
     <div className="s2p-backdrop" onClick={onClose}/>
     <div className="s2p">
       <div className="s2p-head">
-        <h2>{handle?'@'+handle:r.name}</h2>
+        {/* 계정명을 누르면 인스타 프로필 새 창(2026-10-16) — 링크가 없으면 그냥 글자 */}
+        <h2>{handle?<a className="s2p-ig" href={`https://www.instagram.com/${handle}/`} target="_blank" rel="noopener" title="인스타그램에서 열기">@{handle}</a>:r.name}</h2>
         <button className="btn s2p-outline" onClick={onClose}>✕ 닫기</button>
       </div>
       <div className="s2p-body">
