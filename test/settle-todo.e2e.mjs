@@ -94,10 +94,11 @@ const fin = { date: TD, dmDate: TD, pa: '안민영', contactStatus: '진행중',
 savedData = { paList: ['안민영', '기타'], brands: [
   { ...EMPTY, id: 'basetune', name: '베이스튠',
     claudeStep2Rows: [S2('c1', '정산할사람', 'pay_me', { ...fin, rate: '50,000' }), S2('c2', '진행중사람', 'not_yet', { ...fin, finalDone: 'N', finalDate: '' })],
+    shippingRows: [{ id: 'sh1', date: TD, channelName: '진행중사람', recipient: '박진행', phone: '010', address: '서울', status: '처리중' }],
     reviewRows: [{ id: 'r1', date: TD, channelName: '정산할사람', realName: '김정산', pa: '안민영', paCode: 'CODE1', postLink: '', live: 'Y', contractDone: 'Y', checks: {} }] },
 ], settlements: {} };
 const B = () => savedData.brands[0];
-const todo = async () => (await evalJs(`[...document.querySelectorAll('.todo-box')][0].innerText`)).replace(/\s+/g, ' ');
+const todo = async () => (await evalJs(`[...document.querySelectorAll('.todo-box')].find(b=>b.innerText.includes('관리자 할 일')).innerText`)).replace(/\s+/g, ' ');
 
 console.log('\n[관리자] 관리자 할 일에 정산 대기');
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
@@ -107,6 +108,7 @@ await click('.step-tab', '대시보드'); await wait(900);
 let t = await todo();
 chk(t.includes('정산 대기 1') && t.includes('정산할사람') && t.includes('정산 · 50,000'), '정산할사람 · 단가 50,000 표시', t);
 chk(!t.includes('진행중사람 안민영 정산'), '광고코드 전 사람은 정산 대기 아님', t);
+chk(await evalJs(`(()=>{const s=[...document.querySelectorAll('.todo-box')].find(b=>b.innerText.includes('출고 정보'));const t=[...document.querySelectorAll('.role-header')].find(b=>b.innerText.includes('소통 중'));return !!s&&!!(s.compareDocumentPosition(t)&Node.DOCUMENT_POSITION_FOLLOWING)})()`), '출고 정보가 담당자별 소통 중 위에 (2026-10-16)');
 await evalJs(`(()=>{const it=[...document.querySelectorAll('.todo-item')].find(x=>x.innerText.includes('정산할사람'));[...it.querySelectorAll('button')].find(b=>b.textContent.includes('입금')).click();return 1})()`); await wait(1500);
 const c1 = B().claudeStep2Rows.find((r) => r.id === 'c1');
 chk(c1.infSettled === 'Y' || c1.stage === 'done', '✓ 입금 → 정산 완료 기록', { s: c1.stage, i: c1.infSettled });

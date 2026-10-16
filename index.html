@@ -3737,6 +3737,20 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
         <div className="role-header boss">🔴 관리자 담당</div>
         <div className="cards">{INF_STAGES.filter(s=>s.role==='boss').map(card)}</div>
       </div>
+      {shipPending.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4}}>
+        <h3><span style={{color:'#8b5cf6'}}>📦</span> 출고 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({shipPending.length})</span></h3>
+        {shipPending.slice(0,MAX).map(i=>{
+          const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
+          return <div key={i.id} className="todo-item">
+            <span className="todo-name" style={{cursor:'pointer'}} onClick={()=>go('shipping','pend',paFocus,i.name)}>{i.name}</span>
+            <div className="todo-right">
+              {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
+              <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={()=>A.updateShipRow(i.shipping.id,{status:'✅ 완료',shipDate:i.shipping.shipDate||today()})}>✓ 완료</button>
+            </div>
+          </div>;
+        })}
+        {moreRow(shipPending.length,()=>go('shipping','pend',paFocus))}
+      </div>}
       <div className="role-header" style={{color:'var(--text)',marginTop:18}}>💬 담당자별 소통 중
         <span className="text-muted" style={{fontWeight:400}}>— 답장 온 뒤 진행 중인 사람 · 이름을 누르면 상세</span>
       </div>
@@ -3772,20 +3786,6 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
                 </div>;})}
             </div>
           </div>;})}
-      </div>}
-      {shipPending.length>0&&<div className="todo-box" style={{marginBottom:14}}>
-        <h3><span style={{color:'#8b5cf6'}}>📦</span> 출고 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({shipPending.length})</span></h3>
-        {shipPending.slice(0,MAX).map(i=>{
-          const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
-          return <div key={i.id} className="todo-item">
-            <span className="todo-name" style={{cursor:'pointer'}} onClick={()=>go('shipping','pend',paFocus,i.name)}>{i.name}</span>
-            <div className="todo-right">
-              {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
-              <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={()=>A.updateShipRow(i.shipping.id,{status:'✅ 완료',shipDate:i.shipping.shipDate||today()})}>✓ 완료</button>
-            </div>
-          </div>;
-        })}
-        {moreRow(shipPending.length,()=>go('shipping','pend',paFocus))}
       </div>}
       <div className="todo-grid">
         <div className="todo-box">
