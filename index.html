@@ -4483,7 +4483,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
           brand:(brand&&brand.name)||'', seal:sealCompanyOf(brand),
           by:(getAuth()||{}).username||'',
           // 서명 완료되면 발송기가 완료본을 이 브랜드 드라이브 「계약서파일」에 올린다(contractArchive) — 그때 쓸 주소·로그인
-          pa:{ api:API, token:(getAuth()||{}).token||'', brandId:(brand&&brand.id)||'', channel:r.name||'' } });
+          pa:{ api:API, token:(getAuth()||{}).token||'', brandId:(brand&&brand.id)||'', channel:r.name||'', product:String(r.product||'').trim() } });
         upd({realName:name,phone,address:f.address.trim(),rate:f.rate.trim(),contractDate:f.contractDate.trim()||today(),contractSent:today()});
         setMsMsg({ok:`${name} 님에게 모두싸인 서명 요청을 보냈습니다.`});
       }catch(e){ setMsMsg({err:'모두싸인 발송 실패: '+(e&&e.message||e)}); }

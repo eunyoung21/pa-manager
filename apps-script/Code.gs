@@ -576,7 +576,12 @@ function pfileGet(sess, body, p) {
    대상: 브랜드 드라이브 > PA 협업 > 개인정보파일(신분증·통장) / 계약서파일(계약서) */
 var BRAND_ARCHIVE_FOLDER = {
   basetune: { privacy: '1-nqYhZjNhbJPtLiqLx3OjUeyqX8F7pjp', contract: '1SOULiiEG2U_BZ9S3erQK368LVzBn_r-K' },
-  granny:   { privacy: '1X6zSLsUyAWw8Yesd6TzJmjhfF2hZ39zH', contract: '19W5eF5pZxlpeDvL3aS-_kWoy-bQ7kXu7' }
+  granny:   { privacy: '1X6zSLsUyAWw8Yesd6TzJmjhfF2hZ39zH', contract: '19W5eF5pZxlpeDvL3aS-_kWoy-bQ7kXu7' },
+  // 제품마다 계약서 폴더가 따로인 브랜드 — 키 = PA 협찬 제품 이름(행의 product) 그대로 (2026-10-19)
+  hattke:   { privacy: '', contract: '', products: {
+    '해트케 압력이불':   { contract: '1tBGfclmusdvdD2_dDkSUtdR9YEIb2JOq' },
+    '휘핑크림 차렵이불': { contract: '1QbA-49B_wTu5fk1-xn7Nng8za1UZiBUg' }
+  } }
 };
 // 위 ID 가 비어 있을 때만 쓰는 구버전 폴백: 브랜드 폴더 아래 하위폴더를 찾아/만들어 씀.
 var BRAND_DRIVE_FOLDER = {
@@ -601,15 +606,17 @@ function checkArchive() {
   var brands = Object.keys(BRAND_ARCHIVE_FOLDER);
   for (var i = 0; i < brands.length; i++) {
     var b = brands[i], cfg = BRAND_ARCHIVE_FOLDER[b];
-    var slots = ['privacy', 'contract'];
-    for (var s = 0; s < slots.length; s++) {
-      var id = cfg[slots[s]];
-      if (!id) { Logger.log('❌ ' + b + '.' + slots[s] + ' — 폴더 ID 가 비어 있음(옛 코드)'); continue; }
+    var spots = [['privacy', cfg.privacy], ['contract', cfg.contract]];
+    var prods = Object.keys(cfg.products || {});
+    for (var q = 0; q < prods.length; q++) spots.push([prods[q] + '.contract', cfg.products[prods[q]].contract]);
+    for (var s = 0; s < spots.length; s++) {
+      var id = spots[s][1];
+      if (!id) { if (!prods.length) Logger.log('❌ ' + b + '.' + spots[s][0] + ' — 폴더 ID 가 비어 있음(옛 코드)'); continue; }
       try {
         var f = DriveApp.getFolderById(id);
-        Logger.log('✅ ' + b + '.' + slots[s] + ' → ' + f.getName());
+        Logger.log('✅ ' + b + '.' + spots[s][0] + ' → ' + f.getName());
       } catch (e) {
-        Logger.log('❌ ' + b + '.' + slots[s] + ' (' + id + ') — 열 수 없음: ' + (e.message || e)
+        Logger.log('❌ ' + b + '.' + spots[s][0] + ' (' + id + ') — 열 수 없음: ' + (e.message || e)
                  + ' → 배포 계정에 이 폴더 권한이 있는지 확인');
       }
     }
@@ -617,9 +624,10 @@ function checkArchive() {
   Logger.log('여기까지 전부 ✅ 인데 앱에서 실패하면 → 배포 관리에서 "버전: 새 버전" 으로 다시 배포하세요.');
 }
 
-function archiveFolder(brand, kind) {
+function archiveFolder(brand, kind, product) {
   var cfg = (BRAND_ARCHIVE_FOLDER[brand] || {});
-  var fid = cfg[kind.slot];
+  var pc = product && cfg.products && cfg.products[product];
+  var fid = (pc && pc[kind.slot]) || cfg[kind.slot];      // 제품 폴더가 있으면 그쪽 먼저
   if (fid) return DriveApp.getFolderById(fid);           // 지정된 폴더로 정확히
   if (!kind.legacySub) return null;                      // 미지정이면 엉뚱한 곳에 만들지 않고 실패
   var bid = BRAND_DRIVE_FOLDER[brand];
@@ -653,8 +661,9 @@ function contractArchive(sess, body) {
   var brand = String((body && body.brand) || '');
   var kind = ARCHIVE_KIND[String((body && body.kind) || 'contract')];
   if (!kind) return json({ error: 'bad kind' });
-  var sub = archiveFolder(brand, kind);
-  if (!sub) return json({ error: '드라이브 폴더 미지정 (' + brand + '/' + kind.sub + ')' });
+  var product = String((body && body.product) || '').trim();
+  var sub = archiveFolder(brand, kind, product);
+  if (!sub) return json({ error: '드라이브 폴더 미지정 (' + brand + (product ? '/' + product : '') + '/' + kind.sub + ')' });
 
   var m = String((body && body.pfileUrl) || '').match(/[?&]id=(\d+)/);
   // 올린 파일 이름에서 드라이브가 못 쓰는 문자만 제거.
@@ -763,7 +772,7 @@ function contractMail(sess, body) {
    계약서 1장 = 정산 1건. 같은 사람의 신분증·통장이 개인정보파일에 있는지도 함께 알려준다. */
 /* 계약서 파일명 표준형 — 우리가 메일로 보낸 이름과 같게 맞춘다.
    드래프터_광고모델_홍길동_2026년08월06일   (광고주명이 곧 브랜드) */
-var BRAND_COMPANY_SHORT = { basetune: '드래프터', granny: '썸웨어코드' };
+var BRAND_COMPANY_SHORT = { basetune: '드래프터', granny: '썸웨어코드', hattke: '드래프터' };
 function stampKo(ymd6) {                                   // 260806 → 2026년08월06일
   var m = String(ymd6 || '').match(/^(\d{2})(\d{2})(\d{2})$/);
   return m ? ('20' + m[1] + '년' + m[2] + '월' + m[3] + '일') : '';
