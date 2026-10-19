@@ -4481,7 +4481,9 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
           needRrn:!f.rrn.trim(), needAddr:!f.address.trim(), needPhone:false,
           // 라벨 = '<브랜드>_협찬'(브리지가 찾고 없으면 만듦) · 직인 = '<회사>_사용인감'(회사 = 브랜드 설정, 없으면 파일명 앞)
           brand:(brand&&brand.name)||'', seal:sealCompanyOf(brand),
-          by:(getAuth()||{}).username||'' });
+          by:(getAuth()||{}).username||'',
+          // 서명 완료되면 발송기가 완료본을 이 브랜드 드라이브 「계약서파일」에 올린다(contractArchive) — 그때 쓸 주소·로그인
+          pa:{ api:API, token:(getAuth()||{}).token||'', brandId:(brand&&brand.id)||'', channel:r.name||'' } });
         upd({realName:name,phone,address:f.address.trim(),rate:f.rate.trim(),contractDate:f.contractDate.trim()||today(),contractSent:today()});
         setMsMsg({ok:`${name} 님에게 모두싸인 서명 요청을 보냈습니다.`});
       }catch(e){ setMsMsg({err:'모두싸인 발송 실패: '+(e&&e.message||e)}); }
