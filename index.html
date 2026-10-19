@@ -5219,59 +5219,36 @@ function ReviewChecklist({ brandId, brandName }){
 }
 
 /* ─── REVIEW VIEW ─── */
-/* ── 계약서 수집 버튼 ──────────────────────────────────────
-   서명해서 회신 온 계약서를 메일함에서 찾아 브랜드 드라이브에 넣는다.
-   평소엔 매일 12시·18시에 저절로 돌지만, "방금 온 회신"을 바로 받고 싶을 때 누른다.
-   관리자·매니저 누구나 누를 수 있다(구글 계정 필요 없음).
-
-   ★ 구조: 이 앱은 메일함을 못 본다. 여기서는 시트에 "수집해줘"만 적고(collectRun),
-     메일 권한을 가진 회수기(별도 스크립트, cheddar 계정 전용, 주소 비공개)가
-     1분마다 그 요청을 보고 대신 돈다. 결과는 건수만 돌려받는다(collectState).
-     PA 백엔드는 주소가 공개라 여기에 Gmail 권한을 붙이면 토큰이 새는 날
-     메일함이 통째로 위험해진다 — 그래서 권한을 옮기지 않고 요청만 넘긴다. */
-function ContractCollectBtn({ isManager }){
-  const [msg,setMsg]=useState('');      // 버튼 옆 진행 표시
+/* ── 모두싸인 완료본 가져오기 버튼(관리자) ─────────────────────
+   서명이 끝난 계약서를 관리자 PC 모두싸인 발송기(localhost:8791)가 문서함에서 받아
+   브랜드(해트케는 제품별) 드라이브 「계약서파일」에 넣는다. 발송기는 하루 1번 저절로 돌고,
+   지금 바로 받고 싶을 때 이 버튼을 누른다. (2026-10-19 메일 회수기는 그만 씀 — 메일 발송 안 함)
+   발송기는 관리자 PC에만 있으므로 관리자에게만 보인다. */
+function ModusignArchiveBtn({ isManager }){
+  const [msg,setMsg]=useState('');
   const [busy,setBusy]=useState(false);
-  const alive=useRef(true);
-  useEffect(()=>()=>{alive.current=false;},[]);
-
-  async function go(e){
+  if(!isManager) return null;
+  async function go(){
     if(busy) return;
-    const all = isManager && e.shiftKey;
-    if(all && !confirm('놓친 것까지 소급 수집할까요? (최근 60일 전체를 다시 훑습니다)')) return;
-    setBusy(true); setMsg('요청하는 중…');
-    const r=await callApi('collectRun', all?{mode:'all'}:{});
-    if(!r||r.error){ setBusy(false); setMsg('실패 — '+((r&&r.error)||'응답 없음')); return; }
-    setMsg('회수기에 넘김 — 곧 시작합니다');
-    // 회수기가 1분마다 요청함을 본다 → 그동안 결과를 지켜본다(최대 6분)
-    const t0=Date.now(); let sawRunning=false;
-    for(;;){
-      await _sleep(3000);
-      if(!alive.current) return;
-      const st=await callApi('collectState');
-      const res=st&&st.res;
-      if(res&&res.state==='running'){ sawRunning=true; setMsg('수집 중… (메일 수에 따라 1~3분)'); }
-      if(res&&(res.state==='done'||res.state==='skipped')&&Number(res.at||0)>=Number((st.req&&st.req.at)||0)){
-        setBusy(false);
-        if(res.error){ setMsg('실패 — '+res.error); return; }
-        setMsg(`저장 ${res.saved||0} · 이미저장 ${res.dup||0} · 확인필요 ${res.check||0}`
-          +(res.stopped?' (시간초과로 중간에 멈춤 — 한 번 더)':''));
-        return;
-      }
-      const el=Date.now()-t0;
-      // 2분이 지나도 시작조차 안 했으면 회수기 쪽 예약이 꺼진 것이다
-      if(!sawRunning && el>120000){ setBusy(false);
-        setMsg('회수기가 응답하지 않습니다 — 관리자에게 알려주세요'); return; }
-      if(el>360000){ setBusy(false); setMsg('오래 걸리고 있습니다 — 잠시 뒤 드라이브를 확인해주세요'); return; }
-    }
+    setBusy(true); setMsg('모두싸인 문서함 확인 중…');
+    let j=null;
+    try{ j=await (await fetch(MS_BRIDGE+'/archive?run=1')).json(); }
+    catch(e){ setBusy(false); setMsg(MS_BRIDGE_DOWN); return; }
+    setBusy(false);
+    const last=j&&j.last;
+    if(!j||j.error||!last){ setMsg('실패 — '+((j&&j.error)||'응답 없음')); return; }
+    if(last.error){ setMsg('실패 — '+last.error); return; }
+    const saved=last.saved||[], bad=saved.filter(x=>x.err);
+    if(!saved.length){ setMsg(`새로 서명 끝난 계약서 없음 (서명 기다리는 ${last.checked||0}건)`); return; }
+    setMsg(`${saved.length}건 가져옴: ${saved.map(x=>x.name).join(', ')}`
+      +(bad.length?` · 드라이브 실패 ${bad.length}건(${bad[0].err}) — PC 「완료계약서」 폴더엔 저장됨`:''));
   }
-
   return <>
-    <button className="btn btn-ghost cc-btn" style={{fontSize:11}} onClick={go} disabled={busy}
-      title={'메일로 회신 온 계약서를 지금 바로 드라이브에 담습니다'+(isManager?' (Shift+클릭 = 놓친 것까지 소급 수집)':'')}>
-      {busy?'📥 수집 중…':'📥 계약서 수집'}
+    <button className="btn btn-ghost ms-arch-btn" style={{fontSize:11}} onClick={go} disabled={busy}
+      title="서명이 끝난 모두싸인 계약서를 지금 바로 드라이브에 담습니다 (이 PC에서 모두싸인 발송기가 켜져 있어야 해요)">
+      {busy?'📥 가져오는 중…':'📥 모두싸인 완료본 가져오기'}
     </button>
-    {msg&&<span className="cc-msg" style={{fontSize:11,color:'var(--muted)'}}>{msg}</span>}
+    {msg&&<span className="ms-arch-msg" style={{fontSize:11,color:'var(--muted)'}}>{msg}</span>}
   </>;
 }
 
@@ -5371,7 +5348,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
       <button className="fchip" onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
       {driveLink&&<a href={driveLink} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
-      <ContractCollectBtn isManager={isManager}/>
+      <ModusignArchiveBtn isManager={isManager}/>
     </div>
     <BulkBar sel={sel} onDeleteMany={onDeleteMany} unit="건"/>
     <div className="table-wrap">
