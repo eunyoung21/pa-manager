@@ -3602,6 +3602,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const [talkQ,setTalkQ]=useState({}); // 소통 중 칸별 검색어 {담당자: 검색어}
   // '외 N명 더 보기' → 그 자리에서 전체 목록 팝업(2026-10-15). {kind:'settle'|'boss'|'pa', pa}. 목록은 열 때마다 다시 계산(✓ 누르면 바로 빠짐)
   const [pop,setPop]=useState(null);
+  const [shipPop,setShipPop]=useState(null);   // 📦 출고 정보 이름 → 그 사람 출고 내용 팝업(2026-10-20)
   const act=useInfActions(A);
   const infs=paFocus?infsAll.filter(i=>(i.pa||'미지정')===paFocus):infsAll;
   const active=infs.filter(i=>i.status==='active');
@@ -3727,9 +3728,31 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     </div>
   </div>;
 
+  // 출고 팝업 — 관리자가 회사 출고 시트에 옮겨 적을 내용. 완료하면 목록에서 빠지므로 팝업도 같이 닫힌다.
+  const sp=shipPop&&shipPending.find(i=>i.id===shipPop);
+  const shipUp=sp&&(()=>{ const s=sp.shipping, c=sp.contact||{};
+    const opt=Object.entries(c.opt||{}).filter(([,v])=>v).map(([,v])=>v).join(' / ');
+    const product=[s.product||c.product||'',opt].filter(Boolean).join(' · ');
+    const rows=[['받는 분',s.recipient],['연락처',s.phone],['주소',s.address],['상품',product],['수량',s.qty],['담당',sp.pa],['요청일',s.requestDate],['메모',s.notes]].filter(([,v])=>String(v||'').trim());
+    return <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShipPop(null)}>
+      <div className="modal" style={{maxWidth:480}}>
+        <div className="modal-title">📦 {sp.name}</div>
+        {rows.map(([k,v])=><div key={k} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'6px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+          <span style={{width:60,flexShrink:0,color:'var(--muted)'}}>{k}</span>
+          <span style={{flex:1,minWidth:0,wordBreak:'break-all',whiteSpace:'pre-wrap'}}>{v}</span>
+          {['받는 분','연락처','주소'].includes(k)&&<CopyBtn value={String(v)}/>}
+        </div>)}
+        <div className="modal-foot" style={{alignItems:'center'}}>
+          <span style={{display:'inline-flex',alignItems:'center',gap:6,marginRight:'auto',fontSize:12,color:'var(--muted)'}}><ShipCopyBtn row={s} product={product}/>한 번에 복사(시트 붙여넣기용)</span>
+          <button className="btn btn-ghost" onClick={()=>setShipPop(null)}>닫기</button>
+          <button className="btn btn-primary" onClick={()=>{A.updateShipRow(s.id,{status:'✅ 완료',shipDate:s.shipDate||today()});setShipPop(null);}}>✓ 완료</button>
+        </div>
+      </div>
+    </div>; })();
+
   return (
     <div className="hk-page"><div className="hk-in">
-      {popUp}
+      {popUp}{shipUp}
       <PaTabs infs={infsAll} paFocus={paFocus} setPaFocus={setPaFocus} paList={paList}/>
       <div className="role-section">
         <div className="role-header part">🟡 매니저 담당</div>
@@ -3744,7 +3767,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
         {shipPending.slice(0,MAX).map(i=>{
           const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
           return <div key={i.id} className="todo-item">
-            <span className="todo-name" style={{cursor:'pointer'}} onClick={()=>go('shipping','pend',paFocus,i.name)}>{i.name}</span>
+            <span className="todo-name" style={{cursor:'pointer'}} onClick={()=>setShipPop(i.id)}>{i.name}</span>
             <div className="todo-right">
               {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
               <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={()=>A.updateShipRow(i.shipping.id,{status:'✅ 완료',shipDate:i.shipping.shipDate||today()})}>✓ 완료</button>
