@@ -105,8 +105,8 @@ const btns = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-btns button'
 const RV = (id, ch, x = {}) => ({ id, date: TD, channelName: ch, realName: '', pa: '안민영', paCode: '', postLink: '', live: 'N', contractDone: 'N', ...x });
 savedData = { paList: ['안민영', '기타'], brands: [
   { ...EMPTY, id: 'hatke', name: '해트케',
-    claudeStep2Rows: [S2('a1', '무가씨', 'free_one', { ...deal, productOnly: 'Y', finalDone: 'Y' }), S2('a2', '유가씨', 'paid_one', { ...deal, finalDone: 'Y', rate: '100,000' })],
-    reviewRows: [RV('v1', '무가씨'), RV('v2', '유가씨')] },
+    claudeStep2Rows: [S2('a1', '무가씨', 'free_one', { ...deal, productOnly: 'Y', finalDone: 'Y' }), S2('a2', '유가씨', 'paid_one', { ...deal, finalDone: 'Y', rate: '100,000' }), S2('a3', '무가완료', 'free_done', { ...deal, productOnly: 'Y', finalDone: 'Y', infSettled: 'Y', infSettledDate: TD })],
+    reviewRows: [RV('v1', '무가씨'), RV('v2', '유가씨'), RV('v3', '무가완료')] },
 ], settlements: {} };
 const cell = (ch, label) => evalJs(`(()=>{const tr=[...document.querySelectorAll("tbody tr")].find(t=>t.innerText.includes(${J(ch)}));if(!tr)throw new Error('행 없음 '+${J(ch)});return tr.querySelector('td[data-label="${label}"]').innerText.trim()})()`);
 
@@ -118,6 +118,9 @@ chk((await cell('무가씨', '계약서')) === '', '무가씨 계약서 칸 비�
 chk((await cell('무가씨', '정산')) === '', '무가씨 정산 칸 비움', await cell('무가씨', '정산'));
 chk((await cell('유가씨', '계약서')).includes('미작성'), '유가씨 계약서 버튼 그대로', await cell('유가씨', '계약서'));
 chk((await cell('유가씨', '정산')).includes('미정산'), '유가씨 정산 그대로', await cell('유가씨', '정산'));
+chk((await cell('무가완료', '정산')) === '', '정산완료로 찍힌 제품만 제공 건도 정산 칸 비움', await cell('무가완료', '정산'));
+const paidChip = await evalJs(`([...document.querySelectorAll('.fchip')].find(b=>b.textContent.includes('정산완료'))||{}).textContent`);
+chk(paidChip.includes('(0)'), '정산완료 칩에서도 빠짐', paidChip);
 const chip = await evalJs(`([...document.querySelectorAll('.fchip')].find(b=>b.textContent.includes('미정산'))||{}).textContent`);
 chk(chip.includes('(1)'), '미정산 칩 = 1(무가씨 제외)', chip);
 

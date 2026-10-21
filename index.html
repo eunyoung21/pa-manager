@@ -5344,17 +5344,17 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
       if(q) return [r.channelName,r.pa,r.paCode,r.memo].some(v=>s(v).toLowerCase().includes(q));
       if(colFActive.length && !colFActive.every(([f,v])=>s(r[f]).toLowerCase().includes(v.trim().toLowerCase()))) return false;
       const ss=settleState(r);
-      if(filter==='paid'&&!(ss==='paid'||ss==='purged')) return false;
+      if(filter==='paid'&&(!(ss==='paid'||ss==='purged')||ncOfRev(r))) return false;
       if(filter==='unpaid'&&(ss!=='unpaid'||ncOfRev(r))) return false;   // 제품만 제공 건은 정산할 게 없어 미정산에서 뺀다
-      if(filter==='purged'&&ss!=='purged') return false;
+      if(filter==='purged'&&(ss!=='purged'||ncOfRev(r))) return false;
       if(filter==='live'&&r.live!=='Y') return false;
       if(prodF==='__none__'){ if(prodOfRev(r)) return false; } else if(prodF!=='all'&&prodOfRev(r)!==prodF) return false;
       return true;
     });
   const cnt={all:rows.length,
-    paid:rows.filter(r=>{const ss=settleState(r);return ss==='paid'||ss==='purged';}).length,
+    paid:rows.filter(r=>{const ss=settleState(r);return (ss==='paid'||ss==='purged')&&!ncOfRev(r);}).length,
     unpaid:rows.filter(r=>settleState(r)==='unpaid'&&!ncOfRev(r)).length,
-    purged:rows.filter(r=>settleState(r)==='purged').length,
+    purged:rows.filter(r=>settleState(r)==='purged'&&!ncOfRev(r)).length,
     live:rows.filter(r=>r.live==='Y').length};
   const sel=useRowSelect(shown);
   const pg=useProgressive(shown);   // 화면에 보이는 만큼만 그린다
@@ -5465,7 +5465,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                 <td data-label="정산" style={{textAlign:'center'}}>
                   {/* 정산 상태 + 관리자 정산완료 버튼(따로). 개인정보 폐기 후엔 폐기완료로 표시.
                      제품만 제공(무가 시딩) 건은 원고료가 없어 계약서·정산 칸을 비운다(2026-10-21). */}
-                  {ncOfRev(r)&&ss==='unpaid'?null:ss==='purged'
+                  {ncOfRev(r)?null:ss==='purged'
                     ? <span title={`정산 완료 후 신분증·통장 사본·주민번호 폐기됨 (${st.privacyPurgedDate||''})`} style={{fontSize:10,color:'var(--dim)',fontWeight:700,whiteSpace:'nowrap'}}>🗑️ 폐기완료</span>
                     : ss==='paid'
                       ? <span style={{display:'inline-flex',flexDirection:'column',gap:2,alignItems:'center'}}>
