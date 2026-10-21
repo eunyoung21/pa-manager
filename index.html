@@ -2660,7 +2660,9 @@ function YN({ value, onChange, disabled }) {
 function ShipCopyBtn({ row, product }){
   const [done,setDone]=useState(false);
   function copy(){
-    const text=[row.recipient||'',row.phone||'',row.address||'',product||row.product||''].join('\t');
+    // 상품 뒤에 수량 '(1)'(2026-10-21 사용자) — 출고 시트에 그대로 붙여넣는다
+    const qty=String(row.qty||'').trim()||'1';
+    const text=[row.recipient||'',row.phone||'',row.address||'',`${product||row.product||''} (${qty})`].join('\t');
     navigator.clipboard.writeText(text).then(()=>{setDone(true);setTimeout(()=>setDone(false),1200);});
   }
   return <button className="row-copy-btn" onClick={copy}
