@@ -4559,10 +4559,16 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
   }
   else if(st===4) action=<>
     {fld('광고 코드','adCode','광고 코드 입력')}
-    <div className="s2p-btns" style={{marginBottom:10}}>
+    {!nc&&<div className="s2p-btns" style={{marginBottom:10}}>
       <button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 통장사본·신분증 제출</button>
-    </div>
+    </div>}
     <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{if(f.adCode.trim())onSetAdCode&&onSetAdCode(r,f.adCode.trim());H.current.setFinal(r,'Y');}}>협찬 완료</button>{reject}</div></>;
+  // 제품만 제공(무가 시딩, 2026-10-21) — 입금이 없으니 '광고세팅'만. 완료 기록은 같은 칸(infSettled)이라 완료 처리 규칙은 그대로.
+  else if(st===5&&nc) action=<>
+    <p className="s2p-help">광고 세팅을 진행해주세요. 제품만 제공한 건이라 입금은 없어요.</p>
+    {editCopy('광고코드 (복사용)','adCode','광고 코드 입력',(rv&&rv.paCode)||'',v=>onSetAdCode&&onSetAdCode(r,v))}
+    {IS_STAFF?<p className="s2p-help">광고세팅 완료는 관리자가 처리해요.</p>
+      :<div className="s2p-btns"><button className="btn s2p-success" onClick={()=>onSettle&&onSettle(r.name,true,{pa,realName:r.realName||(rv&&rv.realName)||''})}>✓ 광고세팅 완료</button></div>}</>;
   else if(st===5) action=<>
     <p className="s2p-help">광고 세팅 및 인플루언서 입금을 진행해주세요.</p>
     {editCopy('광고코드 (복사용)','adCode','광고 코드 입력',(rv&&rv.paCode)||'',v=>onSetAdCode&&onSetAdCode(r,v))}
@@ -4583,8 +4589,9 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
       <div className="s2p-body">
         <div className="s2p-sec">진행 단계 <span style={{fontWeight:400}}>· 잘못 눌렀으면 지난 단계를 눌러 되돌리기</span></div>
         <div className="s2p-tl">
-          {S2_STAGES.map((name,i)=>{
+          {S2_STAGES.map((name0,i)=>{
             if(nc&&i===3) return null;
+            const name=nc&&i===4?'광고 코드 수집':nc&&i===5?'광고세팅':name0;   // 제품만 제공 — 입금 단어 뺌
             const dc=cur>i||st==='done'?'done':cur===i?'current':'pending';
             return <React.Fragment key={i}>
               <div className={'s2p-tl-item'+(dc==='done'&&st!=='rejected'?' back':'')} title={dc==='done'&&st!=='rejected'?'눌러서 이 단계로 되돌리기':''} onClick={()=>dc==='done'&&goBack(i)}><div className={'s2p-dot '+dc}>{dc==='done'?'✓':i+1}</div>

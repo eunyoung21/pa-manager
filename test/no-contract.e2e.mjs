@@ -119,7 +119,7 @@ await click('.step-tab', '인플루언서 관리'); await wait(600);
 await openCh('사랑'); await waitFor(`document.querySelector('.s2p')`, '상세 창');
 let st = await steps();
 chk(!st.some((s) => s.startsWith('계약서')) && st.length === 5, '차렵이불: 계약서 단계 없이 5단계', st);
-chk(st.includes('광고 코드/입금정보 수집*'), '제품 발송 다음 바로 광고 코드 단계', st);
+chk(st.includes('광고 코드 수집*') && st.includes('광고세팅'), '제품 발송 다음 바로 광고 코드 수집 → 광고세팅(무가 시딩은 입금 단어 없음)', st);
 await closeP(); await wait(300);
 await openCh('압력이'); await waitFor(`document.querySelector('.s2p')`, '상세 창 2');
 st = await steps();

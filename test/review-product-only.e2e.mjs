@@ -129,6 +129,21 @@ await click('.step-tab', '대시보드'); await wait(900);
 const settle = await evalJs(`(()=>{const g=[...document.querySelectorAll('.todo-group')].find(x=>x.innerText.includes('정산 대기'));return g?[...g.querySelectorAll('.todo-name')].map(x=>x.textContent):[]})()`);
 chk(settle.includes('유가씨') && !settle.includes('무가씨'), '정산 대기 = 유가씨만', settle);
 
+console.log('\n[관리자 상세 창] 제품만 제공 = 광고세팅만');
+await click('.step-tab', '자동화'); await wait(700);
+await openCh('무가씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창(무가)');
+let tl = await evalJs(`[...document.querySelectorAll('.s2p-tl-label')].map(x=>x.childNodes[0].textContent)`);
+let bb = await evalJs(`[...document.querySelectorAll('.s2p button')].map(b=>b.textContent.trim())`);
+chk(tl.includes('광고세팅') && tl.includes('광고 코드 수집') && !tl.some((x) => x.includes('입금')), '단계 이름에 입금 없음', tl);
+chk(bb.includes('✓ 광고세팅 완료') && !bb.some((x) => x.includes('입금')), '버튼 = ✓ 광고세팅 완료(입금 버튼 없음)', bb);
+await click('.s2p button', '✓ 광고세팅 완료'); await wait(1200);
+const a1 = H().step2Rows.find((r) => r.name === '무가씨') || H().claudeStep2Rows.find((r) => r.id === 'a1');
+chk(a1.infSettled === 'Y', '완료 기록 저장(기존 규칙과 같은 칸)', a1.infSettled);
+await closeP(); await wait(300);
+await openCh('유가씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창(유가)');
+bb = await evalJs(`[...document.querySelectorAll('.s2p button')].map(b=>b.textContent.trim())`);
+chk(bb.includes('✓ 광고세팅 및 입금 완료'), '원고료 있는 건은 그대로 광고세팅 및 입금', bb);
+
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close(); finder.close();
 process.exit(fail ? 1 : 0);
