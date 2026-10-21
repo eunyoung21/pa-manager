@@ -121,6 +121,11 @@ chk((await cell('유가씨', '정산')).includes('미정산'), '유가씨 정산
 chk((await cell('무가완료', '정산')) === '', '정산완료로 찍힌 제품만 제공 건도 정산 칸 비움', await cell('무가완료', '정산'));
 const paidChip = await evalJs(`([...document.querySelectorAll('.fchip')].find(b=>b.textContent.includes('정산완료'))||{}).textContent`);
 chk(paidChip.includes('(0)'), '정산완료 칩에서도 빠짐', paidChip);
+await evalJs(`(()=>{const s=[...document.querySelectorAll('td[data-label="채널명"] .ch-link')].find(x=>x.textContent==='유가씨');if(!s)throw new Error('영상검수 채널명 링크 없음');s.click();return 1})()`);
+await waitFor(`document.querySelector('.s2p')`, '영상검수 → 상세 창');
+chk(await evalJs(`document.querySelector('.s2p input').value`) === '유가씨', '영상검수 채널명 → 그 사람 상세 창');
+chk((await evalJs(`(document.querySelector('.step-tab.active')||{}).textContent`)).includes('영상검수'), '탭 그대로 영상검수');
+await closeP(); await wait(300);
 const chip = await evalJs(`([...document.querySelectorAll('.fchip')].find(b=>b.textContent.includes('미정산'))||{}).textContent`);
 chk(chip.includes('(1)'), '미정산 칩 = 1(무가씨 제외)', chip);
 

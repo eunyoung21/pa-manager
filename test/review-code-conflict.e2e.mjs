@@ -98,7 +98,7 @@ let fail=0;
 const ok=(c,m)=>{ console.log((c?'  PASS ':'  FAIL ')+m); if(!c) fail++; };
 const srvCode=id=>{ const r=(savedData.brands[0].reviewRows||[]).find(x=>x.id===id); return r?String(r.paCode||''):'(행없음)'; };
 
-const ROWJS=ch=>"[...document.querySelectorAll('tbody tr')].find(t=>((t.querySelectorAll('td')[2]||{}).innerText||'').trim()==='"+ch+"')";
+const ROWJS=ch=>"[...document.querySelectorAll('tbody tr')].find(t=>((t.querySelectorAll('td')[2]||{}).innerText||'').replace('✎','').trim()==='"+ch+"')";
 async function openReview(){
   await waitFor("document.querySelectorAll('.step-tab').length>0",'앱 로딩');
   await evalJs("[...document.querySelectorAll('.step-tab')].find(e=>e.textContent.includes('영상검수')).click()");

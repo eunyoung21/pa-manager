@@ -5300,7 +5300,8 @@ function ModusignArchiveBtn({ isManager }){
   </>;
 }
 
-function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, isManager }) {
+function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, onOpenInf, isManager }) {
+  const [chEdit,setChEdit]=useState(null);   // ✎ 채널명 고치기(채널명 누르면 상세 창)
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [openId,setOpenId]=useState(null);
@@ -5431,7 +5432,13 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                   <SelBox sel={sel} id={r.id}/>
                 </span></td>
                 <td><Cell value={r.date} onChange={v=>up(r.id,'date',v)} type="date" style={{width:80}}/></td>
-                <td style={{fontWeight:500}}><Cell value={r.channelName} onChange={v=>up(r.id,'channelName',v)} placeholder="채널명"/></td>
+                {/* 채널명 누르면 그 사람 상세 창(2026-10-21). 고치려면 ✎ — 비어 있으면 바로 입력칸 */}
+                <td data-label="채널명" style={{fontWeight:500}}>{String(r.channelName||'').trim()&&chEdit!==r.id
+                  ?<span style={{display:'inline-flex',alignItems:'center',gap:4,maxWidth:180}}>
+                    <span className="ch-link" style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title="눌러서 상세 보기"
+                      onClick={()=>{ if(!(onOpenInf&&onOpenInf(r.channelName,r.realName))) alert(r.channelName+' — 인플루언서 관리·자동화에 같은 사람이 없어 상세를 열 수 없어요.'); }}>{r.channelName}</span>
+                    <span title="채널명 고치기" style={{cursor:'pointer',color:'var(--muted)',fontSize:11}} onClick={()=>setChEdit(r.id)}>✎</span></span>
+                  :<Cell value={r.channelName} onChange={v=>{up(r.id,'channelName',v);setChEdit(null);}} placeholder="채널명"/>}</td>
                 <td><Cell value={r.realName||''} onChange={v=>up(r.id,'realName',v)} placeholder={nameOf(r.channelName)||'본명'}/></td>
                 <td><Cell value={r.pa||''} onChange={v=>up(r.id,'pa',v)} type="select" chips options={PA_LIST}/></td>
                 <td><div style={{display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
@@ -7643,7 +7650,16 @@ function AppMain({ authInfo, onLogout }) {
 
   // 대시보드 상세 창 — 행이 지워졌거나(삭제·자동정리) 브랜드를 바꾸면 그냥 안 뜬다
   const dashInfRow=dashInf?((dashInf.src==='auto'?brand.claudeStep2Rows:brand.step2Rows)||[]).find(r=>r.id===dashInf.id)||null:null;
-  useEffect(()=>{setDashInf(null);},[bId]);
+  useEffect(()=>{setDashInf(null);},[bId,tab]);
+  // 영상검수 채널명 → 그 사람 상세 창(2026-10-21). 컨택현황·자동화에서 채널명(없으면 본명)으로 찾는다.
+  function openInfByName(ch,realName){
+    const nz=s=>String(s||'').normalize('NFC').trim().toLowerCase().replace(/^@/,'').replace(/\s+/g,'');
+    const keys=[nz(ch),nz(realName)].filter(Boolean); if(!keys.length) return false;
+    for(const [src,rows] of [['s2',brand.step2Rows],['auto',brand.claudeStep2Rows]]){
+      const r=(rows||[]).find(x=>keys.includes(nz(x.name))||keys.includes(nz(igHandle(x.link)))||(realName&&keys.includes(nz(x.realName))));
+      if(r){ setDashInf({src,id:r.id}); return true; } }
+    return false;
+  }
 
   return <>
     <div className={`mode-banner ${isStaff?'staff':'manager'}`}>
@@ -7720,7 +7736,7 @@ function AppMain({ authInfo, onLogout }) {
     <div className="main">
       {tab==='dashboard'&&<DashboardView brand={brand} paList={paList} paFocus={dashPa} setPaFocus={setDashPa} isStaff={IS_STAFF} A={infA} go={go} settlements={settlements}
         openInf={i=>{ if(i.contact) setDashInf({src:i.src==='auto'?'auto':'s2',id:i.contact.id}); else go('manage','all',dashPa,'',i); }}/>}
-      {tab==='dashboard'&&dashInfRow&&<DashInfPanel r={dashInfRow} brand={brand} onClose={()=>setDashInf(null)}
+      {(tab==='dashboard'||tab==='review')&&dashInfRow&&<DashInfPanel r={dashInfRow} brand={brand} onClose={()=>setDashInf(null)}
         onUpdate={dashInf.src==='auto'?updateClaudeS2Row:updateStep2Row}
         onDelete={dashInf.src==='auto'?deleteClaudeS2Row:deleteStep2Row}
         onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:r.realName||'',phone:r.phone,pa:sanitizePA(r.pa)})}
@@ -7809,6 +7825,7 @@ function AppMain({ authInfo, onLogout }) {
         onUpdatePrivacy={updatePrivacyRow}
         onAddPrivacy={addPrivacyRow}
         onSettle={setInfSettledByName}
+        onOpenInf={openInfByName}
         isManager={isManager}
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}

@@ -87,7 +87,7 @@ async function openReview(){
   await wait(600);
 }
 // 채널명이 ch인 행의 PA코드 칸(6번째 td)에 코드 입력: 클릭 → 타이핑 → Enter
-const ROWJS=ch=>"[...document.querySelectorAll('tbody tr')].find(t=>((t.querySelectorAll('td')[2]||{}).innerText||'').trim()==='"+ch+"')";
+const ROWJS=ch=>"[...document.querySelectorAll('tbody tr')].find(t=>((t.querySelectorAll('td')[2]||{}).innerText||'').replace('✎','').trim()==='"+ch+"')";
 async function typeCode(ch,code){
   const found=await evalJs("(()=>{const tr="+ROWJS(ch)+"; if(!tr) return 'no-row';"+
     "const td=tr.querySelectorAll('td')[5]; if(!td) return 'no-td';"+
