@@ -2671,7 +2671,7 @@ function ShipCopyBtn({ row, product }){
 
 // 출고 내용 팝업 — 대시보드 📦 출고 정보·📦 출고 탭 채널명이 같이 쓴다(2026-10-21). onDone 이 없으면(이미 완료) 완료 버튼 없음.
 function ShipInfoModal({ title, s, product, pa, onDone, onClose }){
-  const rows=[['받는 분',s.recipient],['연락처',s.phone],['주소',s.address],['상품',product],['수량',s.qty],['담당',pa],['요청일',s.requestDate],['상태',s.status],['송장',s.tracking],['메모',s.notes]].filter(([,v])=>String(v||'').trim());
+  const rows=[['받는 분',s.recipient],['연락처',s.phone],['주소',s.address],['상품',`${product} (${String(s.qty||'').trim()||'1'})`],['담당',pa],['요청일',s.requestDate],['상태',s.status],['송장',s.tracking],['메모',s.notes]].filter(([,v])=>String(v||'').trim());
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
     <div className="modal" style={{maxWidth:480}}>
       <div className="modal-title">📦 {title}</div>
@@ -4929,7 +4929,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
             </span></td>
             <td data-label="연락처"><Cell value={r.phone} onChange={v=>up(r.id,'phone',v)}/></td>
             <td data-label="배송지 주소"><Cell value={r.address} onChange={v=>up(r.id,'address',v)}/></td>
-            <td data-label="상품명" style={{whiteSpace:'nowrap',fontWeight:600}}>{prodOfShip(r)}{optOfShip(r)?<span style={{fontWeight:400,color:'var(--muted)'}}> · {optOfShip(r)}</span>:null}</td>
+            <td data-label="상품명" style={{whiteSpace:'nowrap',fontWeight:600}}>{prodOfShip(r)}{optOfShip(r)?<span style={{fontWeight:400,color:'var(--muted)'}}> · {optOfShip(r)}</span>:null} ({String(r.qty||'').trim()||'1'})</td>
             <td data-label="비고"><Cell value={r.notes} onChange={v=>up(r.id,'notes',v)}/></td>
             <td data-label="처리 상태"><Cell value={r.status} onChange={v=>up(r.id,'status',v)} type="select" options={['처리중','✅ 완료']}/></td>
             <td data-label="출고일자"><Cell value={r.shipDate||''} onChange={v=>up(r.id,'shipDate',v)} type="date" style={{width:80}} placeholder="출고일"/></td>
@@ -5345,7 +5345,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
       if(colFActive.length && !colFActive.every(([f,v])=>s(r[f]).toLowerCase().includes(v.trim().toLowerCase()))) return false;
       const ss=settleState(r);
       if(filter==='paid'&&!(ss==='paid'||ss==='purged')) return false;
-      if(filter==='unpaid'&&ss!=='unpaid') return false;
+      if(filter==='unpaid'&&(ss!=='unpaid'||ncOfRev(r))) return false;   // 제품만 제공 건은 정산할 게 없어 미정산에서 뺀다
       if(filter==='purged'&&ss!=='purged') return false;
       if(filter==='live'&&r.live!=='Y') return false;
       if(prodF==='__none__'){ if(prodOfRev(r)) return false; } else if(prodF!=='all'&&prodOfRev(r)!==prodF) return false;
@@ -5353,7 +5353,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
     });
   const cnt={all:rows.length,
     paid:rows.filter(r=>{const ss=settleState(r);return ss==='paid'||ss==='purged';}).length,
-    unpaid:rows.filter(r=>settleState(r)==='unpaid').length,
+    unpaid:rows.filter(r=>settleState(r)==='unpaid'&&!ncOfRev(r)).length,
     purged:rows.filter(r=>settleState(r)==='purged').length,
     live:rows.filter(r=>r.live==='Y').length};
   const sel=useRowSelect(shown);
@@ -5452,7 +5452,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                 </td>
                 <td data-label="계약서">
                   {/* 계약서 작성여부 — 라이브 버튼처럼 토글. 켜면 작성일 자동 기록 */}
-                  {ncOfRev(r)?<span title="제품만 제공·원고료 없음 — 계약서 안 써요" style={{fontSize:11,color:'var(--dim)',whiteSpace:'nowrap'}}>— 계약서 없음</span>
+                  {ncOfRev(r)?null
                   :(()=>{const done=r.contractDone==='Y';return (
                     <button onClick={()=>onUpdate(r.id,{contractDone:done?'N':'Y',contractDate:(!done&&!r.contractDate)?today():r.contractDate})}
                       title={done?(r.contractDate?'계약서 작성 '+r.contractDate:'작성됨')+' — 클릭하면 해제':'클릭하면 계약서 작성완료로 표시'}
@@ -5463,8 +5463,9 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                   );})()}
                 </td>
                 <td data-label="정산" style={{textAlign:'center'}}>
-                  {/* 정산 상태 + 관리자 정산완료 버튼(따로). 개인정보 폐기 후엔 폐기완료로 표시. */}
-                  {ss==='purged'
+                  {/* 정산 상태 + 관리자 정산완료 버튼(따로). 개인정보 폐기 후엔 폐기완료로 표시.
+                     제품만 제공(무가 시딩) 건은 원고료가 없어 계약서·정산 칸을 비운다(2026-10-21). */}
+                  {ncOfRev(r)&&ss==='unpaid'?null:ss==='purged'
                     ? <span title={`정산 완료 후 신분증·통장 사본·주민번호 폐기됨 (${st.privacyPurgedDate||''})`} style={{fontSize:10,color:'var(--dim)',fontWeight:700,whiteSpace:'nowrap'}}>🗑️ 폐기완료</span>
                     : ss==='paid'
                       ? <span style={{display:'inline-flex',flexDirection:'column',gap:2,alignItems:'center'}}>

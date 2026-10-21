@@ -133,7 +133,7 @@ await closeP(); await wait(300);
 console.log('\n[영상검수 · 계약서 칸]');
 await click('.step-tab', '영상검수'); await wait(800);
 const cc = await evalJs(`[...document.querySelectorAll('tbody tr')].map(tr=>{const n=tr.querySelector('td[data-label="채널명"]');const c=tr.querySelector('td[data-label="계약서"]');return [tr.innerText.replace(/\s+/g," "),c?c.innerText.replace(/\s+/g,' ').trim():'']})`);
-chk(cc.some(([n, c]) => n.includes('사랑') && c.includes('계약서 없음')), '사랑: 계약서 없음 표시', cc);
+chk(cc.some(([n, c]) => n.includes('사랑') && c === ''), '사랑: 계약서 칸 비움(제품만 제공, 2026-10-21)', cc);
 chk(cc.some(([n, c]) => n.includes('압력이') && c.includes('미작성')), '압력이: 계약서 토글 그대로', cc);
 
 console.log('\n[⚙ 제품·옵션] 체크 해제하면 계약서 단계 복귀');
