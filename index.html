@@ -3676,7 +3676,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     </div>; };
   // 💰 정산 대기(2026-10-14) — 광고코드까지 끝나 인플루언서 입금만 남은 사람(광고세팅·입금 단계).
   // 관리자가 여기서 ✓ 입금을 누르면 상세 창의 '광고세팅 및 입금 완료'와 같은 기록(infSettled)이 남는다.
-  const settleItems=byStage(STAGE_IDX.adset);
+  const settleItems=byStage(STAGE_IDX.adset).filter(i=>!i.noContract);   // 제품만 제공(무가 시딩)은 입금할 게 없어 뺀다(2026-10-21)
   const settleItem=i=>{ const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
     const rate=String((i.contact&&i.contact.rate)||'').trim(); const c=INF_STAGES[STAGE_IDX.adset].color;
     return <div key={i.id} className="todo-item" onClick={()=>openInf(i)}>

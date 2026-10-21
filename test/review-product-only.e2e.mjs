@@ -124,6 +124,11 @@ chk(paidChip.includes('(0)'), '정산완료 칩에서도 빠짐', paidChip);
 const chip = await evalJs(`([...document.querySelectorAll('.fchip')].find(b=>b.textContent.includes('미정산'))||{}).textContent`);
 chk(chip.includes('(1)'), '미정산 칩 = 1(무가씨 제외)', chip);
 
+console.log('\n[관리자 대시보드] 💰 정산 대기에서 제품만 제공 건 제외');
+await click('.step-tab', '대시보드'); await wait(900);
+const settle = await evalJs(`(()=>{const g=[...document.querySelectorAll('.todo-group')].find(x=>x.innerText.includes('정산 대기'));return g?[...g.querySelectorAll('.todo-name')].map(x=>x.textContent):[]})()`);
+chk(settle.includes('유가씨') && !settle.includes('무가씨'), '정산 대기 = 유가씨만', settle);
+
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close(); finder.close();
 process.exit(fail ? 1 : 0);
