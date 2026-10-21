@@ -4311,7 +4311,7 @@ function noReplyCutKey(){ const d=new Date(); d.setDate(d.getDate()-NO_REPLY_DAY
    리스트업(step1)은 같은 이름의 진행 행이 성사 이후면 같이 둔다(이름으로 짝지어지므로). 브랜드마다 1번(nameHandleMig). */
 function migNameToHandle(b){
   if(b.nameHandleMig) return {b,n:0};
-  const nz=x=>String(x||'').normalize('NFC').trim().toLowerCase().replace(/s+/g,'');
+  const nz=x=>String(x||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,'');   // 공백 제거(2026-10-21: 예전엔 /s+/ 라 글자 s 를 지웠음)
   const hd=r=>String(r.username||'').trim().replace(/^@/,'').toLowerCase()||igHandle(r.link);
   const keep=new Set([...(b.shippingRows||[]),...(b.reviewRows||[]),...(b.privacyRows||[])].map(x=>nz(x.channelName)).filter(Boolean));
   [...(b.step2Rows||[]),...(b.claudeStep2Rows||[])].forEach(r=>{ if(r.dealDone==='Y'||r.finalDone==='Y'||r.infSettled==='Y'||r.privacyPurged) keep.add(nz(r.name)); });
