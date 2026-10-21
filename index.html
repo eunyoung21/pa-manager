@@ -2669,6 +2669,26 @@ function ShipCopyBtn({ row, product }){
     title="수령자명·연락처·주소·상품명 한번에 복사">{done?'✓':'📋'}</button>;
 }
 
+// 출고 내용 팝업 — 대시보드 📦 출고 정보·📦 출고 탭 채널명이 같이 쓴다(2026-10-21). onDone 이 없으면(이미 완료) 완료 버튼 없음.
+function ShipInfoModal({ title, s, product, pa, onDone, onClose }){
+  const rows=[['받는 분',s.recipient],['연락처',s.phone],['주소',s.address],['상품',product],['수량',s.qty],['담당',pa],['요청일',s.requestDate],['상태',s.status],['송장',s.tracking],['메모',s.notes]].filter(([,v])=>String(v||'').trim());
+  return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal" style={{maxWidth:480}}>
+      <div className="modal-title">📦 {title}</div>
+      {rows.map(([k,v])=><div key={k} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'6px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+        <span style={{width:60,flexShrink:0,color:'var(--muted)'}}>{k}</span>
+        <span style={{flex:1,minWidth:0,wordBreak:'break-all',whiteSpace:'pre-wrap'}}>{v}</span>
+        {['받는 분','연락처','주소','송장'].includes(k)&&<CopyBtn value={String(v)}/>}
+      </div>)}
+      <div className="modal-foot" style={{alignItems:'center'}}>
+        <span style={{display:'inline-flex',alignItems:'center',gap:6,marginRight:'auto',fontSize:12,color:'var(--muted)'}}><ShipCopyBtn row={s} product={product}/>한 번에 복사(시트 붙여넣기용)</span>
+        <button className="btn btn-ghost" onClick={onClose}>닫기</button>
+        {onDone&&<button className="btn btn-primary" onClick={()=>{onDone();onClose();}}>✓ 완료</button>}
+      </div>
+    </div>
+  </div>;
+}
+
 /* ─── CALENDAR SIDEBAR ─── */
 function CalSidebar({rows,dateKey='date',dayFilter,setDayFilter,monthFilter,setMonthFilter}){
   const now=new Date();
@@ -3735,22 +3755,8 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const shipUp=sp&&(()=>{ const s=sp.shipping, c=sp.contact||{};
     const opt=Object.entries(c.opt||{}).filter(([,v])=>v).map(([,v])=>v).join(' / ');
     const product=[s.product||c.product||'',opt].filter(Boolean).join(' · ');
-    const rows=[['받는 분',s.recipient],['연락처',s.phone],['주소',s.address],['상품',product],['수량',s.qty],['담당',sp.pa],['요청일',s.requestDate],['메모',s.notes]].filter(([,v])=>String(v||'').trim());
-    return <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShipPop(null)}>
-      <div className="modal" style={{maxWidth:480}}>
-        <div className="modal-title">📦 {sp.name}</div>
-        {rows.map(([k,v])=><div key={k} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'6px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
-          <span style={{width:60,flexShrink:0,color:'var(--muted)'}}>{k}</span>
-          <span style={{flex:1,minWidth:0,wordBreak:'break-all',whiteSpace:'pre-wrap'}}>{v}</span>
-          {['받는 분','연락처','주소'].includes(k)&&<CopyBtn value={String(v)}/>}
-        </div>)}
-        <div className="modal-foot" style={{alignItems:'center'}}>
-          <span style={{display:'inline-flex',alignItems:'center',gap:6,marginRight:'auto',fontSize:12,color:'var(--muted)'}}><ShipCopyBtn row={s} product={product}/>한 번에 복사(시트 붙여넣기용)</span>
-          <button className="btn btn-ghost" onClick={()=>setShipPop(null)}>닫기</button>
-          <button className="btn btn-primary" onClick={()=>{A.updateShipRow(s.id,{status:'✅ 완료',shipDate:s.shipDate||today()});setShipPop(null);}}>✓ 완료</button>
-        </div>
-      </div>
-    </div>; })();
+    return <ShipInfoModal title={sp.name} s={s} product={product} pa={sp.pa} onClose={()=>setShipPop(null)}
+      onDone={()=>A.updateShipRow(s.id,{status:'✅ 완료',shipDate:s.shipDate||today()})}/>; })();
 
   return (
     <div className="hk-page"><div className="hk-in">
@@ -4784,6 +4790,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [reqF,setReqF]=useState(''); // 요청자 필터('' = 전체)
+  const [shipOpen,setShipOpen]=useState(null), [chEdit,setChEdit]=useState(null);   // 채널명 → 출고 팝업 / ✎ 채널명 고치기
   const [colF,setColF]=useState({}); // 엑셀식 컬럼별 포함검색 필터 {필드:문자열}
   const [showColF,setShowColF]=useState(false);
   const q=useDeferredValue(search).trim().toLowerCase();   // 표 필터는 한 박자 늦게 — 타자가 안 밀리게
@@ -4852,7 +4859,11 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
   const pg=useProgressive(shown);   // 화면에 보이는 만큼만 그린다
   function up(id,k,v){onUpdate(id,{[k]:v});}
   function setCol(f,v){setColF(p=>({...p,[f]:v}));}
+  const openShip=shipOpen&&rows.find(r=>r.id===shipOpen);
   return <div className="view-wrap roomy-wrap">
+    {openShip&&<ShipInfoModal title={openShip.channelName||chanOf(openShip.recipient)} s={openShip} product={shipLabel(openShip)} pa={openShip.requester}
+      onClose={()=>setShipOpen(null)}
+      onDone={String(openShip.status||'').includes('완료')?null:()=>onUpdate(openShip.id,{status:'✅ 완료',shipDate:openShip.shipDate||today()})}/>}
     <div className="view-main roomy no-cal">
     {shipProducts.length>1&&<div className="prod-tabs">
       {[{k:'all',l:`전체 (${rows.length})`},...shipProducts.map(pn=>({k:pn,l:`${pn} (${rows.filter(r=>prodOfShip(r)===pn).length})`}))]
@@ -4906,7 +4917,12 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
             </span></td>
             <td data-label="출고요청일"><Cell value={r.requestDate} onChange={v=>up(r.id,'requestDate',v)} type="date" style={{width:80}}/></td>
             <td data-label="요청자"><Cell value={r.requester||''} onChange={v=>up(r.id,'requester',v)} type="select" chips options={PA_LIST}/></td>
-            <td data-label="채널명"><Cell value={r.channelName||''} onChange={v=>up(r.id,'channelName',v)} placeholder={chanOf(r.recipient)||'채널명'} style={{color:'var(--blue)',fontSize:11,width:84}}/></td>
+            {/* 채널명 누르면 그 사람 출고 내용 팝업(2026-10-21). 고치려면 ✎ — 비어 있으면 바로 입력칸 */}
+            <td data-label="채널명">{(r.channelName||chanOf(r.recipient))&&chEdit!==r.id
+              ?<span style={{display:'inline-flex',alignItems:'center',gap:4,maxWidth:130}}>
+                <span className="ch-link" style={{fontSize:11,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title="눌러서 출고 내용 보기" onClick={()=>setShipOpen(r.id)}>{r.channelName||chanOf(r.recipient)}</span>
+                <span title="채널명 고치기" style={{cursor:'pointer',color:'var(--muted)',fontSize:11}} onClick={()=>setChEdit(r.id)}>✎</span></span>
+              :<Cell value={r.channelName||''} onChange={v=>{up(r.id,'channelName',v);setChEdit(null);}} placeholder={chanOf(r.recipient)||'채널명'} style={{color:'var(--blue)',fontSize:11,width:84}}/>}</td>
             <td data-label="수령자명"><span style={{display:'flex',alignItems:'center',gap:2}}>
               <ShipCopyBtn row={r} product={shipLabel(r)}/>
               <Cell value={r.recipient} onChange={v=>up(r.id,'recipient',v)} placeholder="수령자명" style={{flex:1,minWidth:0}}/>

@@ -105,7 +105,8 @@ const btns = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-btns button'
 savedData = { paList: ['안민영', '기타'], brands: [
   { ...EMPTY, id: 'hatke', name: '해트케',
     claudeStep2Rows: [S2('p1', '끌로에 하우스', 'chloe_house', { ...deal, product: '해트케 압력이불', opt: { 색상: '화이트' }, shippingDone: '✅ 완료', shipDate: TD, realName: '김하나', phone: '010-1234-5678', address: '서울시 강남구 1' })],
-    shippingRows: [{ id: 'sh1', requestDate: TD, requester: '안민영', channelName: '끌로에 하우스', recipient: '김하나', phone: '010-1234-5678', address: '서울시 강남구 1', product: '해트케 압력이불', qty: '1', notes: '', tracking: '', status: '처리중', fromContact: 'Y' }] },
+    shippingRows: [{ id: 'sh1', requestDate: TD, requester: '안민영', channelName: '끌로에 하우스', recipient: '김하나', phone: '010-1234-5678', address: '서울시 강남구 1', product: '해트케 압력이불', qty: '1', notes: '', tracking: '', status: '처리중', fromContact: 'Y' },
+      { id: 'sh2', requestDate: TD, requester: '안민영', channelName: '화이트코지하우스', recipient: '박둘', phone: '010-2222-3333', address: '부산시 해운대구 2', product: '휘핑크림 차렵이불', qty: '2', notes: '10/26 발송', tracking: '', status: '처리중' }] },
 ], settlements: {} };
 
 console.log('\n[관리자 대시보드] 📦 출고 정보 이름 → 팝업');
@@ -125,6 +126,22 @@ const sh = H().shippingRows.find((r) => r.id === 'sh1');
 chk(sh.status === '✅ 완료', '✓ 완료 저장', sh.status);
 chk(!(await evalJs(`!!document.querySelector('.modal')`)), '팝업 닫힘');
 chk(!(await evalJs(`[...document.querySelectorAll('.todo-box')].some(b=>b.textContent.includes('출고 정보'))`)), '출고 정보 목록에서 빠짐');
+
+console.log('\n[📦 출고 탭] 채널명 누르면 같은 팝업');
+await click('.step-tab', '출고'); await wait(800);
+await evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent==='화이트코지하우스');if(!s)throw new Error('채널명 링크 없음');s.click();return 1})()`);
+await waitFor(`document.querySelector('.modal')`, '출고 탭 팝업');
+const t2 = await evalJs(`document.querySelector('.modal').innerText`);
+chk(['화이트코지하우스', '박둘', '010-2222-3333', '부산시 해운대구 2', '휘핑크림 차렵이불', '10/26 발송'].every((s) => t2.includes(s)), '출고 탭 팝업 내용', t2);
+await evalJs(`(()=>{window.__clip='';document.querySelector('.modal .row-copy-btn').click();return 1})()`); await wait(200);
+const clip2 = await evalJs(`window.__clip`);
+chk(clip2.endsWith('휘핑크림 차렵이불 (2)'), '출고 탭 팝업 복사에 수량 (2)', clip2);
+await click('.modal button', '✓ 완료'); await wait(1200);
+chk(H().shippingRows.find((r) => r.id === 'sh2').status === '✅ 완료', '출고 탭 팝업 ✓ 완료 저장');
+const links0 = await evalJs(`document.querySelectorAll('td[data-label="채널명"] .ch-link').length`);
+await evalJs(`(()=>{const e=document.querySelector('td[data-label="채널명"] span[title="채널명 고치기"]');if(!e)throw new Error('✎ 없음');e.click();return 1})()`); await wait(300);
+const links1 = await evalJs(`document.querySelectorAll('td[data-label="채널명"] .ch-link').length`);
+chk(links0 >= 1 && links1 === links0 - 1, '✎ 누르면 그 줄 채널명이 입력칸으로', { links0, links1 });
 
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close(); finder.close();
