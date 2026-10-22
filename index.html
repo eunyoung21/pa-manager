@@ -3159,10 +3159,13 @@ function BrandAddModal({ existingNames, onAdd, onClose }) {
 }
 
 /* ─── ADD ROW MODAL (Step1) ─── */
-function AddStep1Modal({ onConfirm, onCancel, brand }) {
+function AddStep1Modal({ onConfirm, onCancel, brand, mode }) {
+  // mode='auto' — 🤖 자동화 탭에서 직접 추가(2026-10-22): 검수 상태 없음, 제품이 여러 개면 제품 고르기
+  const AUTO=mode==='auto';
+  const prods=AUTO?brandProducts(brand,brand&&brand.claudeStep2Rows):[];
   // 한 번에 여러 명 — 등록일·담당 PA·검수 상태는 공통, 사람마다 한 줄(2026-09-21)
   const blank=()=>({key:makeId(),name:'',link:'',followers:'',persona:'',memo:''});
-  const [c,setC]=useState({date:today(),pa:'',reviewStatus:'검수대기'});
+  const [c,setC]=useState({date:today(),pa:'',reviewStatus:'검수대기',product:prods.length===1?prods[0]:''});
   const [rows,setRows]=useState(()=>[blank(),blank(),blank()]);
   const uc=k=>e=>setC(p=>({...p,[k]:e.target.value}));
   const ur=(key,k)=>e=>setRows(rs=>rs.map(r=>r.key===key?{...r,[k]:e.target.value}:r));
@@ -3196,12 +3199,13 @@ function AddStep1Modal({ onConfirm, onCancel, brand }) {
   },[rows,brand]);
   const ready=rows.filter((r,i)=>checks[i].filled&&checks[i].level!=='block');
   const nBlock=checks.filter(x=>x.filled&&x.level==='block').length, nWarn=checks.filter(x=>x.filled&&x.level==='warn').length;
-  const submit=()=>onConfirm(ready.map(r=>({date:c.date,pa:c.pa,reviewStatus:c.reviewStatus,name:nameOf(r),link:r.link.trim(),followers:r.followers.trim(),persona:r.persona.trim(),memo:r.memo.trim(),id:makeId(),promotedToStep2:false})));
+  const needProd=AUTO&&prods.length>1&&!c.product;
+  const submit=()=>onConfirm(ready.map(r=>({date:c.date,pa:c.pa,reviewStatus:c.reviewStatus,...(AUTO&&c.product?{product:c.product}:{}),name:nameOf(r),link:r.link.trim(),followers:r.followers.trim(),persona:r.persona.trim(),memo:r.memo.trim(),id:makeId(),promotedToStep2:false})));
   const cell={padding:'4px 3px',borderBottom:'1px solid var(--border)',verticalAlign:'top'};
   const inp={width:'100%',fontSize:12,padding:'5px 7px'};
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()}>
     <div className="modal" style={{width:980,maxWidth:'calc(100vw - 24px)'}}>
-      <div className="modal-title">📋 인플루언서 추가 (STEP1 리스트업) — 여러 명 한 번에</div>
+      <div className="modal-title">{AUTO?'🤖 인플루언서 추가 (자동화) — 여러 명 한 번에':'📋 인플루언서 추가 (STEP1 리스트업) — 여러 명 한 번에'}</div>
       <div className="modal-grid" style={{gridTemplateColumns:'1fr 1fr 1fr'}}>
         <div><div className="modal-lbl">등록일</div><input className="modal-inp add-common" value={c.date} onChange={uc('date')} /></div>
         <div><div className="modal-lbl">담당 PA</div>
@@ -3210,7 +3214,12 @@ function AddStep1Modal({ onConfirm, onCancel, brand }) {
             {PA_LIST.map(p=><option key={p}>{p}</option>)}
           </select>
         </div>
-        {!IS_STAFF?<div><div className="modal-lbl">검수 상태</div>
+        {AUTO?(prods.length>1?<div><div className="modal-lbl">협찬 제품 *</div>
+          <select className="modal-sel add-product" value={c.product} onChange={uc('product')}>
+            <option value="">선택</option>
+            {prods.map(p=><option key={p}>{p}</option>)}
+          </select>
+        </div>:<div/>):!IS_STAFF?<div><div className="modal-lbl">검수 상태</div>
           <select className="modal-sel" value={c.reviewStatus} onChange={uc('reviewStatus')}>
             {REVIEW_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -3220,7 +3229,7 @@ function AddStep1Modal({ onConfirm, onCancel, brand }) {
       <div style={{maxHeight:'46vh',overflow:'auto',border:'1px solid var(--border)',borderRadius:8}}>
         <table className="add-rows" style={{width:'100%',borderCollapse:'collapse'}}>
           <thead><tr style={{position:'sticky',top:0,background:'var(--thead-bg)',zIndex:1}}>
-            {['#','채널명','채널 링크 *','팔로워','페르소나 / 카테고리','메모','중복',''].map((t,i)=><th key={i} style={{fontSize:11,padding:'6px 4px',textAlign:'left',whiteSpace:'nowrap'}}>{t}</th>)}
+            {['#','채널명','채널 링크 *','팔로워',AUTO?'카테고리':'페르소나 / 카테고리','메모','중복',''].map((t,i)=><th key={i} style={{fontSize:11,padding:'6px 4px',textAlign:'left',whiteSpace:'nowrap'}}>{t}</th>)}
           </tr></thead>
           <tbody>
             {rows.map((r,i)=>{const ck=checks[i];
@@ -3245,7 +3254,7 @@ function AddStep1Modal({ onConfirm, onCancel, brand }) {
         ⚠️ {nWarn}명은 전에 거절·완료된 인플루언서예요 — 그래도 추가돼요.</div>}
       <div className="modal-foot">
         <button className="btn btn-ghost" onClick={onCancel}>취소</button>
-        <button className="btn btn-primary add-submit" disabled={!ready.length} onClick={submit}>{ready.length?`${ready.length}명 추가`:'추가'}</button>
+        <button className="btn btn-primary add-submit" disabled={!ready.length||needProd} title={needProd?'협찬 제품을 고르세요':''} onClick={submit}>{needProd?'제품을 고르세요':ready.length?`${ready.length}명 추가`:'추가'}</button>
       </div>
     </div>
   </div>;
@@ -7109,6 +7118,10 @@ function AppMain({ authInfo, onLogout }) {
     updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...list.map(r=>({id:makeId(),date:td,name:r.name,username:r.username,link:r.link,followers:r.followers,pa:'',category:nicheOf([r.name,r.memo].join(' '))||'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:r.memo,...(r.product?{product:r.product}:{})}))]}));
   }
   // 컨택현황에 빈 행 추가 — 직접 인플루언서 입력용.
+  // 🤖 자동화 탭 직접 추가(팝업, 2026-10-22) — 여러 명·중복 확인·제품. 담당 PA는 고른 경우에만.
+  function addClaudeS2Rows(list){
+    updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...list.map(r=>({id:makeId(),date:r.date||today(),name:r.name,username:igHandle(r.link)||'',link:r.link,followers:r.followers,pa:r.pa||'',category:r.persona||nicheOf([r.name,r.memo].join(' '))||'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:r.memo||'',...(r.product?{product:r.product}:{})}))]}));
+  }
   function addClaudeS2Row(){
     updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),{id:makeId(),date:today(),name:'새 인플루언서',link:'',followers:'',pa:'',category:'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:''}]}));
   }
@@ -7778,7 +7791,7 @@ function AppMain({ authInfo, onLogout }) {
           onSaveSeal={saveBrandSeal}
           onUploadContract={uploadContractTemplate}
           actions={<>
-            <button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={addClaudeS2Row}>＋ 인플루언서 추가</button>
+            <button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={()=>setModal('addAuto')}>＋ 인플루언서 추가</button>
             {(brand.claudeStep1Rows||[]).length>0&&<button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
             {bId==='granny'&&<button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={seedClaudeGranny}>🤖 발굴 50명 불러오기</button>}
           </>}
@@ -7851,6 +7864,7 @@ function AppMain({ authInfo, onLogout }) {
     />}
 
     {modal==='paManage'&&<PaManageModal paList={paList} setPaList={setPaList} onClose={()=>setModal(null)}/>}
+    {modal==='addAuto'&&<AddStep1Modal mode="auto" brand={brand} onConfirm={list=>{addClaudeS2Rows(list);setModal(null);setMsg('🤖 자동화 '+list.length+'명 추가');}} onCancel={()=>setModal(null)}/>}
     {modal==='addStep1'&&<AddStep1Modal brand={brand} onConfirm={list=>{const ok=list.filter(r=>addStep1Row(r)!==false).length;setModal(null);setMsg(`📋 리스트업 ${ok}명 추가${list.length>ok?` · 🚫 ${list.length-ok}명 제외(담당자 있음)`:''}`);}} onCancel={()=>setModal(null)}/>}
     {modal==='pasteStep1'&&<PasteImportModal kind="step1" brand={brand} onConfirm={rows=>{const {added,skipped,blocked}=addStep1RowsBulk(rows);setModal(null);setMsg(`📋 ${added}명 추가${skipped>0?` · 중복 ${skipped}명 건너뜀`:''}`+(blocked.length?` · 🚫 담당자 있음 ${blocked.length}명 제외`:''));if(blocked.length)alert('🚫 이미 담당자가 있어 추가하지 않은 인플루언서 '+blocked.length+'명\n같은 인플루언서는 먼저 리스트업한 사람이 담당이에요.\n\n'+blocked.join('\n\n'));}} onCancel={()=>setModal(null)}/>}
     {modal==='pasteShip'&&<PasteImportModal kind="ship" onConfirm={rows=>{const {added,skipped}=addShipRowsBulk(rows);setModal(null);setMsg(`📋 출고 ${added}건 추가${skipped>0?` · 중복 ${skipped}건 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}
