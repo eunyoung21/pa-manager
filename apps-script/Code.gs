@@ -536,8 +536,73 @@ function saveData(sess, body, p) {
     if (g.block) return json({ blocked: true, error: '안전장치: 데이터 급감 감지로 저장을 막았습니다.' + (g.brand ? ' (' + g.brand + ' ' + g.key + ' ' + g.prev + '→' + g.next + ')' : ''), prevCount: g.prevCount, newCount: g.newCount, brand: g.brand, key: g.key });
     var rev = writeData(incoming, g.pbucket !== undefined ? { pbucket: g.pbucket } : null);
     logAction('save', sess, null);
+    try { notifyNewAdCodes(incoming); } catch (x) { Logger.log('광고코드 슬랙 알림 실패: ' + x); } // 알림 실패가 저장을 막으면 안 됨
     return json({ ok: true, rev: rev });
   } finally { try { lock.releaseLock(); } catch (x) {} }
+}
+
+/* ── 광고코드 슬랙 알림 (2026-10-23) ─────────────────────────
+   영상검수 행(reviewRows)에 광고코드(paCode)가 처음 들어오면 체다팀 슬랙방으로
+   "브랜드 · 제품 · 채널명 광고코드 올라왔어요"를 보낸다. 상세 창·영상검수 탭 어디서 넣든 같은 칸이라 여기 한 곳에서 잡는다.
+   - 웹훅 주소는 Script Properties 의 SLACK_WEBHOOK (저장소가 공개라 코드에 넣지 않음). 없으면 아무것도 안 함.
+   - 이미 알린 행은 _adnotify 시트 A열(브랜드|행id)에 기록 → 같은 사람 코드를 고쳐도 다시 안 울림.
+   - 처음 켤 때(시트 비어 있음)는 기존 코드 전부를 '알림 끝'으로만 기록하고 보내지 않는다(수백 건 폭탄 방지). */
+var SHEET_ADNOTIFY = '_adnotify';
+var ADCODE_MIN_LEN = 20;           // 실제 코드는 'adcode-…' 80자 안팎 — 짧은 건 입력 중인 값으로 보고 건너뜀
+function adNz(s) { return String(s || '').normalize('NFC').trim().toLowerCase().replace(/\s+/g, ''); }
+function adProductOf(b, r) {
+  if (String(r.product || '').trim()) return String(r.product).trim();
+  var key = adNz(r.channelName);
+  if (!key) return '';
+  var lists = ['step2Rows', 'claudeStep2Rows', 'shippingRows'];
+  for (var li = 0; li < lists.length; li++) {
+    var rows = b[lists[li]] || [];
+    for (var i = 0; i < rows.length; i++) {
+      var x = rows[i];
+      if ((adNz(x.name) === key || adNz(x.channelName) === key) && String(x.product || '').trim()) return String(x.product).trim();
+    }
+  }
+  return '';
+}
+function notifyNewAdCodes(data) {
+  var hook = PropertiesService.getScriptProperties().getProperty('SLACK_WEBHOOK');
+  if (!hook) return 0;
+  var sh = sheet(SHEET_ADNOTIFY);
+  var last = sh.getLastRow();
+  var seeding = !last;
+  var seen = {};
+  if (last) sh.getRange(1, 1, last, 1).getValues().forEach(function (v) { seen[String(v[0])] = true; });
+  var add = [], lines = [];
+  (data.brands || []).forEach(function (b) {
+    (b.reviewRows || []).forEach(function (r) {
+      var code = String(r.paCode || '').trim();
+      if (code.length < ADCODE_MIN_LEN || !r.id) return;
+      var k = b.id + '|' + r.id;
+      if (seen[k]) return;
+      seen[k] = true;
+      add.push([k]);
+      if (seeding) return;
+      var prod = adProductOf(b, r);
+      lines.push('📣 *' + (b.name || b.id) + '*' + (prod ? ' · ' + prod : '') + ' · *' + (String(r.channelName || '').normalize('NFC').trim() || '(채널명 없음)') + '* 광고코드 올라왔어요'
+        + (r.pa ? ' (담당 ' + r.pa + ')' : '') + '\n`' + code + '`');
+    });
+  });
+  if (!add.length) return 0;
+  if (lines.length) {
+    var res = UrlFetchApp.fetch(hook, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      payload: JSON.stringify({ text: lines.join('\n\n') }) });
+    if (res.getResponseCode() !== 200) throw new Error('slack ' + res.getResponseCode() + ' ' + res.getContentText());
+  }
+  sh.getRange(sh.getLastRow() + 1, 1, add.length, 1).setNumberFormat('@').setValues(add); // 보낸 뒤에 기록 — 실패하면 다음 저장 때 다시 시도
+  return lines.length;
+}
+// 편집기에서 실행: 웹훅이 슬랙방에 닿는지 확인
+function testSlack() {
+  var hook = PropertiesService.getScriptProperties().getProperty('SLACK_WEBHOOK');
+  if (!hook) { Logger.log('SLACK_WEBHOOK 스크립트 속성이 없습니다. 프로젝트 설정 → 스크립트 속성에 추가하세요.'); return; }
+  var res = UrlFetchApp.fetch(hook, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    payload: JSON.stringify({ text: '✅ PA 매니저 광고코드 알림 연결 테스트' }) });
+  Logger.log('슬랙 응답: ' + res.getResponseCode() + ' ' + res.getContentText());
 }
 
 /* pfile: 개인정보 첨부(신분증·통장) — Drive 폴더에 파일명=id 로 저장 */
