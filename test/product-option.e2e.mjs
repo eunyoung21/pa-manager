@@ -102,7 +102,7 @@ savedData = { paList: ['박민선', '기타'], brands: [
   { ...EMPTY, id: 'basetune', name: '베이스튠', step2Rows: [S2('b1', '이어폰러', 'ear_one', { contactStatus: '진행중' })] },
 ], settlements: {} };
 const openCh = (n) => evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent===${J(n)});if(!s)throw new Error('채널명 없음 '+${J(n)});s.click();return 1})()`);
-const optSelects = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('협찬 제품')).querySelectorAll('select').length`);
+const optSelects = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('협찬 제품')).querySelectorAll('select:not([title="갯수"])').length`);   // 갯수 칸은 옵션 수에서 뺀다
 const pick = (idx, v) => evalJs(`(()=>{const f=[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('협찬 제품'));const s=f.querySelectorAll('select')[${idx}];Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${J(v)});s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
 
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
@@ -135,8 +135,8 @@ await evalJs(`(()=>{const b=[...document.querySelectorAll('.s2p button')].find(x
 console.log('\n[출고] 상품명에 옵션');
 await click('.step-tab', '출고'); await wait(800);
 const cells = await evalJs(`[...document.querySelectorAll('td[data-label="상품명"]')].map(t=>t.textContent.replace(/\\s+/g,' ').trim())`);
-chk(cells.some((t) => t === '휘핑크림 차렵이불 · 블루베리 크림 / S-SS'), '출고 행(제품 칸 비어 있음) → 인플루언서 관리에서 제품·옵션 찾아 표시', cells);
-chk(cells.some((t) => t === '해트케 압력이불 · 5.4kg'), '압력이불 · 5.4kg', cells);
+chk(cells.some((t) => t === '휘핑크림 차렵이불 · 블루베리 크림 / S-SS (1)'), '출고 행(제품 칸 비어 있음) → 인플루언서 관리에서 제품·옵션 찾아 표시', cells);
+chk(cells.some((t) => t === '해트케 압력이불 · 5.4kg (1)'), '압력이불 · 5.4kg', cells);
 
 // ── 모든 브랜드: ⚙ 제품·옵션에서 직접 추가(2026-10-13) ──
 const B = () => savedData.brands.find((b) => b.id === 'basetune');

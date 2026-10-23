@@ -4624,6 +4624,10 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
               <option value="">{g.k} 선택</option>
               {g.v.map(v=><option key={v} value={v}>{v}</option>)}
             </select>)}
+            {/* 갯수(2026-10-23) — 출고 탭 수량으로 그대로 넘어간다. 기본 1개 */}
+            <select value={String(r.qty||'1')} title="갯수" onChange={e=>upd({qty:e.target.value})}>
+              {Array.from({length:10},(_,k)=>String(k+1)).map(n=><option key={n} value={n}>{n}개</option>)}
+            </select>
             {!IS_STAFF&&onSaveProducts&&<button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} title="이 브랜드의 협찬 제품·옵션 추가·수정" onClick={()=>setPcOpen(true)}>⚙ 제품·옵션</button>}
           </div>
           {pcOpen&&<ProductConfigModal brand={brand} onClose={()=>setPcOpen(false)} onSave={(p,o,nc)=>{onSaveProducts(p,o,nc);setPcOpen(false);}}/>}
@@ -7241,9 +7245,9 @@ function AppMain({ authInfo, onLogout }) {
   function shipFromContact(r,info){
     updateBrand(bId,b=>{
       const rows=b.shippingRows||[]; const i=findShip(rows,r,info);
-      const fill={channelName:r.name||'',recipient:info.realName||'',phone:info.phone||'',address:info.address||''};
+      const fill={channelName:r.name||'',recipient:info.realName||'',phone:info.phone||'',address:info.address||'',qty:String(r.qty||'').trim()};   // 갯수는 상세 창 값(비면 출고 행 값·1 유지)
       if(i>=0) return {...b,shippingRows:rows.map((x,j)=>j!==i?x:{...x,...Object.fromEntries(Object.entries(fill).filter(([k,v])=>v||!x[k]))})};
-      return {...b,shippingRows:[...rows,{id:makeId(),requestDate:today(),requester:sanitizePA(r.pa)||'',notes:'',tracking:'',qty:'1',fromContact:'Y',status:'처리중',product:r.product||shipProductOf(bId),...fill}]};
+      return {...b,shippingRows:[...rows,{id:makeId(),requestDate:today(),requester:sanitizePA(r.pa)||'',notes:'',tracking:'',qty:'1',fromContact:'Y',status:'처리중',product:r.product||shipProductOf(bId),...fill,qty:fill.qty||'1'}]};
     });
   }
   // 되돌리기 — 상세 창이 만든 행이고 송장이 아직 없으면 지우고, 아니면 '처리중'으로 되돌린다(송장·주소 기록은 남김)
