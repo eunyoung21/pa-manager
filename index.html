@@ -4125,7 +4125,7 @@ function DashInfPanel({ r, brand, onUpdate, onDelete, onAddPrivacy, onClose, ...
   hRef.current={...s2Handlers(onUpdate),onDelete,onUpdate,onAddPrivacy,isRej:x=>normStatus(x.contactStatus)==='거절'};
   return <Step2Panel r={r} brand={brand} H={hRef} onClose={onClose} {...rest}/>;
 }
-function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSettle, onShip, onUnship }) {
+function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSetPostLink, onSettle, onShip, onUnship }) {
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
@@ -4276,7 +4276,7 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
     </div>
     </div>
     <CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
-    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSettle={onSettle} onShip={onShip} onUnship={onUnship} onSaveProducts={onSaveProducts} onSaveSeal={onSaveSeal} onUploadContract={onUploadContract}/>}
+    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSetPostLink={onSetPostLink} onSettle={onSettle} onShip={onShip} onUnship={onUnship} onSaveProducts={onSaveProducts} onSaveSeal={onSaveSeal} onUploadContract={onUploadContract}/>}
   </div>;
 }
 
@@ -4389,7 +4389,7 @@ function purgeRejected(b,cap){
   Object.entries(endAdd).forEach(([ym,o])=>{ const c={...(endCounts[ym]||{})}; Object.entries(o).forEach(([k,v])=>{c[k]=(c[k]||0)+v;}); endCounts[ym]=c; });
   return {b:{...b,step2Rows:s2.kept,claudeStep2Rows:cs2.kept,rejectedBilling:[...(b.rejectedBilling||[]),...billingAdd],endCounts},n};
 }
-function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUnship, onSaveProducts, onSaveSeal, onUploadContract }){
+function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle, onShip, onUnship, onSaveProducts, onSaveSeal, onUploadContract }){
   const rv=s2Review(brand,r);
   const [pcOpen,setPcOpen]=useState(false);   // ⚙ 제품·옵션 창
   const brandProdList=brandProducts(brand||{},[...((brand&&brand.step2Rows)||[]),...((brand&&brand.claudeStep2Rows)||[])]);
@@ -4401,7 +4401,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
   const handle=igHandle(r.link);
   const init=()=>({name:r.name||'',followers:r.followers||'',date:r.date||'',memo:r.memo||'',
     realName:r.realName||(rv&&rv.realName)||'',phone:r.phone||'',address:r.address||'',email:r.email||'',
-    contractDate:r.contractDate||today(),contractUrl:r.contractUrl||'',rate:r.rate||'',adCode:(rv&&rv.paCode)||'',rrn:''});
+    contractDate:r.contractDate||today(),contractUrl:r.contractUrl||'',rate:r.rate||'',adCode:(rv&&rv.paCode)||'',postLink:(rv&&rv.postLink)||'',rrn:''});
   const [f,setF]=useState(init);
   // 모두싸인 발송(관리자) — 첫 클릭은 받는 곳 확인, 같은 내용으로 한 번 더 누르면 보낸다(주민번호는 계약서에만 넣고 저장 안 함)
   const [msAsk,setMsAsk]=useState(''), [msBusy,setMsBusy]=useState(false), [msMsg,setMsMsg]=useState(null);
@@ -4568,6 +4568,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
   }
   else if(st===4) action=<>
     {fld('광고 코드','adCode','광고 코드 입력')}
+    {editCopy('게시 링크','postLink','https://www.instagram.com/reel/...',(rv&&rv.postLink)||'',v=>onSetPostLink&&onSetPostLink(r,v))}
     {!nc&&<div className="s2p-btns" style={{marginBottom:10}}>
       <button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 통장사본·신분증 제출</button>
     </div>}
@@ -4576,11 +4577,13 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSettle, onShip, onUns
   else if(st===5&&nc) action=<>
     <p className="s2p-help">광고 세팅을 진행해주세요. 제품만 제공한 건이라 입금은 없어요.</p>
     {editCopy('광고코드 (복사용)','adCode','광고 코드 입력',(rv&&rv.paCode)||'',v=>onSetAdCode&&onSetAdCode(r,v))}
+    {editCopy('게시 링크','postLink','https://www.instagram.com/reel/...',(rv&&rv.postLink)||'',v=>onSetPostLink&&onSetPostLink(r,v))}
     {IS_STAFF?<p className="s2p-help">광고세팅 완료는 관리자가 처리해요.</p>
       :<div className="s2p-btns"><button className="btn s2p-success" onClick={()=>onSettle&&onSettle(r.name,true,{pa,realName:r.realName||(rv&&rv.realName)||''})}>✓ 광고세팅 완료</button></div>}</>;
   else if(st===5) action=<>
     <p className="s2p-help">광고 세팅 및 인플루언서 입금을 진행해주세요.</p>
     {editCopy('광고코드 (복사용)','adCode','광고 코드 입력',(rv&&rv.paCode)||'',v=>onSetAdCode&&onSetAdCode(r,v))}
+    {editCopy('게시 링크','postLink','https://www.instagram.com/reel/...',(rv&&rv.postLink)||'',v=>onSetPostLink&&onSetPostLink(r,v))}
     {editCopy('실명 (예금주 확인)','realName','홍길동',r.realName||(rv&&rv.realName)||'',v=>upd({realName:v}))}
     {editCopy('단가','rate','예: 80,000',r.rate,v=>upd({rate:v}))}
     <div className="s2p-btns" style={{marginBottom:8}}><button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 입금정보·서류 보기</button></div>
@@ -7269,6 +7272,16 @@ function AppMain({ authInfo, onLogout }) {
       return {...b,reviewRows:[...rows,{id:makeId(),date:today(),channelName:r.name||'',realName:r.realName||'',pa:sanitizePA(r.pa)||'',paCode:code,postLink:'',live:'N',contractDone:'N',checks:{}}]};
     });
   }
+  // 상세 창에서 넣은 게시 링크 → 영상검수 행(없으면 만든다, 2026-10-26). 광고코드와 같은 행을 본다.
+  function setReviewPostLink(r,link){
+    const nz=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
+    updateBrand(bId,b=>{
+      const rows=b.reviewRows||[]; const i=rows.findIndex(x=>nz(x.channelName)&&nz(x.channelName)===nz(r.name));
+      if(i>=0) return {...b,reviewRows:rows.map((x,j)=>j===i?{...x,postLink:link}:x)};
+      if(!link) return b;
+      return {...b,reviewRows:[...rows,{id:makeId(),date:today(),channelName:r.name||'',realName:r.realName||'',pa:sanitizePA(r.pa)||'',paCode:'',postLink:link,live:'N',contractDone:'N',checks:{}}]};
+    });
+  }
   // Privacy operations — id가 이미 있으면 수정(덮어쓰기), 없으면 추가(upsert)
   function addPrivacyRow(row){
     updateBrand(bId,b=>{
@@ -7757,7 +7770,7 @@ function AppMain({ authInfo, onLogout }) {
         onUpdate={dashInf.src==='auto'?updateClaudeS2Row:updateStep2Row}
         onDelete={dashInf.src==='auto'?deleteClaudeS2Row:deleteStep2Row}
         onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:r.realName||'',phone:r.phone,pa:sanitizePA(r.pa)})}
-        onSetAdCode={setReviewCode} onSettle={setInfSettledByName} onShip={shipFromContact} onUnship={unshipFromContact}
+        onSetAdCode={setReviewCode} onSetPostLink={setReviewPostLink} onSettle={setInfSettledByName} onShip={shipFromContact} onUnship={unshipFromContact}
         onSaveProducts={saveBrandProducts} onSaveSeal={saveBrandSeal} onUploadContract={uploadContractTemplate}/>}
       {tab==='step2'&&<Step2View
         onAddProduct={addBrandProduct}
@@ -7782,7 +7795,7 @@ function AppMain({ authInfo, onLogout }) {
         onDelete={deleteStep2Row}
         onDeleteMany={ids=>deleteRowsMany('step2Rows',ids)}
         onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:r.realName||'',phone:r.phone,pa:sanitizePA(r.pa)})}
-        onSetAdCode={setReviewCode} onSettle={setInfSettledByName} onShip={shipFromContact} onUnship={unshipFromContact}
+        onSetAdCode={setReviewCode} onSetPostLink={setReviewPostLink} onSettle={setInfSettledByName} onShip={shipFromContact} onUnship={unshipFromContact}
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}
       />}
@@ -7805,7 +7818,7 @@ function AppMain({ authInfo, onLogout }) {
           onDelete={deleteClaudeS2Row}
           onDeleteMany={ids=>deleteRowsMany('claudeStep2Rows',ids)}
           onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:r.realName||'',phone:r.phone,pa:sanitizePA(r.pa)})}
-          onSetAdCode={setReviewCode} onSettle={setInfSettledByName} onShip={shipFromContact} onUnship={unshipFromContact}
+          onSetAdCode={setReviewCode} onSetPostLink={setReviewPostLink} onSettle={setInfSettledByName} onShip={shipFromContact} onUnship={unshipFromContact}
           filter={filter} setFilter={setFilter}
           search={search} setSearch={setSearch}
         />
