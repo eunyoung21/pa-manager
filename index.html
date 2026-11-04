@@ -5403,7 +5403,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${(filter===k||(k==='all'&&!['unpaid','live'].includes(filter)))?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
       <div className="sep"/>
       <div className="search-wrap">
-        <input className="srch" placeholder="채널명, 본명, 담당 PA, PA코드…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
+        <input className="srch" placeholder="검색" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
         {search&&<button className="srch-x" onClick={()=>setSearch('')}>×</button>}
       </div>
       <span className="cnt">{shown.length}건</span>
