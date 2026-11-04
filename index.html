@@ -5403,14 +5403,10 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${(filter===k||(k==='all'&&!['unpaid','live'].includes(filter)))?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
       <div className="sep"/>
       <div className="search-wrap">
-        <input className="srch" placeholder="채널명, PA코드…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
+        <input className="srch" placeholder="채널명, 본명, 담당 PA, PA코드…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
         {search&&<button className="srch-x" onClick={()=>setSearch('')}>×</button>}
       </div>
       <span className="cnt">{shown.length}건</span>
-      <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
-      {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})}>✕ 초기화</button>}
-      <button className="fchip" onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
-      {driveLink&&<a href={driveLink} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
       <ModusignArchiveBtn isManager={isManager}/>
     </div>
     <BulkBar sel={sel} onDeleteMany={onDeleteMany} unit="건"/>
