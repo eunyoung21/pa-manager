@@ -5399,7 +5399,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
         .map(({k,l})=><button key={k} className={`prod-tab ${prodF===k?'active':''}`} onClick={()=>setProdF(k)}>{l}</button>)}
     </div>}
     <div className="toolbar">
-      {[{k:'all',l:`라이브 안된 (${cnt.all})`,c:''},{k:'unpaid',l:`⏳ 미정산 (${cnt.unpaid})`,c:'f-wt'},{k:'live',l:`🔴 라이브 (${cnt.live})`,c:'f-deal'}]
+      {[{k:'all',l:`라이브 전 (${cnt.all})`,c:''},{k:'unpaid',l:`⏳ 미정산 (${cnt.unpaid})`,c:'f-wt'},{k:'live',l:`🔴 라이브 (${cnt.live})`,c:'f-deal'}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${(filter===k||(k==='all'&&!['unpaid','live'].includes(filter)))?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
       <div className="sep"/>
       <div className="search-wrap">
