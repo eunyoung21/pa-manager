@@ -5368,17 +5368,15 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
       if(q) return [r.channelName,r.pa,r.paCode,r.memo].some(v=>s(v).toLowerCase().includes(q));
       if(colFActive.length && !colFActive.every(([f,v])=>s(r[f]).toLowerCase().includes(v.trim().toLowerCase()))) return false;
       const ss=settleState(r);
-      if(filter==='paid'&&(!(ss==='paid'||ss==='purged')||ncOfRev(r))) return false;
+      // 탭: 라이브 안된(기본) · 미정산 · 라이브 (2026-11-04, 전체·정산완료·폐기완료 탭 삭제)
       if(filter==='unpaid'&&(ss!=='unpaid'||ncOfRev(r))) return false;   // 제품만 제공 건은 정산할 게 없어 미정산에서 뺀다
-      if(filter==='purged'&&(ss!=='purged'||ncOfRev(r))) return false;
       if(filter==='live'&&r.live!=='Y') return false;
+      if((filter==='all'||filter==='notlive')&&r.live==='Y') return false;
       if(prodF==='__none__'){ if(prodOfRev(r)) return false; } else if(prodF!=='all'&&prodOfRev(r)!==prodF) return false;
       return true;
     });
-  const cnt={all:rows.length,
-    paid:rows.filter(r=>{const ss=settleState(r);return (ss==='paid'||ss==='purged')&&!ncOfRev(r);}).length,
+  const cnt={all:rows.filter(r=>r.live!=='Y').length,
     unpaid:rows.filter(r=>settleState(r)==='unpaid'&&!ncOfRev(r)).length,
-    purged:rows.filter(r=>settleState(r)==='purged'&&!ncOfRev(r)).length,
     live:rows.filter(r=>r.live==='Y').length};
   const sel=useRowSelect(shown);
   const pg=useProgressive(shown);   // 화면에 보이는 만큼만 그린다
@@ -5401,8 +5399,8 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
         .map(({k,l})=><button key={k} className={`prod-tab ${prodF===k?'active':''}`} onClick={()=>setProdF(k)}>{l}</button>)}
     </div>}
     <div className="toolbar">
-      {[{k:'all',l:`전체 (${cnt.all})`,c:''},{k:'paid',l:`✅ 정산완료 (${cnt.paid})`,c:'f-ap'},{k:'unpaid',l:`⏳ 미정산 (${cnt.unpaid})`,c:'f-wt'},{k:'purged',l:`🗑️ 폐기완료 (${cnt.purged})`,c:'f-rj'},{k:'live',l:`🔴 라이브 (${cnt.live})`,c:'f-deal'}]
-        .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
+      {[{k:'all',l:`라이브 안된 (${cnt.all})`,c:''},{k:'unpaid',l:`⏳ 미정산 (${cnt.unpaid})`,c:'f-wt'},{k:'live',l:`🔴 라이브 (${cnt.live})`,c:'f-deal'}]
+        .map(({k,l,c})=><button key={k} className={`fchip ${c} ${(filter===k||(k==='all'&&!['unpaid','live'].includes(filter)))?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
       <div className="sep"/>
       <div className="search-wrap">
         <input className="srch" placeholder="채널명, PA코드…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
