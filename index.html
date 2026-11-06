@@ -1481,8 +1481,8 @@ const DEFAULT_BRANDS = [
   { id:'granny',   name:'그래니살라', step1Rows:[], step2Rows:[], shippingRows:[], reviewRows:[], privacyRows:[], claudeStep1Rows:[], claudeStep2Rows:[] },
 ];
 
-// 출고 상품명은 브랜드별로 고정 — 베이스튠=베이스튠(1), 그래니살라=그래니살라(2)
-const SHIP_PRODUCT = { basetune:'베이스튠(1)', granny:'그래니살라(2)' };
+// 출고 상품명은 브랜드별로 고정 — 베이스튠=베이스튠(2026-11-06 (1) 뗌), 그래니살라=그래니살라(2)
+const SHIP_PRODUCT = { basetune:'베이스튠', granny:'그래니살라(2)' };
 const shipProductOf = brandId => SHIP_PRODUCT[brandId] || '';
 // 브랜드 안의 제품 목록 — brand.products(수동 추가) + 행에 실제로 쓰인 제품명(2026-09-30, 해트케 합류)
 // 협찬 제품 옵션(2026-10-13) — 상세 창에서 고르고, 출고 상품명·출고 복사에 같이 붙는다. 행에는 opt:{그룹:값} 로 저장.
