@@ -3771,14 +3771,6 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     <div className="hk-page"><div className="hk-in">
       {popUp}{shipUp}
       <PaTabs infs={infsAll} paFocus={paFocus} setPaFocus={setPaFocus} paList={paList}/>
-      <div className="role-section">
-        <div className="role-header part">🟡 매니저 담당</div>
-        <div className="cards">{INF_STAGES.filter(s=>s.role==='part').map(card)}</div>
-      </div>
-      <div className="role-section">
-        <div className="role-header boss">🔴 관리자 담당</div>
-        <div className="cards">{INF_STAGES.filter(s=>s.role==='boss').map(card)}</div>
-      </div>
       {shipPending.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4}}>
         <h3><span style={{color:'#8b5cf6'}}>📦</span> 출고 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({shipPending.length})</span></h3>
         {shipPending.slice(0,MAX).map(i=>{

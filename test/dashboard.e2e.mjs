@@ -120,7 +120,7 @@ await evalJs(`(window.__cf=[],window.confirm=m=>{window.__cf.push(m);return true
 
 console.log('\n[대시보드] 구성');
 const dash=await evalJs(`document.querySelector('.hk-in').innerText`);
-chk(['매니저 담당','관리자 담당','담당자별 소통 중','관리자 할 일','매니저 할 일'].every(t=>dash.includes(t)),'역할 카드·소통 중·할 일');
+chk(['담당자별 소통 중','관리자 할 일','매니저 할 일'].every(t=>dash.includes(t))&&!dash.includes('매니저 담당')&&!dash.includes('관리자 담당'),'역할 카드 없음·소통 중·할 일');
 chk(!dash.includes('업무 매뉴얼'),'업무 매뉴얼은 삭제됨');
 chk(!dash.includes('담당자별 DM 보낸 인플루언서')&&!(await evalJs(`!!document.querySelector('.dm-col')`)),'DM 보낸 인플루언서 칸이 따로 없음(소통 중으로 합침)');
 
@@ -153,8 +153,6 @@ const todoTxt=await evalJs(`[...document.querySelectorAll('.todo-box')].map(x=>x
 chk(!todoTxt[0].includes('지지')&&!todoTxt[0].includes('광고세팅·입금완료'),'관리자 할 일: 최종완료(지지)·광고세팅 묶음 없음',todoTxt[0]);
 chk(!todoTxt[1].includes('지지')&&!todoTxt[0].includes('에이치')&&!todoTxt[1].includes('에이치'),'매니저 할 일에도 없음 · 정산 끝난 에이치도 없음',todoTxt[1]);
 chk(todoTxt[0].includes('디디')&&todoTxt[1].includes('씨씨'),'아직 할 일(디디 계약서·씨씨 답장옴)은 그대로',todoTxt);
-const cardAdset=await evalJs(`(()=>{const c=[...document.querySelectorAll('.card')].find(x=>x.innerText.includes('광고세팅'));return c?c.querySelector('.card-count').textContent:''})()`);
-chk(cardAdset==='1','단계 카드 숫자는 그대로(광고세팅 1)',cardAdset);
 
 console.log('\n[담당자 추가] 👥 담당자 관리에서 추가하면 대시보드에 바로 뜸');
 await click('button','관리 ▾'); await wait(200);
@@ -183,20 +181,7 @@ await waitFor(`document.querySelector('td[data-label="출고요청일"]')`,'출�
 chk((await activeTab()).includes('출고')&&await searchVal()==='김이이','제품발송 단계 → 출고 탭 · 수령자 검색',[await activeTab(),await searchVal()]);
 await backToDash();
 
-console.log('\n[이동] 단계 카드 → 필터 유지(탭 초기화에 안 덮임)');
-await click('.card','계약서발송'); await waitFor(`document.querySelector('td[data-label="협업성사"]')`,'컨택현황'); await wait(300);
-chk((await activeChips()).includes('진행 중'),'계약서발송 카드 → 컨택현황 진행 중',await activeChips());
-await backToDash();
-await click('.card','리스트업'); await wait(500);
-// STEP1은 '인플루언서 관리' 탭 안 '리스팅 목록' 칩으로 합쳐졌다.
-chk((await activeTab()).includes('인플루언서 관리')&&(await activeChips()).includes('리스팅 목록'),'리스트업 카드 → 인플루언서 관리(리스팅 목록)',[await activeTab(),await activeChips()]);
-await backToDash();
-
-console.log('\n[담당자 탭] 자동화 → 카드가 자동화 탭으로');
-await click('.ptab','자동화'); await wait(300);
-await click('.card','DM발송'); await wait(500);
-chk((await activeTab()).includes('자동화'),'자동화 담당자에서 DM발송 카드 → 🤖 자동화 탭',await activeTab());
-await backToDash();
+// (단계 카드는 대시보드에서 삭제됨 — 카드 클릭 이동 검사도 같이 뺐다)
 await click('.ptab','전체'); await wait(200);
 
 console.log('\n[→ 빠른 처리] 관리자 할 일 · 다른 데이터는 그대로');
