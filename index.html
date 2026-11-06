@@ -4611,7 +4611,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
           <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
             {/* 제품을 바꾸면 옵션은 비운다(다른 제품의 옵션이 남지 않게) */}
             <select value={r.product||''} onChange={e=>upd({product:e.target.value,opt:{}})}>
-              <option value="">{brandProdList.length?'미지정':(productOfRow(r,brand)||'미지정')}</option>
+              <option value="">{brandProdList.length?'미지정':(String(productOfRow(r,brand)||'').replace(/(d+)s*$/,'')||'미지정')}</option>
               {brandProdList.map(pn=><option key={pn} value={pn}>{pn}</option>)}
             </select>
             {optionsOf(brand,r.product).map(g=><select key={g.k} value={(r.opt||{})[g.k]||''} title={g.k}
