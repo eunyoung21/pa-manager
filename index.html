@@ -1508,6 +1508,8 @@ const productNoContract=(brand,product)=>{const p=String(product||'').trim(); if
 // 이 건은 계약서 단계가 없다 — 사람별 '📦 제품만 협찬' 또는 계약서 없는 제품
 const noContractOf=(brand,r)=>!!r&&(r.productOnly==='Y'||productNoContract(brand,r.product));
 // '얼그레이 크림 / Q-K' — 그 제품의 옵션 순서대로, 고른 것만
+// 추가 제품 줄(2026-11-10) — 상세 창 협찬 제품 아래 '＋ 제품 추가'로 붙인 제품들(r.extras=[{product,opt,qty}]). 출고 상품명 뒤에 ' + 제품 · 옵션 (갯수)'로 붙는다.
+const extrasText=(brand,extras)=>(extras||[]).filter(e=>e&&String(e.product||'').trim()).map(e=>{const o=optText(brand,e.product,e.opt); return ' + '+String(e.product).trim()+(o?' · '+o:'')+' ('+(e.qty||'1')+')';}).join('');
 const optText=(brand,product,opt)=>optionsOf(brand,product).map(g=>(opt||{})[g.k]).filter(Boolean).join(' / ');
 
 // ⚙ 제품·옵션 관리 — 이 브랜드의 협찬 제품과 옵션(색상·사이즈 등)을 추가·수정
@@ -3774,7 +3776,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const sp=shipPop&&shipPending.find(i=>i.id===shipPop);
   const shipUp=sp&&(()=>{ const s=sp.shipping, c=sp.contact||{};
     const opt=Object.entries(c.opt||{}).filter(([,v])=>v).map(([,v])=>v).join(' / ');
-    const product=[s.product||c.product||'',opt].filter(Boolean).join(' · ');
+    const product=[s.product||c.product||'',opt].filter(Boolean).join(' · ')+extrasText(brand,c.extras);
     return <ShipInfoModal title={sp.name} s={s} product={product} pa={sp.pa} onClose={()=>setShipPop(null)}
       onDone={()=>A.updateShipRow(s.id,{status:'✅ 완료',shipDate:s.shipDate||today()})}/>; })();
 
@@ -4641,6 +4643,24 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
             </select>
             {!IS_STAFF&&onSaveProducts&&<button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} title="이 브랜드의 협찬 제품·옵션 추가·수정" onClick={()=>setPcOpen(true)}>⚙ 제품·옵션</button>}
           </div>
+          {/* 추가 제품 줄(2026-11-10) — 같은 사람에게 제품을 더 보낼 때(예: 차렵이불 + 베개커버). 출고 상품명에 ' + 제품 · 옵션 (갯수)'로 붙는다 */}
+          {(r.extras||[]).map((x,xi)=>{const setX=patch=>upd({extras:(r.extras||[]).map((y,k)=>k===xi?{...y,...patch}:y)});
+            return <div key={xi} style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginTop:6}}>
+              <select value={x.product||''} onChange={e=>setX({product:e.target.value,opt:{}})}>
+                <option value="">제품 선택</option>
+                {brandProdList.map(pn=><option key={pn} value={pn}>{pn}</option>)}
+              </select>
+              {optionsOf(brand,x.product).map(g=><select key={g.k} value={(x.opt||{})[g.k]||''} title={g.k}
+                onChange={e=>setX({opt:{...(x.opt||{}),[g.k]:e.target.value}})}>
+                <option value="">{g.k} 선택</option>
+                {g.v.map(v=><option key={v} value={v}>{v}</option>)}
+              </select>)}
+              <select value={String(x.qty||'1')} title="갯수" onChange={e=>setX({qty:e.target.value})}>
+                {Array.from({length:10},(_,k)=>String(k+1)).map(n=><option key={n} value={n}>{n}개</option>)}
+              </select>
+              <button className="btn s2p-outline" style={{padding:'3px 8px',fontSize:12}} title="이 줄 빼기" onClick={()=>upd({extras:(r.extras||[]).filter((_,k)=>k!==xi)})}>✕</button>
+            </div>;})}
+          <button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12,marginTop:6}} title="같은 사람에게 보내는 제품을 더 추가" onClick={()=>upd({extras:[...(r.extras||[]),{product:'',opt:{},qty:'1'}]})}>＋ 제품 추가</button>
           {pcOpen&&<ProductConfigModal brand={brand} onClose={()=>setPcOpen(false)} onSave={(p,o,nc)=>{onSaveProducts(p,o,nc);setPcOpen(false);}}/>}
         </div>
         {fld('팔로워 수','followers','12,400')}
@@ -4840,7 +4860,11 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
     return m;},[step2Rows,brand]);
   const optOfShip=r=>{const own=optText(brand,prodOfShip(r),r.opt); if(own) return own;
     const hit=s2opt[nzs(r.channelName)]||s2opt[nzs(r.recipient)]; return hit&&hit.p===prodOfShip(r)?hit.t:'';};
-  const shipLabel=r=>{const o=optOfShip(r); return prodOfShip(r)+(o?' · '+o:'');};
+  const s2extra=useMemo(()=>{const m={};
+    [...(step2Rows||[]),...((brand&&brand.claudeStep2Rows)||[])].forEach(x=>{const t=extrasText(brand,x.extras); if(!t) return;
+      [x.name,x.realName].forEach(v=>{const k=nzs(v); if(k&&!m[k]) m[k]=t;});});
+    return m;},[step2Rows,brand]);
+  const shipLabel=r=>{const o=optOfShip(r); return prodOfShip(r)+(o?' · '+o:'')+(s2extra[nzs(r.channelName)]||s2extra[nzs(r.recipient)]||'');};
   // 제품이 여러 개인 브랜드(해트케 등)는 제품별로 나눠 본다
   const shipProducts=useMemo(()=>brandProducts(brand,[...(rows||[]),...(step2Rows||[])]),[brand,rows,step2Rows]);
   const [prodF,setProdF]=useState('all');

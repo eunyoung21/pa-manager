@@ -117,6 +117,12 @@ await openCh('스트라'); await waitFor(`document.querySelector('.s2p')`, '상�
 const opts = await evalJs(`[...[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('협찬 제품')).querySelectorAll('select')].map(s=>[...s.options].map(o=>o.textContent).join('|'))`);
 chk(opts.some((o) => o.includes('블루 스트라이프') && o.includes('브라운 스트라이프')) && opts.some((o) => o.includes('아이보리')), '스트라이프 차렵이불: 기존 색상 유지 + 스트라이프 베개커버(블루/브라운) 선택칸', opts);
 chk(opts.some((o) => o.startsWith('스트라이프 베개커버')), '선택칸 이름이 스트라이프 베개커버', opts);
+await click('.s2p button', '제품 추가'); await wait(500);
+const setSel = (idx, v) => evalJs('(()=>{const f=[...document.querySelectorAll(".s2p .s2p-fg")].find(x=>x.querySelector("label").textContent.startsWith("협찬 제품"));const s=f.querySelectorAll("select")[' + idx + '];Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set.call(s,' + J(v) + ');s.dispatchEvent(new Event("change",{bubbles:true}));return 1})()');
+const cnt = await evalJs('[...document.querySelectorAll(".s2p .s2p-fg")].find(x=>x.querySelector("label").textContent.startsWith("협찬 제품")).querySelectorAll("select").length');
+await setSel(cnt - 2, '해트케 압력이불'); await wait(1800);
+const row = savedData.brands.find((b) => b.id === 'hatke').step2Rows.find((r) => r.id === 's2');
+chk(Array.isArray(row.extras) && row.extras.length === 1 && row.extras[0].product === '해트케 압력이불', '＋ 제품 추가: 추가 줄 저장', [cnt, row.extras]);
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close(); finder.close();
 process.exit(fail ? 1 : 0);
