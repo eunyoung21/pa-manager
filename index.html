@@ -1492,8 +1492,14 @@ const PRODUCT_OPTIONS={
   '휘핑크림 차렵이불':[{k:'색상',v:['화이트 크림','얼그레이 크림','블루베리 크림']},{k:'사이즈',v:['S-SS','Q-K']}],
   '해트케 압력이불':[{k:'무게',v:['3.2kg','4.5kg','5.4kg','6.8kg','7.7kg']}],
 };
+// 저장된 옵션에 없으면 항상 덧붙는 옵션(2026-11-10) — 이미 저장된 제품 옵션을 건드리지 않고 그룹만 더한다. ⚙에서 저장하면 그때부터 저장값이 된다.
+const PRODUCT_EXTRA_OPTIONS={
+  '스트라이프 차렵이불':[{k:'스트라이프 베개커버',v:['블루 스트라이프','브라운 스트라이프']}],
+};
 const optionsOf=(brand,product)=>{const p=String(product||'').trim(); const own=brand&&brand.productOptions;
-  return (own&&Object.prototype.hasOwnProperty.call(own,p))?(own[p]||[]):(PRODUCT_OPTIONS[p]||[]);};
+  const base=(own&&Object.prototype.hasOwnProperty.call(own,p))?(own[p]||[]):(PRODUCT_OPTIONS[p]||[]);
+  const extra=(PRODUCT_EXTRA_OPTIONS[p]||[]).filter(g=>!base.some(b=>b.k===g.k));
+  return extra.length?[...base,...extra]:base;};
 // 계약서 없는 제품(2026-10-14) — 제품만 주고 원고료가 없으면 계약서를 안 쓴다(휘핑크림 차렵이불).
 // brand.productNoContract{제품:true/false} 가 있으면 그 값, 없으면 아래 기본값. [⚙ 제품·옵션]에서 체크.
 const NO_CONTRACT_DEFAULT={'휘핑크림 차렵이불':true};
@@ -3629,7 +3635,12 @@ function useInfActions(A){
 function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, settlements, openInf }) {
   // 해트케 PA(준섭) 대시보드 구조 그대로: [담당자 탭] → 🟡 매니저 담당 / 🔴 관리자 담당 단계 카드 → 관리자 할 일 · 매니저 할 일
   // 대시보드는 사람(담당자) 업무만 — 담당자가 안 붙은 🤖 자동화 건은 뺀다(2026-09-22). 담당자가 붙은 자동화 건은 그 담당자 업무로 남는다.
-  const infsAll=useMemo(()=>buildInfluencers(brand,paList).filter(i=>i.pa!==AUTO_PA),[brand,paList]);
+  const infsBrand=useMemo(()=>buildInfluencers(brand,paList).filter(i=>i.pa!==AUTO_PA),[brand,paList]);
+  // 제품별 보기(2026-11-10) — 한 브랜드에 협찬 제품이 둘 이상이면(해트케) 대시보드 맨 위에 제품 탭. 숫자·할 일·소통 중 전부 그 제품만.
+  const [dashProd,setDashProd]=useState('all');
+  const infProd=i=>String((i.contact&&i.contact.product)||(i.step1&&i.step1.product)||'').trim();
+  const dashProds=useMemo(()=>brandProducts(brand,[...(brand.step2Rows||[]),...(brand.claudeStep2Rows||[])]),[brand]);
+  const infsAll=useMemo(()=>dashProds.length>1&&dashProd!=='all'?infsBrand.filter(i=>dashProd==='__none__'?!infProd(i):infProd(i)===dashProd):infsBrand,[infsBrand,dashProd,dashProds]);
   const [talkQ,setTalkQ]=useState({}); // 소통 중 칸별 검색어 {담당자: 검색어}
   // '외 N명 더 보기' → 그 자리에서 전체 목록 팝업(2026-10-15). {kind:'settle'|'boss'|'pa', pa}. 목록은 열 때마다 다시 계산(✓ 누르면 바로 빠짐)
   const [pop,setPop]=useState(null);
@@ -3770,6 +3781,11 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   return (
     <div className="hk-page"><div className="hk-in">
       {popUp}{shipUp}
+      {dashProds.length>1&&<div className="prod-tabs" style={{paddingBottom:6}}>
+        {[{k:'all',l:`전체 (${infsBrand.length})`},...dashProds.map(pn=>({k:pn,l:`${pn} (${infsBrand.filter(i=>infProd(i)===pn).length})`})),
+          ...(infsBrand.some(i=>!infProd(i))?[{k:'__none__',l:`제품 미지정 (${infsBrand.filter(i=>!infProd(i)).length})`}]:[])]
+          .map(({k,l})=><button key={k} className={`prod-tab ${dashProd===k?'active':''}`} onClick={()=>setDashProd(k)}>{l}</button>)}
+      </div>}
       <PaTabs infs={infsAll} paFocus={paFocus} setPaFocus={setPaFocus} paList={paList}/>
       {shipPending.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4}}>
         <h3><span style={{color:'#8b5cf6'}}>📦</span> 출고 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({shipPending.length})</span></h3>
