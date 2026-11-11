@@ -4391,15 +4391,15 @@ function noReplyCutKey(){ const d=new Date(); d.setDate(d.getDate()-NO_REPLY_DAY
    끝난 건(거절·정산완료·개인정보 폐기)은 뺀다. 🔴 reqTs 를 일부러 안 넣는다 — Code.gs 슬랙 알림이 reqTs 있는 요청만 보내므로 이 변환은 슬랙을 안 보낸다.
    브랜드마다 1번(memoReqMig). */
 /* 1회성 정리(2026-11-11 사용자: 박민선 베이스튠 검수 대기 건은 전부 거절) — 리스팅 목록(step1)의 검수대기 → 반려.
-   이미 컨택 행이 붙은 건은 진행 중이라 뺀다. 베이스튠 1번만(pendRejMig). */
+   검수대기·승인 모두(2026-11-11 2차: 승인됐지만 아직 DM 전인 164명도 거절). 이미 컨택 행이 붙은 건은 진행 중이라 뺀다. 베이스튠 1번만(pendRejMig2). */
 function migRejectPending(b){
-  if(b.id!=='basetune'||b.pendRejMig) return {b,n:0};
+  if(b.id!=='basetune'||b.pendRejMig2) return {b,n:0};
   const linked=new Set([...(b.step2Rows||[]),...(b.claudeStep2Rows||[])].map(r=>r.step1Id).filter(Boolean));
   let n=0;
   const step1Rows=(b.step1Rows||[]).map(r=>{
-    if(sanitizePA(r.pa)!=='박민선'||r.reviewStatus!=='검수대기'||linked.has(r.id)) return r;
+    if(sanitizePA(r.pa)!=='박민선'||r.reviewStatus==='반려'||linked.has(r.id)) return r;
     n++; return {...r,reviewStatus:'반려'}; });
-  return {b:{...b,step1Rows,pendRejMig:today()},n};
+  return {b:{...b,step1Rows,pendRejMig2:today()},n};
 }
 function migMemoReq(b){
   if(b.memoReqMig) return {b,n:0};
@@ -6934,10 +6934,10 @@ function AppMain({ authInfo, onLogout }) {
     if(!serverLoadedRef.current||pendRejRef.current) return;
     if((authInfo?.role||'')!=='manager') return;
     pendRejRef.current=true;
-    if(brands.every(b=>b.id!=='basetune'||b.pendRejMig)) return;
+    if(brands.every(b=>b.id!=='basetune'||b.pendRejMig2)) return;
     const tot=brands.reduce((s,b)=>s+migRejectPending(b).n,0);
     setBrands(prev=>prev.map(b=>migRejectPending(b).b));
-    setMsg(`📦 박민선 베이스튠 검수 대기 ${tot}명을 반려(거절)로 옮겼어요`);
+    if(tot) setMsg(`📦 박민선 베이스튠 리스팅 ${tot}명을 반려(거절)로 옮겼어요`);
   },[brands]);
   const memoMigRef=useRef(false);
   useEffect(()=>{

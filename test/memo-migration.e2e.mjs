@@ -110,8 +110,9 @@ chk(g('c1').reviewReq && g('c1').reviewReq.status === '요청', '자동화 행 �
 chk(B2.step2Rows.find((r) => r.id === 'b1').reviewReq.status === '진행' && B2.step2Rows.find((r) => r.id === 'b1').reviewReq.reqTs === 5, '이미 검토 요청이 있는 건은 그대로');
 const s1r = (id) => B2.step1Rows.find((r) => r.id === id);
 chk(s1r('p1').reviewStatus === '반려', '박민선 베이스튠 검수 대기 → 반려(거절)', s1r('p1'));
-chk(s1r('p2').reviewStatus === '검수대기' && s1r('p3').reviewStatus === '승인' && s1r('p4').reviewStatus === '검수대기', '다른 담당자·승인·이미 컨택 진행 중인 건은 그대로');
-chk(!!B2.pendRejMig, '베이스튠 1회 표시(pendRejMig)');
+chk(s1r('p3').reviewStatus === '반려', '박민선 승인(아직 컨택 전) 건도 반려(거절)', s1r('p3'));
+chk(s1r('p2').reviewStatus === '검수대기' && s1r('p4').reviewStatus === '검수대기', '다른 담당자·이미 컨택 진행 중인 건은 그대로');
+chk(!!B2.pendRejMig2, '베이스튠 1회 표시(pendRejMig2)');
 chk(H2.memoReqMig && B2.memoReqMig, '브랜드마다 1회 표시(memoReqMig)');
 await click('.brand-tab', '해트케'); await wait(800);
 const txt = await evalJs(`document.querySelector('.hk-page').innerText`);
