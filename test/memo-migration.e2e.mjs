@@ -92,7 +92,10 @@ savedData = { paList: ['박민선', '기타'], brands: [
     step2Rows: [Z('a1', '메모있음', 'memo_one', { memo: '릴스 고로 30만원', contactStatus: '진행중' }), Z('a2', '메모없음', 'nomemo_one', { memo: '', contactStatus: '진행중' }),
       Z('a3', '거절됨', 'rej_one', { memo: '거절 사유', contactStatus: '거절' }), Z('a4', '정산끝', 'paid_one', { memo: '정산 메모', contactStatus: '진행중', infSettled: 'Y' })],
     claudeStep2Rows: [Z('c1', '자동메모', 'auto_one', { memo: '자동화 메모', contactStatus: '진행중' })] },
-  { ...EMPTY, id: 'basetune', name: '베이스튠', step2Rows: [Z('b1', '베이스메모', 'bt_one', { memo: '검수 필요', contactStatus: '진행중', reviewReq: { status: '진행', note: '이미 있음', reqTs: 5 } })] },
+  { ...EMPTY, id: 'basetune', name: '베이스튠',
+    step1Rows: [S1('p1', '민선대기', 'ms_wait', { pa: '박민선', reviewStatus: '검수대기' }), S1('p2', '안민영대기', 'am_wait', { pa: '안민영', reviewStatus: '검수대기' }),
+      S1('p3', '민선승인', 'ms_ok', { pa: '박민선', reviewStatus: '승인' }), S1('p4', '민선진행', 'ms_go', { pa: '박민선', reviewStatus: '검수대기' })],
+    step2Rows: [S2('q4', '민선진행', 'ms_go', { step1Id: 'p4', pa: '박민선', contactStatus: '진행중' }), Z('b1', '베이스메모', 'bt_one', { memo: '검수 필요', contactStatus: '진행중', reviewReq: { status: '진행', note: '이미 있음', reqTs: 5 } })] },
 ], settlements: {} };
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
 await waitFor(`[...document.querySelectorAll('.brand-tab')].some(b=>b.textContent.includes('해트케'))`, '앱 로딩');
@@ -104,7 +107,11 @@ chk(g('a1').reviewReq && g('a1').reviewReq.status === '요청' && g('a1').review
 chk(!g('a1').reviewReq.reqTs, '🔴 reqTs 없음 = 슬랙 알림 대상 아님', g('a1').reviewReq);
 chk(!g('a2').reviewReq && !g('a3').reviewReq && !g('a4').reviewReq, '메모 없음·거절·정산완료는 변환 안 함');
 chk(g('c1').reviewReq && g('c1').reviewReq.status === '요청', '자동화 행 메모도 변환', g('c1').reviewReq);
-chk(B2.step2Rows[0].reviewReq.status === '진행' && B2.step2Rows[0].reviewReq.reqTs === 5, '이미 검토 요청이 있는 건은 그대로');
+chk(B2.step2Rows.find((r) => r.id === 'b1').reviewReq.status === '진행' && B2.step2Rows.find((r) => r.id === 'b1').reviewReq.reqTs === 5, '이미 검토 요청이 있는 건은 그대로');
+const s1r = (id) => B2.step1Rows.find((r) => r.id === id);
+chk(s1r('p1').reviewStatus === '반려', '박민선 베이스튠 검수 대기 → 반려(거절)', s1r('p1'));
+chk(s1r('p2').reviewStatus === '검수대기' && s1r('p3').reviewStatus === '승인' && s1r('p4').reviewStatus === '검수대기', '다른 담당자·승인·이미 컨택 진행 중인 건은 그대로');
+chk(!!B2.pendRejMig, '베이스튠 1회 표시(pendRejMig)');
 chk(H2.memoReqMig && B2.memoReqMig, '브랜드마다 1회 표시(memoReqMig)');
 await click('.brand-tab', '해트케'); await wait(800);
 const txt = await evalJs(`document.querySelector('.hk-page').innerText`);

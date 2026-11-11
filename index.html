@@ -4390,6 +4390,17 @@ function noReplyCutKey(){ const d=new Date(); d.setDate(d.getDate()-NO_REPLY_DAY
 /* 기존 메모 → 검토 요청 1회 변환(2026-11-11 사용자: 지금 남아 있는 메모를 전 브랜드에서 확인).
    끝난 건(거절·정산완료·개인정보 폐기)은 뺀다. 🔴 reqTs 를 일부러 안 넣는다 — Code.gs 슬랙 알림이 reqTs 있는 요청만 보내므로 이 변환은 슬랙을 안 보낸다.
    브랜드마다 1번(memoReqMig). */
+/* 1회성 정리(2026-11-11 사용자: 박민선 베이스튠 검수 대기 건은 전부 거절) — 리스팅 목록(step1)의 검수대기 → 반려.
+   이미 컨택 행이 붙은 건은 진행 중이라 뺀다. 베이스튠 1번만(pendRejMig). */
+function migRejectPending(b){
+  if(b.id!=='basetune'||b.pendRejMig) return {b,n:0};
+  const linked=new Set([...(b.step2Rows||[]),...(b.claudeStep2Rows||[])].map(r=>r.step1Id).filter(Boolean));
+  let n=0;
+  const step1Rows=(b.step1Rows||[]).map(r=>{
+    if(sanitizePA(r.pa)!=='박민선'||r.reviewStatus!=='검수대기'||linked.has(r.id)) return r;
+    n++; return {...r,reviewStatus:'반려'}; });
+  return {b:{...b,step1Rows,pendRejMig:today()},n};
+}
 function migMemoReq(b){
   if(b.memoReqMig) return {b,n:0};
   let n=0;
@@ -6918,6 +6929,16 @@ function AppMain({ authInfo, onLogout }) {
     if(tot) setMsg(`🔤 이름을 인스타 계정명으로 바꿨어요(성사 전 ${tot}명)`);
   },[brands]);
   // 기존 메모 → 검토 요청 1회 변환(관리자 접속 때, 브랜드마다 한 번, 슬랙 안 보냄) — migMemoReq 참고
+  const pendRejRef=useRef(false);
+  useEffect(()=>{
+    if(!serverLoadedRef.current||pendRejRef.current) return;
+    if((authInfo?.role||'')!=='manager') return;
+    pendRejRef.current=true;
+    if(brands.every(b=>b.id!=='basetune'||b.pendRejMig)) return;
+    const tot=brands.reduce((s,b)=>s+migRejectPending(b).n,0);
+    setBrands(prev=>prev.map(b=>migRejectPending(b).b));
+    setMsg(`📦 박민선 베이스튠 검수 대기 ${tot}명을 반려(거절)로 옮겼어요`);
+  },[brands]);
   const memoMigRef=useRef(false);
   useEffect(()=>{
     if(!serverLoadedRef.current||memoMigRef.current) return;
