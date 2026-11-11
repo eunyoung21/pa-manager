@@ -104,6 +104,10 @@ await openCh('고로'); await waitFor(`document.querySelector('.s2p')`, '상세 
 await click('.s2p button', '검토 요청'); await wait(1800);
 let a = B().step2Rows.find((r) => r.id === 's1').reviewReq || {};
 chk(a.status === '요청' && a.note.includes('고로 15만원') && a.reqTs, '검토 요청 저장: 상태 요청 · 메모 내용 · 요청 시각', a);
+// 칸을 벗어나면 자동 저장(저장 버튼 없음)
+await evalJs(`(()=>{const f=[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('팔로워'));const i=f.querySelector('input');i.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'99,999');i.dispatchEvent(new Event('input',{bubbles:true}));i.blur();return 1})()`); await wait(1800);
+chk(B().step2Rows.find((r) => r.id === 's1').followers === '99,999', '팔로워 수 칸을 벗어나면 자동 저장', B().step2Rows.find((r) => r.id === 's1').followers);
+chk(!(await evalJs(`document.querySelector('.s2p').innerText`)).includes('개인정보 제출') && ![...(await evalJs(`[...document.querySelectorAll('.s2p button')].map(b=>b.textContent.trim())`))].some((x) => x === '저장' || x.includes('삭제')), '저장·개인정보 제출·삭제 버튼 없음');
 await click('.s2p button', '닫기'); await wait(300);
 await openCh('또다른'); await waitFor(`document.querySelector('.s2p')`, '상세 창2');
 await click('.s2p button', '검토 요청'); await wait(1800);
@@ -157,7 +161,7 @@ await evalJs(`(()=>{const b=[...document.querySelectorAll('.brand-tab')].find(x=
 await click('.step-tab', '인플루언서 관리'); await wait(700);
 await openCh('고로'); await waitFor(`document.querySelector('.s2p')`, '상세 창 6');
 const stTxt = await evalJs(`document.querySelector('.s2p').innerText`);
-chk(stTxt.includes('관리자: 진행') && !stTxt.includes('대신 확인'), '담당자 화면: 관리자: 진행 + 확인 버튼(대신 확인은 없음)', stTxt.slice(stTxt.indexOf('관리자') - 10, stTxt.indexOf('관리자') + 60));
+chk(stTxt.includes('관리자: 진행') && !stTxt.includes('✓ 확인'), '담당자 화면: 관리자: 진행 + 확인 버튼(대신 확인은 없음)', stTxt.slice(stTxt.indexOf('관리자') - 10, stTxt.indexOf('관리자') + 60));
 await evalJs(`(()=>{const b=[...document.querySelectorAll('.s2p button')].find(x=>x.textContent.trim()==='확인'); if(!b) throw new Error('확인 버튼 없음'); b.click(); return 1})()`); await wait(1800);
 const ak = B().step2Rows.find((r) => r.id === 's1').reviewReq;
 chk(ak.ack === 'Y' && /^\d\d\.\d\d\.\d\d \d\d:\d\d$/.test(ak.ackAt) && !ak.ackBy, '담당자 확인: 확인 시각 저장', ak);

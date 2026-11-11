@@ -4505,6 +4505,12 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
 하차로 표시해요(제품을 보냈으면 관리자에게 회수 확인이 떠요).`))H.current.setStatus(r,'거절');}}>✕ 하차</button>
     :<button className="btn s2p-danger" onClick={()=>H.current.setStatus(r,'거절')}>✕ 거절됨으로</button>;
   const fld=(label,k,ph,area)=><div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph}/>:<input value={f[k]} onChange={u(k)} placeholder={ph}/>}</div>;
+  // 기본 정보 4칸(이름·팔로워·모집일·메모) — 칸을 벗어나면 바뀐 경우에만 자동 저장(2026-11-11, 저장 버튼 삭제)
+  const fldS=(label,k,ph,area)=>{
+    const save=()=>{ const v=k==='memo'?String(f[k]||''):String(f[k]||'').trim();
+      if(k==='name'&&!v){ setF(p=>({...p,name:r.name||''})); return; }
+      if(v!==String(r[k]||'')) upd({[k]:v}); };
+    return <div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph} onBlur={save}/>:<input value={f[k]} onChange={u(k)} placeholder={ph} onBlur={save}/>}</div>; };
   // 입력도 되고 복사도 되는 칸 — 앞 단계에서 비워두고 넘어와도 여기서 채울 수 있게. 칸을 벗어나면 바뀐 경우에만 저장.
   const editCopy=(label,k,ph,orig,save)=><div className="s2p-fg"><label>{label}</label><div className="s2p-copy"><input value={f[k]} onChange={u(k)} placeholder={ph} onBlur={()=>{const v=f[k].trim();if(v!==String(orig||''))save(v);}}/><CopyBtn value={f[k]}/></div></div>;
   const pa=sanitizePA(r.pa)||'';
@@ -4677,7 +4683,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
           {st==='rejected'&&<div className="s2p-tl-item"><div className="s2p-dot" style={{background:'var(--red)',color:'#fff'}}>✕</div><div className="s2p-tl-label" style={{color:'var(--red)'}}>거절됨</div></div>}
         </div>
         <div className="s2p-sec">기본 정보</div>
-        {fld('이름 (별칭)','name','채널명')}
+        {fldS('이름 (별칭)','name','채널명')}
         <div className="s2p-fg"><label>협찬 제품</label>
           {/* 모든 브랜드(2026-10-13): 제품 선택 + 그 제품 옵션 선택. 제품·옵션은 [⚙ 제품·옵션]에서 추가 */}
           <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
@@ -4717,9 +4723,9 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
           <button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12,marginTop:6}} title="같은 사람에게 보내는 제품을 더 추가" onClick={()=>upd({extras:[...(r.extras||[]),{product:'',opt:{},qty:'1'}]})}>＋ 제품 추가</button>
           {pcOpen&&<ProductConfigModal brand={brand} onClose={()=>setPcOpen(false)} onSave={(p,o,nc)=>{onSaveProducts(p,o,nc);setPcOpen(false);}}/>}
         </div>
-        {fld('팔로워 수','followers','12,400')}
-        {fld('모집일','date','YY.MM.DD')}
-        {fld('메모','memo','',true)}
+        {fldS('팔로워 수','followers','12,400')}
+        {fldS('모집일','date','YY.MM.DD')}
+        {fldS('메모','memo','',true)}
         {(()=>{ const rq=r.reviewReq||{}; const open=rq.status==='요청'; const ended=normStatus(r.contactStatus)==='거절';
           const ask=()=>{ const n=f.memo.trim(); if(!n){ alert('메모에 검토받을 내용을 먼저 적어 주세요.'); return; }
             upd({memo:f.memo,reviewReq:{status:'요청',note:n,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}); };
@@ -4741,18 +4747,13 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
               {(rq.status==='진행'||rq.status==='보류')&&<span style={{fontSize:12,fontWeight:700,color:rq.status==='진행'?'var(--green)':'#f59e0b'}}>💬 관리자: {rq.status}{rq.reply?' — '+rq.reply:''}</span>}
               {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&IS_STAFF&&<button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} onClick={()=>upd({reviewReq:rvAck(rq)})}>확인</button>}
               {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<span style={{fontSize:12,fontWeight:700,color:'#f59e0b'}}>⏳ {rvWho(r.pa)} 확인 대기</span>}
-              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="담당자 대신 관리자가 확인 처리" onClick={()=>upd({reviewReq:rvAck(rq,'관리자')})}>✓ 대신 확인</button>}
+              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="담당자 대신 관리자가 확인 처리" onClick={()=>upd({reviewReq:rvAck(rq,'관리자')})}>✓ 확인</button>}
               {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&<span style={{fontSize:12,fontWeight:700,color:'var(--green)'}}>✓ {rvWho(r.pa)} 확인{rq.ackAt?' '+rq.ackAt:''}{rq.ackBy==='관리자'?' (관리자가 대신)':''}</span>}
               {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="답변을 취소하고 다시 검토 요청 상태로" onClick={()=>upd({reviewReq:{...rq,status:'요청',reply:'',replyAt:''}})}>↩ 답변 취소</button>}
               {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&(IS_STAFF||rq.ackBy==='관리자')&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="확인을 취소하고 다시 확인 전 상태로" onClick={()=>upd({reviewReq:{...rq,ack:'',ackAt:'',ackBy:''}})}>↩ 확인 취소</button>}
               <button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} title="메모 내용을 관리자에게 보내 진행할지 물어봅니다" onClick={ask}>🙋 검토 요청</button>
             </div>}
           </div>; })()}
-        <div className="s2p-btns">
-          <button className="btn s2p-outline" onClick={()=>upd({name:f.name.trim()||r.name,followers:f.followers.trim(),date:f.date.trim(),memo:f.memo})}>저장</button>
-          <button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 개인정보 {privDone?'✅ 보기·수정':'제출'}</button>
-          <button className="btn s2p-danger" onClick={()=>{if(confirm(`'${r.name}' 을(를) 삭제할까요?\n복구할 수 없습니다.`)){H.current.onDelete(r.id);onClose();}}}>🗑 삭제</button>
-        </div>
         <div className="s2p-hr"/>
         <div className="s2p-sec">단계 액션 <span style={{fontWeight:400,color:'var(--muted)'}}>· 담당 {pa||'없음'}</span></div>
         {action}
