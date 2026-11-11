@@ -104,7 +104,9 @@ const btns = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-btns button'
 
 savedData = { paList: ['안민영', '기타'], brands: [
   { ...EMPTY, id: 'hatke', name: '해트케',
-    claudeStep2Rows: [S2('p1', '끌로에 하우스', 'chloe_house', { ...deal, product: '해트케 압력이불', opt: { 색상: '화이트' }, shippingDone: '✅ 완료', shipDate: TD, realName: '김하나', phone: '010-1234-5678', address: '서울시 강남구 1' })],
+    claudeStep2Rows: [S2('p1', '끌로에 하우스', 'chloe_house', { ...deal, memo: '릴스 고로 30만원', product: '해트케 압력이불', opt: { 색상: '화이트' }, shippingDone: '✅ 완료', shipDate: TD, realName: '김하나', phone: '010-1234-5678', address: '서울시 강남구 1' }),
+      S2('p2', '화이트코지하우스', 'white_cozy', { ...deal, memo: '이불 사이즈/색상 : QK/화이트', product: '휘핑크림 차렵이불' })],
+    // (두 번째 사람의 협업 메모 — 출고 탭 팝업용)
     shippingRows: [{ id: 'sh1', requestDate: TD, requester: '안민영', channelName: '끌로에 하우스', recipient: '김하나', phone: '010-1234-5678', address: '서울시 강남구 1', product: '해트케 압력이불', qty: '1', notes: '', tracking: '', status: '처리중', fromContact: 'Y' },
       { id: 'sh2', requestDate: TD, requester: '안민영', channelName: '화이트코지하우스', recipient: '박둘', phone: '010-2222-3333', address: '부산시 해운대구 2', product: '휘핑크림 차렵이불', qty: '2', notes: '10/26 발송', tracking: '', status: '처리중' }] },
 ], settlements: {} };
@@ -117,6 +119,7 @@ await evalJs(`(()=>{const box=[...document.querySelectorAll('.todo-box')].find(b
 await waitFor(`document.querySelector('.modal')`, '팝업');
 const txt = await evalJs(`document.querySelector('.modal').innerText`);
 chk(['김하나', '010-1234-5678', '서울시 강남구 1', '해트케 압력이불 · 화이트 (1)', '안민영'].every((s) => txt.includes(s)), '받는 분·연락처·주소·상품(옵션)·담당 표시', txt);
+chk(txt.includes('협업 메모') && txt.includes('릴스 고로 30만원'), '대시보드 출고 팝업에 협업 메모', txt);
 chk((await evalJs(`(document.querySelector('.step-tab.active')||{}).textContent`)).includes('대시보드'), '탭 그대로 대시보드');
 await evalJs(`(()=>{window.__clip='';navigator.clipboard.writeText=t=>{window.__clip=t;return Promise.resolve();};document.querySelector('.modal .row-copy-btn').click();return 1})()`); await wait(200);
 const clip = await evalJs(`window.__clip`);
@@ -133,6 +136,7 @@ await evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x
 await waitFor(`document.querySelector('.modal')`, '출고 탭 팝업');
 const t2 = await evalJs(`document.querySelector('.modal').innerText`);
 chk(['화이트코지하우스', '박둘', '010-2222-3333', '부산시 해운대구 2', '휘핑크림 차렵이불 (2)', '10/26 발송'].every((s) => t2.includes(s)), '출고 탭 팝업 내용', t2);
+chk(t2.includes('협업 메모') && t2.includes('이불 사이즈/색상 : QK/화이트'), '출고 탭 팝업에 이 인플루언서의 협업 메모', t2);
 await evalJs(`(()=>{window.__clip='';document.querySelector('.modal .row-copy-btn').click();return 1})()`); await wait(200);
 const clip2 = await evalJs(`window.__clip`);
 chk(clip2.endsWith('휘핑크림 차렵이불 (2)'), '출고 탭 팝업 복사에 수량 (2)', clip2);
