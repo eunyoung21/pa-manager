@@ -633,7 +633,7 @@ function testReviewSlack() {
   var hook = PropertiesService.getScriptProperties().getProperty('SLACK_WEBHOOK');
   if (!hook) { Logger.log('SLACK_WEBHOOK 스크립트 속성이 없습니다.'); return; }
   var res = UrlFetchApp.fetch(hook, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-    payload: JSON.stringify({ text: '🙋 *해트케* · 스트라이프 차렵이불 · *테스트계정* 검토 요청 (담당 안민영)\n> [테스트] 검수 필요 리뷰 : 고로 15만원 이상' }) });
+    payload: JSON.stringify({ text: '🙋 *베이스튠* · 베이스튠 · *테스트계정* 검토 요청 (담당 안민영)\n> [테스트] 검수 필요 리뷰 : 고로 15만원 이상' }) });
   Logger.log('슬랙 응답: ' + res.getResponseCode() + ' ' + res.getContentText());
 }
 // 편집기에서 실행: 웹훅이 슬랙방에 닿는지 확인
