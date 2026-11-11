@@ -3796,7 +3796,8 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   },[brand,paList]);
   const partItems=active.filter(i=>INF_STAGES[i.stage].role==='part'&&INF_STAGES[i.stage].key!=='adset');
   const groups={}; partItems.forEach(i=>{const k=i.pa||'미지정'; (groups[k]=groups[k]||[]).push(i);});
-  const order=[...(paList||[]).filter(p=>groups[p]||(activePas(paList).includes(p)&&(!paFocus||p===paFocus))), ...Object.keys(groups).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
+  const order=[...(paList||[]).filter(p=>groups[p]||p===paFocus),   // 할 일 없는 담당자는 안 띄움(2026-11-11) — 그 담당자 탭을 눌러 본 경우만 '할 일 없음'으로 보임
+     ...Object.keys(groups).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
   const partTodo=order.map(p=>{const l=(groups[p]||[]).sort((a,b)=>b.stage-a.stage); const c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
     const perStage=[5,2,1,0].map(id=>[id,l.filter(i=>i.stage===id).length]).filter(x=>x[1]);
     return <div key={p} className="todo-group">

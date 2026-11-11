@@ -87,7 +87,7 @@ const J = JSON.stringify;
 const H = () => savedData.brands.find((b) => b.id === 'hatke');
 const openCh = (n) => evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent===${J(n)});if(!s)throw new Error('채널명 없음 '+${J(n)});s.click();return 1})()`);
 const click = (sel, txt) => evalJs(`(()=>{const b=[...document.querySelectorAll(${J(sel)})].find(x=>x.textContent.includes(${J(txt)}));if(!b)throw new Error('없음: '+${J(sel + ' / ' + txt)});b.click();return 1})()`);
-savedData = { paList: ['박민선', '기타'], brands: [
+savedData = { paList: ['박민선', '안민영', '기타'], brands: [
   { ...EMPTY, id: 'hatke', name: '해트케', products: ['해트케 압력이불', '스트라이프 차렵이불'],
     productOptions: { '스트라이프 차렵이불': [{ k: '색상', v: ['아이보리'] }], '해트케 압력이불': [] },
     step2Rows: [
@@ -106,6 +106,9 @@ let t = await tabs();
 chk(t.length === 3 && t[0].includes('전체 (3)') && t[1].includes('해트케 압력이불 (1)') && t[2].includes('스트라이프 차렵이불 (2)'), '해트케 대시보드에 제품 탭: 전체 3 · 압력이불 1 · 스트라이프 2', t);
 const txtAll = await evalJs(`document.querySelector('.hk-page').innerText`);
 chk(txtAll.split(String.fromCharCode(10)).includes('압력이') && txtAll.split(String.fromCharCode(10)).includes('스트라'), '전체: 두 제품 사람 모두 보임');
+const mgrBox = () => evalJs(`(()=>{const b=[...document.querySelectorAll('.hk-page .todo-box')].find(x=>x.textContent.includes('매니저 할 일'));return b?b.innerText:''})()`);
+const mb = await mgrBox();
+chk(mb.includes('박민선') && !mb.includes('안민영'), '매니저 할 일: 할 일 있는 담당자만(안민영 0건은 안 띄움)', mb.slice(0, 200));
 await click('.hk-page .prod-tab', '스트라이프'); await wait(500);
 const txtS = await evalJs(`document.querySelector('.hk-page').innerText`);
 chk(txtS.includes('스트라') && !txtS.split(String.fromCharCode(10)).includes('압력이'), '스트라이프 탭: 스트라이프 사람만', txtS.slice(0, 300));
