@@ -109,6 +109,10 @@ chk(txtAll.split(String.fromCharCode(10)).includes('압력이') && txtAll.split(
 const mgrBox = () => evalJs(`(()=>{const b=[...document.querySelectorAll('.hk-page .todo-box')].find(x=>x.textContent.includes('매니저 할 일'));return b?b.innerText:''})()`);
 const mb = await mgrBox();
 chk(mb.includes('박민선') && !mb.includes('안민영'), '매니저 할 일: 할 일 있는 담당자만(안민영 0건은 안 띄움)', mb.slice(0, 200));
+chk(!(await evalJs(`document.querySelector('.hk-page').innerText`)).includes('담당자별 소통 중'), '담당자별 소통 중 영역 삭제됨');
+await evalJs(`(()=>{const b=[...document.querySelectorAll('.hk-page .todo-box')].find(x=>x.textContent.includes('매니저 할 일'));const i=b.querySelector('.srch-in');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'압력');i.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`); await wait(500);
+const mq = await mgrBox();
+chk(mq.split(String.fromCharCode(10)).includes('압력이') && !mq.split(String.fromCharCode(10)).includes('스트라') && mq.includes('1/3'), '매니저 할 일 검색: 압력 입력 → 압력이만(1/3)', mq.slice(0, 200));
 await click('.hk-page .prod-tab', '스트라이프'); await wait(500);
 const txtS = await evalJs(`document.querySelector('.hk-page').innerText`);
 chk(txtS.includes('스트라') && !txtS.split(String.fromCharCode(10)).includes('압력이'), '스트라이프 탭: 스트라이프 사람만', txtS.slice(0, 300));

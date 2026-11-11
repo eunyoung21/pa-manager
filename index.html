@@ -401,6 +401,8 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 .todo-group-h{font-size:12px;font-weight:700;margin:0 0 6px 2px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
 .todo-group-h>span:not(.todo-group-sub){font-size:11px;opacity:.8;}
 .todo-group-sub{font-size:10px;font-weight:400;color:var(--muted);margin-left:6px;}
+.todo-group-h .srch-in{flex:1 1 90px;min-width:0;max-width:160px;margin-left:auto;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--text);outline:none;font-weight:400;}
+.todo-group-h .srch-in:focus{border-color:var(--accent);}
 .hk-page .btn-outline{background:var(--surface);border:1px solid var(--border);color:var(--text);}
 .hk-page .btn-outline:hover{border-color:var(--accent);color:var(--accent);}
 .hk-page .btn-sm{padding:3px 8px;font-size:11px;}
@@ -3680,7 +3682,8 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     const canAdv=act.canNext(i,isStaff);
     const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
     return <div key={i.id} className="todo-item" onClick={()=>openInf(i)}>
-      <span className="todo-name">{i.name}</span>
+      <span style={{minWidth:0,flex:1}}><span className="todo-name" style={{display:'block'}}>{i.name}</span>
+        {memoLine(i.contact&&i.contact.memo)&&<div className="memo-line" title={i.contact.memo}>{memoLine(i.contact.memo)}</div>}</span>
       <div className="todo-right">
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
         <span className="todo-stage" style={{background:s.color+'22',color:s.color}}>{s.short}</span>
@@ -3798,14 +3801,18 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const groups={}; partItems.forEach(i=>{const k=i.pa||'미지정'; (groups[k]=groups[k]||[]).push(i);});
   const order=[...(paList||[]).filter(p=>groups[p]||p===paFocus),   // 할 일 없는 담당자는 안 띄움(2026-11-11) — 그 담당자 탭을 눌러 본 경우만 '할 일 없음'으로 보임
      ...Object.keys(groups).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
-  const partTodo=order.map(p=>{const l=(groups[p]||[]).sort((a,b)=>b.stage-a.stage); const c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
-    const perStage=[5,2,1,0].map(id=>[id,l.filter(i=>i.stage===id).length]).filter(x=>x[1]);
+  const partTodo=order.map(p=>{const lAll=(groups[p]||[]).sort((a,b)=>b.stage-a.stage); const c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
+    // 담당자별 검색(2026-11-11, 옛 '담당자별 소통 중' 검색을 옮김) — 이름·본명·메모
+    const q=String(talkQ[p]||'').trim().toLowerCase();
+    const l=q?lAll.filter(i=>[i.name,i.realName,i.contact&&i.contact.memo].some(v=>String(v||'').toLowerCase().includes(q))):lAll;
+    const perStage=[5,2,1,0].map(id=>[id,lAll.filter(i=>i.stage===id).length]).filter(x=>x[1]);
     return <div key={p} className="todo-group">
       <div className="todo-group-h" style={{color:c}}>
-        <span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:c,marginRight:6}}/>{p} <span>{l.length}</span>
+        <span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:c,marginRight:6}}/>{p} <span>{q?l.length+'/':''}{lAll.length}</span>
         <span className="todo-group-sub">{perStage.map(([id,n])=>INF_STAGES[id].short+' '+n).join(' · ')}</span>
+        <input className="srch-in" value={talkQ[p]||''} placeholder="🔍 검색" onChange={e=>setTalkQ(s=>({...s,[p]:e.target.value}))} onKeyDown={e=>{if(e.key==='Escape')setTalkQ(s=>({...s,[p]:''}));}}/>
       </div>
-      {l.length?l.slice(0,MAX).map(item):<div className="todo-none" style={{paddingLeft:16}}>할 일 없음 ✓</div>}{moreRow(l.length,()=>setPop({kind:'pa',pa:p}))}
+      {l.length?(q?l:l.slice(0,MAX)).map(item):<div className="todo-none" style={{paddingLeft:16}}>{q?"'"+talkQ[p]+"' 없음":'할 일 없음 ✓'}</div>}{!q&&moreRow(l.length,()=>setPop({kind:'pa',pa:p}))}
     </div>;});
 
   const popList=!pop?[]:pop.kind==='rvw'?waitItems:pop.kind==='rv'?reqItems:pop.kind==='settle'?settleItems:pop.kind==='boss'?bossItems:((groups[pop.pa]||[]).slice().sort((a,b)=>b.stage-a.stage));
@@ -3862,42 +3869,9 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
         })}
         {moreRow(shipPending.length,()=>go('shipping','pend',paFocus))}
       </div>}
-      <div className="role-header" style={{color:'var(--text)',marginTop:18}}>💬 담당자별 소통 중
-        <span className="text-muted" style={{fontWeight:400}}>— 답장 온 뒤 진행 중인 사람 · 이름을 누르면 상세</span>
-      </div>
+      <div style={{marginTop:18}}/>
       {endSum.length>0&&<div className="end-sum">이번 달 종료 · {endSum.map(([k,n],j)=><span key={k}>{j?' · ':''}<b style={{color:END_KINDS[k]}}>{k}</b> {n}</span>)}</div>}
       {dupTalk.length>0&&!paFocus&&<div className="talk-dup">⚠️ 두 명 이상이 동시에 연락 중: {dupTalk.slice(0,8).map(d=>d.name+' ('+d.pas.join(', ')+')').join(' · ')}{dupTalk.length>8?` 외 ${dupTalk.length-8}명`:''}</div>}
-      {talkOrder.length===0?<div className="todo-box" style={{marginBottom:20}}><div className="todo-none">소통 중인 인플루언서 없음</div></div>:
-      <div className="talk-grid">
-        {talkOrder.map(p=>{const q=String(talkQ[p]||'').trim().toLowerCase();
-          const hit=({inf:i})=>!q||[i.name,i.realName,i.contact&&i.contact.memo].some(v=>String(v||'').toLowerCase().includes(q));
-          const l=(talkBy[p]||[]).slice().sort((a,b)=>b.inf.stage-a.inf.stage||String(b.k).localeCompare(String(a.k)));
-          const c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
-          const lbl=i=>INF_STAGES[i.stage].short;
-          const per={}; l.forEach(({inf})=>{const b=lbl(inf); per[b]=(per[b]||0)+1;});
-          return <div key={p} className="talk-col" style={{borderTop:'3px solid '+c}}>
-            <div className="talk-h" onClick={()=>setPaFocus(paFocus===p?null:p)} title="이 담당자만 보기">
-              <span style={{width:8,height:8,borderRadius:'50%',background:c,flexShrink:0}}/><span style={{whiteSpace:'nowrap'}}>{p}</span>
-              <input className="srch-in" value={talkQ[p]||''} placeholder="🔍 검색" onClick={e=>e.stopPropagation()}
-                onChange={e=>setTalkQ(s=>({...s,[p]:e.target.value}))} onKeyDown={e=>{if(e.key==='Escape')setTalkQ(s=>({...s,[p]:''}));}}/>
-              <span className="n" style={{background:c+'22',color:c}}>{q?`${l.filter(hit).length}/`:''}{l.length}명</span>
-            </div>
-            <div className="talk-sub">{Object.entries(per).map(([k,n])=>k+' '+n).join(' · ')}</div>
-            <div className="talk-list">
-              {!l.length&&<div className="todo-none" style={{padding:'6px 8px'}}>소통 중인 사람 없음</div>}
-              {q&&l.length>0&&!l.some(hit)&&<div className="todo-none" style={{padding:'6px 8px'}}>'{talkQ[p]}' 없음</div>}
-              {l.filter(hit).map(({inf:i,k})=>{const s=INF_STAGES[i.stage];
-                return <div key={i.id} className="talk-item" onClick={()=>openInf(i)} title={i.name}>
-                  <span style={{minWidth:0,flex:1}}><div className="nm">{i.name}</div>
-                    {memoLine(i.contact&&i.contact.memo)&&<div className="memo-line" title={i.contact.memo}>{memoLine(i.contact.memo)}</div>}</span>
-                  <span style={{display:'flex',gap:5,alignItems:'center',flexShrink:0}}>
-                    {k&&<span className="text-muted" style={{fontSize:10}}>{String(k).slice(5).replace('-','.')}</span>}
-                    <span className="todo-stage" style={{background:s.color+'22',color:s.color}}>{lbl(i)}</span>
-                  </span>
-                </div>;})}
-            </div>
-          </div>;})}
-      </div>}
       <div className="todo-grid">
         <div className="todo-box">
           <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length+dropShip.length+settleItems.length+reqItems.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length+dropShip.length+settleItems.length+reqItems.length})</span>}</h3>
