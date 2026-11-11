@@ -3727,15 +3727,17 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   // 🙋 검토 요청 — 알바가 메모와 함께 올린 건. 여기서 바로 진행/보류/패스(패스=거절 처리)
   const rqOf=i=>(i.contact&&i.contact.reviewReq)||{};
   const reqItems=infs.filter(i=>i.status==='active'&&rqOf(i).status==='요청');
-  const ansItems=isStaff?infs.filter(i=>i.status==='active'&&['진행','보류'].includes(rqOf(i).status)&&!rqOf(i).ack):[];
-  const waitItems=!isStaff?infs.filter(i=>i.status==='active'&&['진행','보류'].includes(rqOf(i).status)&&!rqOf(i).ack):[];
-  const rvWait=i=>{ const rq=rqOf(i); const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
-    return <div key={i.id} className="todo-item" onClick={()=>openInf(i)}>
+  const ansItems=infs.filter(i=>i.status==='active'&&['진행','보류'].includes(rqOf(i).status)&&!rqOf(i).ack);   // 관리자가 답했고 담당자가 아직 확인 안 한 건
+  // 💬 관리자 답변 — 진행/보류 답이 달린 건. 담당자가 확인(✓)해야 사라진다. 매니저 할 일 맨 위에 보인다(2026-11-11)
+  const ansRow=i=>{ const rq=rqOf(i); const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'}; const col=rq.status==='진행'?'#22c55e':'#f59e0b';
+    return <div key={i.id} className="todo-item" style={{flexWrap:'wrap'}} onClick={()=>openInf(i)}>
       <span className="todo-name">{i.name}</span>
       <div className="todo-right">
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
-        <span className="todo-stage" style={{background:(rq.status==='진행'?'#22c55e':'#f59e0b')+'22',color:rq.status==='진행'?'#22c55e':'#f59e0b'}}>{rq.status}</span>
+        <span className="todo-stage" style={{background:col+'22',color:col}}>{rq.status}</span>
+        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title={isStaff?'관리자 답변 확인':'담당자 대신 확인'} onClick={e=>{e.stopPropagation(); act.up(i,{reviewReq:rvAck(rq,isStaff?'':'관리자')});}}>✓ 확인</button>
       </div>
+      {(rq.reply||rq.note)&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}>{rq.reply?'💬 '+rq.reply:''}{rq.reply&&rq.note?' · ':''}{rq.note?'메모: '+rq.note:''}</div>}
     </div>; };
   const rvAns=(i,st)=>{ const rq=rqOf(i);
     if(st==='패스'){ if(confirm(`${i.name} — 패스(거절) 처리할까요?`)) act.up(i,rvPassPatch(i.contact,rq,'')); return; }
@@ -3748,18 +3750,13 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
         <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={e=>{e.stopPropagation(); rvAns(i,'진행');}}>✓ 진행</button>
         <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={e=>{e.stopPropagation(); rvAns(i,'보류');}}>⏸ 보류</button>
-        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px',color:'var(--red)'}} onClick={e=>{e.stopPropagation(); rvAns(i,'패스');}}>✕ 패스</button>
       </div>
       {note&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}>{note}</div>}
     </div>; };
-  const bossTodo=(bossItems.length||dropShip.length||settleItems.length||reqItems.length||waitItems.length)?[
+  const bossTodo=(bossItems.length||dropShip.length||settleItems.length||reqItems.length)?[
     ...(reqItems.length?[<div key="rvq" className="todo-group">
       <div className="todo-group-h" style={{color:'#f59e0b'}}>🙋 검토 요청 <span>{reqItems.length}</span></div>
       {reqItems.slice(0,MAX).map(rvItem)}{moreRow(reqItems.length,()=>setPop({kind:'rv'}))}
-    </div>]:[]),
-    ...(waitItems.length?[<div key="rvw" className="todo-group">
-      <div className="todo-group-h" style={{color:'#f59e0b'}}>⏳ 담당자 확인 대기 <span>{waitItems.length}</span></div>
-      {waitItems.slice(0,MAX).map(rvWait)}{moreRow(waitItems.length,()=>setPop({kind:'rvw'}))}
     </div>]:[]),
     <div key="boss" className="todo-group">
       {dropShip.map(dropItem)}
@@ -3815,13 +3812,13 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       {l.length?(q?l:l.slice(0,MAX)).map(item):<div className="todo-none" style={{paddingLeft:16}}>{q?"'"+talkQ[p]+"' 없음":'할 일 없음 ✓'}</div>}{!q&&moreRow(l.length,()=>setPop({kind:'pa',pa:p}))}
     </div>;});
 
-  const popList=!pop?[]:pop.kind==='rvw'?waitItems:pop.kind==='rv'?reqItems:pop.kind==='settle'?settleItems:pop.kind==='boss'?bossItems:((groups[pop.pa]||[]).slice().sort((a,b)=>b.stage-a.stage));
-  const popTitle=!pop?'':pop.kind==='rvw'?'⏳ 담당자 확인 대기':pop.kind==='rv'?'🙋 검토 요청':pop.kind==='settle'?'💰 정산 대기':pop.kind==='boss'?'🔴 관리자 할 일':'🟡 '+pop.pa+' 할 일';
+  const popList=!pop?[]:pop.kind==='ans'?ansItems:pop.kind==='rv'?reqItems:pop.kind==='settle'?settleItems:pop.kind==='boss'?bossItems:((groups[pop.pa]||[]).slice().sort((a,b)=>b.stage-a.stage));
+  const popTitle=!pop?'':pop.kind==='ans'?'💬 관리자 답변':pop.kind==='rv'?'🙋 검토 요청':pop.kind==='settle'?'💰 정산 대기':pop.kind==='boss'?'🔴 관리자 할 일':'🟡 '+pop.pa+' 할 일';
   const popUp=pop&&<div className="overlay" onClick={e=>e.target===e.currentTarget&&setPop(null)}>
     <div className="modal" style={{maxWidth:620}}>
       <div className="modal-title">{popTitle} <span style={{fontWeight:400,color:'var(--muted)'}}>{popList.length}명</span></div>
       <div style={{maxHeight:'65vh',overflowY:'auto'}}>
-        {popList.length?popList.map(pop.kind==='rvw'?rvWait:pop.kind==='rv'?rvItem:pop.kind==='settle'?settleItem:item):<div className="todo-none">할 일 없음 ✓</div>}
+        {popList.length?popList.map(pop.kind==='ans'?ansRow:pop.kind==='rv'?rvItem:pop.kind==='settle'?settleItem:item):<div className="todo-none">할 일 없음 ✓</div>}
       </div>
       <div className="modal-foot"><button className="btn btn-ghost" onClick={()=>setPop(null)}>닫기</button></div>
     </div>
@@ -3844,17 +3841,6 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
           .map(({k,l})=><button key={k} className={`prod-tab ${dashProd===k?'active':''}`} onClick={()=>setDashProd(k)}>{l}</button>)}
       </div>}
       <PaTabs infs={infsAll} paFocus={paFocus} setPaFocus={setPaFocus} paList={paList}/>
-      {ansItems.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4}}>
-        <h3><span style={{color:'#f59e0b'}}>💬</span> 관리자 답변 <span style={{fontWeight:400,color:'var(--muted)'}}>({ansItems.length})</span></h3>
-        {ansItems.slice(0,MAX).map(i=>{ const rq=rqOf(i); return <div key={i.id} className="todo-item" style={{flexWrap:'wrap'}} onClick={()=>openInf(i)}>
-          <span className="todo-name">{i.name}</span>
-          <div className="todo-right">
-            <span className="todo-stage" style={{background:(rq.status==='진행'?'#22c55e':'#f59e0b')+'22',color:rq.status==='진행'?'#22c55e':'#f59e0b'}}>{rq.status}</span>
-            <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={e=>{e.stopPropagation(); act.up(i,{reviewReq:rvAck(rq)});}}>✓ 확인</button>
-          </div>
-          {rq.reply&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2}}>{rq.reply}</div>}
-        </div>; })}
-      </div>}
       {shipPending.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4}}>
         <h3><span style={{color:'#8b5cf6'}}>📦</span> 출고 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({shipPending.length})</span></h3>
         {shipPending.slice(0,MAX).map(i=>{
@@ -3879,7 +3865,10 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
         </div>
         <div className="todo-box">
           <h3><span style={{color:'#ffc107'}}>🟡</span> 매니저 할 일 {paFocus?`— ${paFocus}`:'— 사람별'}</h3>
-          {partTodo.length?partTodo:empty}
+          {(()=>{ const all=[...(ansItems.length?[<div key="ans" className="todo-group">
+            <div className="todo-group-h" style={{color:'#f59e0b'}}>💬 관리자 답변 <span>{ansItems.length}</span><span className="todo-group-sub">확인하면 사라져요</span></div>
+            {ansItems.slice(0,MAX).map(ansRow)}{moreRow(ansItems.length,()=>setPop({kind:'ans'}))}
+          </div>]:[]),...partTodo]; return all.length?all:empty; })()}
         </div>
       </div>
     </div></div>
@@ -4747,7 +4736,6 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
                 :<>
                   <button className="btn s2p-success" style={{padding:'3px 10px',fontSize:12}} onClick={()=>ans('진행')}>✓ 진행</button>
                   <button className="btn s2p-outline" style={{padding:'3px 10px',fontSize:12}} onClick={()=>ans('보류')}>⏸ 보류</button>
-                  <button className="btn s2p-danger" style={{padding:'3px 10px',fontSize:12}} onClick={()=>ans('패스')}>✕ 패스</button>
                 </>}
               <button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="검토 요청 취소(잘못 눌렀을 때)" onClick={()=>upd({reviewReq:{...rq,status:'',ack:'Y'}})}>↩ 요청 취소</button>
             </div>:<div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
