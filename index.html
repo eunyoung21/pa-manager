@@ -1510,6 +1510,10 @@ const noContractOf=(brand,r)=>!!r&&(r.productOnly==='Y'||productNoContract(brand
 // '얼그레이 크림 / Q-K' — 그 제품의 옵션 순서대로, 고른 것만
 // 추가 제품 줄(2026-11-10) — 상세 창 협찬 제품 아래 '＋ 제품 추가'로 붙인 제품들(r.extras=[{product,opt,qty}]). 출고 상품명 뒤에 ' + 제품 · 옵션 (갯수)'로 붙는다.
 const extrasText=(brand,extras)=>(extras||[]).filter(e=>e&&String(e.product||'').trim()).map(e=>{const o=optText(brand,e.product,e.opt); return ' + '+String(e.product).trim()+(o?' · '+o:'')+' ('+(e.qty||'1')+')';}).join('');
+// 검토 요청(2026-11-11) — 알바가 메모에 사유를 적고 요청 → 관리자가 대시보드에서 진행/보류/패스. 컨택 행의 reviewReq={status:'요청|진행|보류|패스',note,reply,reqTs,reqAt,replyAt,ack}
+// 패스 = 바로 거절 처리(endReason·contactStatus·rejectDate 같이 기록)
+const rvAnswer=(rq,status,reply)=>({...(rq||{}),status,reply:reply||'',replyAt:today()});
+const rvPassPatch=(row,rq,reply)=>({endReason:autoEndReason(row),contactStatus:'거절',rejectDate:today(),reviewReq:rvAnswer(rq,'패스',reply)});
 const optText=(brand,product,opt)=>optionsOf(brand,product).map(g=>(opt||{})[g.k]).filter(Boolean).join(' / ');
 
 // ⚙ 제품·옵션 관리 — 이 브랜드의 협찬 제품과 옵션(색상·사이즈 등)을 추가·수정
@@ -3710,7 +3714,30 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
           onClick={e=>{e.stopPropagation(); if(confirm(`${i.name} — 광고세팅·입금 완료로 처리할까요?${rate?' (단가 '+rate+')':''}`)) act.next(i,false);}}>✓ 입금</button>}
       </div>
     </div>; };
-  const bossTodo=(bossItems.length||dropShip.length||settleItems.length)?[
+  // 🙋 검토 요청 — 알바가 메모와 함께 올린 건. 여기서 바로 진행/보류/패스(패스=거절 처리)
+  const rqOf=i=>(i.contact&&i.contact.reviewReq)||{};
+  const reqItems=infs.filter(i=>i.status==='active'&&rqOf(i).status==='요청');
+  const ansItems=isStaff?infs.filter(i=>i.status==='active'&&['진행','보류'].includes(rqOf(i).status)&&!rqOf(i).ack):[];
+  const rvAns=(i,st)=>{ const rq=rqOf(i);
+    if(st==='패스'){ if(confirm(`${i.name} — 패스(거절) 처리할까요?`)) act.up(i,rvPassPatch(i.contact,rq,'')); return; }
+    let reply=''; if(st==='보류'){ reply=prompt('알바에게 남길 말 (예: 10만원이면 OK)',''); if(reply===null) return; }
+    act.up(i,{reviewReq:rvAnswer(rq,st,reply)}); };
+  const rvItem=i=>{ const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'}; const note=String(rqOf(i).note||'').trim();
+    return <div key={i.id} className="todo-item" style={{flexWrap:'wrap'}} onClick={()=>openInf(i)}>
+      <span className="todo-name">{i.name}</span>
+      <div className="todo-right">
+        {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
+        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={e=>{e.stopPropagation(); rvAns(i,'진행');}}>✓ 진행</button>
+        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={e=>{e.stopPropagation(); rvAns(i,'보류');}}>⏸ 보류</button>
+        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px',color:'var(--red)'}} onClick={e=>{e.stopPropagation(); rvAns(i,'패스');}}>✕ 패스</button>
+      </div>
+      {note&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}>{note}</div>}
+    </div>; };
+  const bossTodo=(bossItems.length||dropShip.length||settleItems.length||reqItems.length)?[
+    ...(reqItems.length?[<div key="rvq" className="todo-group">
+      <div className="todo-group-h" style={{color:'#f59e0b'}}>🙋 검토 요청 <span>{reqItems.length}</span></div>
+      {reqItems.slice(0,MAX).map(rvItem)}{moreRow(reqItems.length,()=>setPop({kind:'rv'}))}
+    </div>]:[]),
     <div key="boss" className="todo-group">
       {dropShip.map(dropItem)}
       {bossItems.slice(0,MAX).map(item)}{moreRow(bossItems.length,()=>setPop({kind:'boss'}))}
@@ -3760,13 +3787,13 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       {l.length?l.slice(0,MAX).map(item):<div className="todo-none" style={{paddingLeft:16}}>할 일 없음 ✓</div>}{moreRow(l.length,()=>setPop({kind:'pa',pa:p}))}
     </div>;});
 
-  const popList=!pop?[]:pop.kind==='settle'?settleItems:pop.kind==='boss'?bossItems:((groups[pop.pa]||[]).slice().sort((a,b)=>b.stage-a.stage));
-  const popTitle=!pop?'':pop.kind==='settle'?'💰 정산 대기':pop.kind==='boss'?'🔴 관리자 할 일':'🟡 '+pop.pa+' 할 일';
+  const popList=!pop?[]:pop.kind==='rv'?reqItems:pop.kind==='settle'?settleItems:pop.kind==='boss'?bossItems:((groups[pop.pa]||[]).slice().sort((a,b)=>b.stage-a.stage));
+  const popTitle=!pop?'':pop.kind==='rv'?'🙋 검토 요청':pop.kind==='settle'?'💰 정산 대기':pop.kind==='boss'?'🔴 관리자 할 일':'🟡 '+pop.pa+' 할 일';
   const popUp=pop&&<div className="overlay" onClick={e=>e.target===e.currentTarget&&setPop(null)}>
     <div className="modal" style={{maxWidth:620}}>
       <div className="modal-title">{popTitle} <span style={{fontWeight:400,color:'var(--muted)'}}>{popList.length}명</span></div>
       <div style={{maxHeight:'65vh',overflowY:'auto'}}>
-        {popList.length?popList.map(pop.kind==='settle'?settleItem:item):<div className="todo-none">할 일 없음 ✓</div>}
+        {popList.length?popList.map(pop.kind==='rv'?rvItem:pop.kind==='settle'?settleItem:item):<div className="todo-none">할 일 없음 ✓</div>}
       </div>
       <div className="modal-foot"><button className="btn btn-ghost" onClick={()=>setPop(null)}>닫기</button></div>
     </div>
@@ -3789,6 +3816,17 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
           .map(({k,l})=><button key={k} className={`prod-tab ${dashProd===k?'active':''}`} onClick={()=>setDashProd(k)}>{l}</button>)}
       </div>}
       <PaTabs infs={infsAll} paFocus={paFocus} setPaFocus={setPaFocus} paList={paList}/>
+      {ansItems.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4}}>
+        <h3><span style={{color:'#f59e0b'}}>💬</span> 사장님 답변 <span style={{fontWeight:400,color:'var(--muted)'}}>({ansItems.length})</span></h3>
+        {ansItems.slice(0,MAX).map(i=>{ const rq=rqOf(i); return <div key={i.id} className="todo-item" style={{flexWrap:'wrap'}} onClick={()=>openInf(i)}>
+          <span className="todo-name">{i.name}</span>
+          <div className="todo-right">
+            <span className="todo-stage" style={{background:(rq.status==='진행'?'#22c55e':'#f59e0b')+'22',color:rq.status==='진행'?'#22c55e':'#f59e0b'}}>{rq.status}</span>
+            <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={e=>{e.stopPropagation(); act.up(i,{reviewReq:{...rq,ack:'Y'}});}}>✓ 확인</button>
+          </div>
+          {rq.reply&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2}}>{rq.reply}</div>}
+        </div>; })}
+      </div>}
       {shipPending.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4}}>
         <h3><span style={{color:'#8b5cf6'}}>📦</span> 출고 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({shipPending.length})</span></h3>
         {shipPending.slice(0,MAX).map(i=>{
@@ -3841,7 +3879,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       </div>}
       <div className="todo-grid">
         <div className="todo-box">
-          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length+dropShip.length+settleItems.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length+dropShip.length+settleItems.length})</span>}</h3>
+          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length+dropShip.length+settleItems.length+reqItems.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length+dropShip.length+settleItems.length+reqItems.length})</span>}</h3>
           {bossTodo.length?bossTodo:empty}
         </div>
         <div className="todo-box">
@@ -4666,6 +4704,28 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
         {fld('팔로워 수','followers','12,400')}
         {fld('모집일','date','YY.MM.DD')}
         {fld('메모','memo','',true)}
+        {(()=>{ const rq=r.reviewReq||{}; const open=rq.status==='요청'; const ended=normStatus(r.contactStatus)==='거절';
+          const ask=()=>{ const n=f.memo.trim(); if(!n){ alert('메모에 검토받을 내용을 먼저 적어 주세요.'); return; }
+            upd({memo:f.memo,reviewReq:{status:'요청',note:n,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}); };
+          const ans=st=>{ if(st==='패스'){ if(!confirm(`'${r.name}' 을(를) 패스(거절) 처리할까요?`)) return; upd(rvPassPatch(r,rq,'')); return; }
+            let reply=''; if(st==='보류'){ reply=prompt('알바에게 남길 말 (예: 10만원이면 OK)',''); if(reply===null) return; }
+            upd({reviewReq:rvAnswer(rq,st,reply)}); };
+          if(ended&&!open) return null;
+          return <div className="s2p-fg" style={{marginTop:2}}>
+            {open?<div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+              <span style={{fontSize:12,color:'#f59e0b',fontWeight:700}}>🙋 검토 요청 중{IS_STAFF?' · 사장님 확인 대기':''}</span>
+              {IS_STAFF?<button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} onClick={()=>upd({reviewReq:{...rq,status:'',ack:'Y'}})}>요청 취소</button>
+                :<>
+                  <button className="btn s2p-success" style={{padding:'3px 10px',fontSize:12}} onClick={()=>ans('진행')}>✓ 진행</button>
+                  <button className="btn s2p-outline" style={{padding:'3px 10px',fontSize:12}} onClick={()=>ans('보류')}>⏸ 보류</button>
+                  <button className="btn s2p-danger" style={{padding:'3px 10px',fontSize:12}} onClick={()=>ans('패스')}>✕ 패스</button>
+                </>}
+            </div>:<div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&<span style={{fontSize:12,fontWeight:700,color:rq.status==='진행'?'var(--green)':'#f59e0b'}}>💬 사장님: {rq.status}{rq.reply?' — '+rq.reply:''}</span>}
+              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&<button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} onClick={()=>upd({reviewReq:{...rq,ack:'Y'}})}>확인</button>}
+              <button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} title="메모 내용을 사장님께 보내 진행할지 물어봅니다" onClick={ask}>🙋 검토 요청</button>
+            </div>}
+          </div>; })()}
         <div className="s2p-btns">
           <button className="btn s2p-outline" onClick={()=>upd({name:f.name.trim()||r.name,followers:f.followers.trim(),date:f.date.trim(),memo:f.memo})}>저장</button>
           <button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 개인정보 {privDone?'✅ 보기·수정':'제출'}</button>

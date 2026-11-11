@@ -537,6 +537,7 @@ function saveData(sess, body, p) {
     var rev = writeData(incoming, g.pbucket !== undefined ? { pbucket: g.pbucket } : null);
     logAction('save', sess, null);
     try { notifyNewAdCodes(incoming); } catch (x) { Logger.log('광고코드 슬랙 알림 실패: ' + x); } // 알림 실패가 저장을 막으면 안 됨
+    try { notifyReviewRequests(incoming); } catch (x) { Logger.log('검토 요청 슬랙 알림 실패: ' + x); }
     return json({ ok: true, rev: rev });
   } finally { try { lock.releaseLock(); } catch (x) {} }
 }
@@ -594,6 +595,37 @@ function notifyNewAdCodes(data) {
     if (res.getResponseCode() !== 200) throw new Error('slack ' + res.getResponseCode() + ' ' + res.getContentText());
   }
   sh.getRange(sh.getLastRow() + 1, 1, add.length, 1).setNumberFormat('@').setValues(add); // 보낸 뒤에 기록 — 실패하면 다음 저장 때 다시 시도
+  return lines.length;
+}
+/* ── 검토 요청 슬랙 알림 (2026-11-11) ─────────────────────────
+   컨택 행(step2Rows·claudeStep2Rows)의 reviewReq.status 가 '요청' 으로 올라오면 체다팀 슬랙방에 알린다.
+   알린 건은 _adnotify 시트에 'rv|브랜드|행id|요청시각' 으로 기록 — 같은 요청은 한 번만, 다시 요청하면(reqTs 바뀜) 또 알림. */
+function notifyReviewRequests(data) {
+  var hook = PropertiesService.getScriptProperties().getProperty('SLACK_WEBHOOK');
+  if (!hook) return 0;
+  var sh = sheet(SHEET_ADNOTIFY);
+  var last = sh.getLastRow();
+  var seen = {};
+  if (last) sh.getRange(1, 1, last, 1).getValues().forEach(function (v) { seen[String(v[0])] = true; });
+  var add = [], lines = [];
+  (data.brands || []).forEach(function (b) {
+    [].concat(b.step2Rows || [], b.claudeStep2Rows || []).forEach(function (r) {
+      var q = r && r.reviewReq;
+      if (!q || q.status !== '요청' || !r.id || !q.reqTs) return;
+      var k = 'rv|' + b.id + '|' + r.id + '|' + q.reqTs;
+      if (seen[k]) return;
+      seen[k] = true;
+      add.push([k]);
+      var prod = String(r.product || '').trim();
+      lines.push('🙋 *' + (b.name || b.id) + '*' + (prod ? ' · ' + prod : '') + ' · *' + (String(r.name || '').normalize('NFC').trim() || '(이름 없음)') + '* 검토 요청'
+        + (r.pa ? ' (담당 ' + r.pa + ')' : '') + '\n> ' + String(q.note || '').replace(/\n/g, '\n> '));
+    });
+  });
+  if (!add.length) return 0;
+  var res = UrlFetchApp.fetch(hook, { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    payload: JSON.stringify({ text: lines.join('\n\n') }) });
+  if (res.getResponseCode() !== 200) throw new Error('slack ' + res.getResponseCode() + ' ' + res.getContentText());
+  sh.getRange(sh.getLastRow() + 1, 1, add.length, 1).setNumberFormat('@').setValues(add);
   return lines.length;
 }
 // 편집기에서 실행: 웹훅이 슬랙방에 닿는지 확인
