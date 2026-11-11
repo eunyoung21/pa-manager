@@ -1221,8 +1221,12 @@ const SEAL_COMPANIES_DEFAULT = ['드래프터','썸웨어코드','발전존중',
 const sealCompanyOf = brand => String((brand&&brand.sealCompany)||(window.CONTRACT_BRANDS?.[brand&&brand.id]?.company)||'').replace(/^주식회사\s*/,'').trim();
 const MS_BRIDGE_DOWN = '모두싸인 브리지가 꺼져 있습니다 — 이 PC에서 「모두싸인 계약서 발송.bat」을 켜 주세요.';
 // 계약서에 쓸 양식: ① 이 건에만 첨부한 파일(r.contractFile) → ② 브랜드 등록 양식(📄 계약서 생성 ⚙) → ③ 앱 내장 양식(드래프터 등)
+const contractTplList = brand => [brand&&brand.contractTemplate, ...((brand&&brand.contractTemplates)||[])].filter(Boolean);
 function contractTplFor(brand, r){
   if(r && r.contractFile) return { tpl:r.contractFile, kind:'이 건만 바꾼 파일' };
+  // 브랜드에 등록한 양식이 여러 개면(brand.contractTemplate=기본 + brand.contractTemplates=추가분) 이 건에서 고른 것(r.contractTplId)을 쓴다(2026-11-11)
+  const picked = r && r.contractTplId && contractTplList(brand).find(x=>x.url===r.contractTplId);
+  if(picked) return { tpl:picked, kind:'선택한 양식' };
   if(brand && brand.contractTemplate) return { tpl:brand.contractTemplate, kind:'기본 (등록 양식)' };
   const cfg = brand && window.CONTRACT_BRANDS && window.CONTRACT_BRANDS[brand.id];
   if(cfg) return { tpl:null, kind:'기본 (앱 내장 양식)', builtinName:(cfg.company||'').replace(/^주식회사\s*/,'')+'_광고모델계약서' };
@@ -4569,9 +4573,9 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
       // 여기서 올린 계약서 = 이 브랜드 전체 양식(2026-10-13 사용자: 두 군데 올리기 싫음). 이 건에만 붙어 있던 옛 파일은 뗀다.
       try{
         if(!onUploadContract) throw new Error('관리자만 올릴 수 있습니다.');
-        await onUploadContract(file);
-        if(r.contractFile) upd({contractFile:null});
-        setMsAsk(''); setMsMsg({ok:`${file.name} 을 ${(brand&&brand.name)||''} 전체 계약서로 저장했습니다 — 다음 건부터 다시 안 올려도 돼요.`});
+        const res=await onUploadContract(file);
+        upd({...(r.contractFile?{contractFile:null}:{}),...(res&&res.url?{contractTplId:res.url}:{})});   // 방금 올린 양식을 이 건에서 고른 걸로
+        setMsAsk(''); setMsMsg({ok:`${file.name} 을 ${(brand&&brand.name)||''} 계약서 목록에 저장했습니다 — 다음 건부터 드롭다운에서 고르면 돼요.`});
       }
       catch(e2){ setMsMsg({err:'첨부 실패: '+(e2&&e2.message||e2)}); }
     };
@@ -4609,13 +4613,18 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
       {fld('계약일자','contractDate','YY.MM.DD')}
       {/* 계약서 파일 — 여기서 올리면 브랜드 전체 양식(brand.contractTemplate)으로 저장. 없으면 앱 내장 양식 */}
       <div className="s2p-fg ct-file"><label>계약서 파일</label>
-        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',fontSize:12}}>
-          <span className="ct-file-name" style={{fontWeight:600}}>📄 {ctT?(ctT.tpl?ctT.tpl.name:ctT.builtinName+'.docx'):'아직 없음'}</span>
-          <span style={{color:'var(--muted)'}}>{ctT?(ctT.tpl&&!r.contractFile?`${(brand&&brand.name)||''} 전체 양식`:ctT.kind):'— 📎로 올려 주세요(브랜드 전체에 저장)'}</span>
-        </div>
+        {(()=>{ const tl=contractTplList(brand);
+          if(r.contractFile||!tl.length) return <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',fontSize:12}}>
+            <span className="ct-file-name" style={{fontWeight:600}}>📄 {ctT?(ctT.tpl?ctT.tpl.name:ctT.builtinName+'.docx'):'아직 없음'}</span>
+            <span style={{color:'var(--muted)'}}>{ctT?(ctT.tpl&&!r.contractFile?`${(brand&&brand.name)||''} 전체 양식`:ctT.kind):'— 📎로 올려 주세요(브랜드 전체에 저장)'}</span>
+          </div>;
+          const cur=(ctT&&ctT.tpl&&ctT.tpl.url)||'';
+          return <select className="ct-file-sel" value={cur} disabled={msBusy} onChange={e=>{upd({contractTplId:e.target.value});setMsAsk('');setMsMsg(null);}}>
+            {tl.map((x,i)=><option key={x.url} value={x.url}>{x.name}{i===0?' (기본)':''}</option>)}
+          </select>; })()}
         <div className="s2p-btns" style={{marginTop:6}}>
           <button className="btn s2p-outline" disabled={msBusy||!ctT} onClick={previewCt} title="지금 입력한 값을 넣은 계약서를 내려받아 확인">⬇ 값 넣어 내려받기</button>
-          <button className="btn s2p-outline" disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 계약서 올리기·바꾸기</button>
+          <button className="btn s2p-outline" disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 계약서 추가</button>
           {r.contractFile&&<button className="btn s2p-outline" disabled={msBusy} onClick={()=>{upd({contractFile:null});setMsMsg(null);}}>↺ 브랜드 양식으로</button>}
           <input ref={ctRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickCt}/>
         </div>
@@ -4733,7 +4742,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
             let reply=''; if(st==='보류'){ reply=prompt('담당자에게 남길 말 (예: 10만원이면 OK)',''); if(reply===null) return; }
             upd({reviewReq:rvAnswer(rq,st,reply)}); };
           if(ended&&!open) return null;
-          return <div className="s2p-fg" style={{marginTop:2}}>
+          return <div className="s2p-rq" style={{marginTop:2,marginBottom:12}}>
             {open?<div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
               <span style={{fontSize:12,color:'#f59e0b',fontWeight:700}}>🙋 검토 요청 중{IS_STAFF?' · 관리자 확인 대기':''}</span>
               {IS_STAFF?null
@@ -7696,12 +7705,14 @@ function AppMain({ authInfo, onLogout }) {
     }catch(e){}
     if(!url) url=dataUrl;   // 첨부 저장소가 안 되면 본문에 보관(양식은 30KB 안팎이라 부담 없음)
     CT_TPL_CACHE.set(url, buf);   // 방금 올린 양식은 다시 받아오지 않게
-    updateBrand(bId, b=>({...b, contractTemplate:{
-      name:file.name, url, size:file.size, at:today(), by:authInfo?.username||'', slots:an.slots
-    }}));
+    const tpl={ name:file.name, url, size:file.size, at:today(), by:authInfo?.username||'', slots:an.slots };
+    updateBrand(bId, b=>{
+      if(!b.contractTemplate || b.contractTemplate.name===file.name) return {...b, contractTemplate:tpl};   // 첫 양식이거나 같은 이름 = 기본 양식 교체
+      return {...b, contractTemplates:[...(b.contractTemplates||[]).filter(x=>x.name!==file.name), tpl]};   // 그 밖엔 목록에 추가
+    });
     immediateRef.current=true;
     setMsg(`✅ 계약서 양식 저장됨 (${file.name})`);
-    return an;
+    return {...an, url, name:file.name};
   }
   function removeContractTemplate(){
     updateBrand(bId, b=>({...b, contractTemplate:null}));

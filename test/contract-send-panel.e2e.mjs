@@ -145,7 +145,7 @@ await openCh('에이채널');
 console.log('\n[화면] 계약서발송/수집 단계 — 관리자 모두싸인 발송');
 let p = await panel();
 chk(['실명 (계약자)', '연락처 (카카오톡', '주소', '주민등록번호', '모델료', '계약일자', '✍️ 모두싸인으로 계약서 보내기', '계약서 파일', '계약완료'].every(s => p.includes(s)), '입력칸·모두싸인 버튼·계약완료', p);
-chk(/📄 드래프터_광고(모델)?계약서.docx/.test(p) && p.includes('베이스튠 전체 양식'), '계약서 파일 기본 = 베이스튠 전체 양식(드래프터)', (p.match(/📄[^\n]*/) || [''])[0]);
+chk(/드래프터_광고(모델)?계약서.docx \(기본\)/.test(p), '계약서 파일 드롭다운: 기본 = 드래프터 양식', (p.match(/드래프터[^\n]*/) || [''])[0]);
 chk(await evalJs(`[...document.querySelectorAll('.s2p input')].some(i=>i.value==='김하늘')`), '앞 단계에서 넣은 실명이 채워져 있음');
 
 console.log('\n[막기] 모델료 없으면 안 보냄 · 첫 클릭은 확인만');
@@ -208,12 +208,16 @@ chk((await panel()).includes('옛파일.docx'), '이 건에만 붙은 옛 파일
 console.log('\n[계약서 올리기] 발송 창에서 올리면 브랜드 전체 양식 · 바로 발송(다시 안 받아옴)');
 await evalJs(`(async()=>{const b=await window.buildContractDocx('basetune','','','',{});const f=new File([b.bytes],'해트케_협찬계약서.docx',{type:b.type});
   const inp=document.querySelector('.s2p .ct-file input[type=file]');const dt=new DataTransfer();dt.items.add(f);inp.files=dt.files;inp.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
-await msgIs(/전체 계약서로 저장했습니다/);
+await msgIs(/계약서 목록에 저장했습니다/);
 await wait(1800);
-chk(savedData.brands[2].contractTemplate && savedData.brands[2].contractTemplate.name === '해트케_협찬계약서.docx' && /900002/.test(savedData.brands[2].contractTemplate.url), '해트케 브랜드 양식으로 저장', savedData.brands[2].contractTemplate);
+const extra = (savedData.brands[2].contractTemplates || [])[0];
+chk(savedData.brands[2].contractTemplate.name === '해트케_계약서.docx' && extra && extra.name === '해트케_협찬계약서.docx' && /900002/.test(extra.url), '기본 양식은 그대로 두고 올린 양식은 목록에 추가', [savedData.brands[2].contractTemplate, extra]);
 chk(!savedData.brands[2].step2Rows[0].contractFile, '이 건의 옛 파일은 떼어냄');
 p = await panel();
-chk(p.includes('해트케_협찬계약서.docx') && p.includes('해트케 전체 양식'), '화면에 「해트케 전체 양식」', (p.match(/📄[^\n]*\n?[^\n]*/) || [''])[0]);
+chk(p.includes('해트케_협찬계약서.docx') && p.includes('해트케_계약서.docx (기본)'), '드롭다운에 기본 + 올린 양식 둘 다', (p.match(/해트케[^\n]*/) || [''])[0]);
+await evalJs(`(()=>{const s=document.querySelector('.s2p .ct-file select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'/api/pfile?id=900001');s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`); await wait(1500);
+const hRows = [...(savedData.brands[2].step2Rows || []), ...(savedData.brands[2].claudeStep2Rows || [])];
+chk(hRows.some((r) => r.contractTplId === '/api/pfile?id=900001'), '드롭다운에서 기본 양식 고르면 이 건에 저장', hRows.map((r) => r.contractTplId));
 await evalJs(`(()=>{const el=document.querySelector('.s2p .ct-seal select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(el,'신규회사');el.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
 await wait(1800);
 chk(savedData.brands[2].sealCompany === '신규회사', '고른 직인 회사가 해트케 브랜드에 저장', savedData.brands[2].sealCompany);
