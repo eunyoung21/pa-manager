@@ -4386,6 +4386,18 @@ function noReplyCutKey(){ const d=new Date(); d.setDate(d.getDate()-NO_REPLY_DAY
 /* 이름 = 인스타 계정명 1회 이관(2026-10-16 사용자: 표시이름이라 헷갈림).
    성사 전 사람만 바꾼다 — 성사 이후는 출고·영상검수·개인정보·정산이 이름으로 이어져 있어 그대로 둔다.
    리스트업(step1)은 같은 이름의 진행 행이 성사 이후면 같이 둔다(이름으로 짝지어지므로). 브랜드마다 1번(nameHandleMig). */
+/* 기존 메모 → 검토 요청 1회 변환(2026-11-11 사용자: 지금 남아 있는 메모를 전 브랜드에서 확인).
+   끝난 건(거절·정산완료·개인정보 폐기)은 뺀다. 🔴 reqTs 를 일부러 안 넣는다 — Code.gs 슬랙 알림이 reqTs 있는 요청만 보내므로 이 변환은 슬랙을 안 보낸다.
+   브랜드마다 1번(memoReqMig). */
+function migMemoReq(b){
+  if(b.memoReqMig) return {b,n:0};
+  let n=0;
+  const fix=rows=>(rows||[]).map(r=>{
+    const memo=String(r.memo||'').trim();
+    if(!memo||(r.reviewReq&&r.reviewReq.status)||normStatus(r.contactStatus)==='거절'||r.infSettled==='Y'||r.privacyPurged) return r;
+    n++; return {...r,reviewReq:{status:'요청',note:memo,reply:'',reqAt:today(),replyAt:'',ack:'',fromMemo:'Y'}}; });
+  return {b:{...b,step2Rows:fix(b.step2Rows),claudeStep2Rows:fix(b.claudeStep2Rows),memoReqMig:today()},n};
+}
 function migNameToHandle(b){
   if(b.nameHandleMig) return {b,n:0};
   const nz=x=>String(x||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,'');   // 공백 제거(2026-10-21: 예전엔 /s+/ 라 글자 s 를 지웠음)
@@ -6903,6 +6915,17 @@ function AppMain({ authInfo, onLogout }) {
     const tot=brands.reduce((s,b)=>s+migNameToHandle(b).n,0);
     setBrands(prev=>prev.map(b=>migNameToHandle(b).b));
     if(tot) setMsg(`🔤 이름을 인스타 계정명으로 바꿨어요(성사 전 ${tot}명)`);
+  },[brands]);
+  // 기존 메모 → 검토 요청 1회 변환(관리자 접속 때, 브랜드마다 한 번, 슬랙 안 보냄) — migMemoReq 참고
+  const memoMigRef=useRef(false);
+  useEffect(()=>{
+    if(!serverLoadedRef.current||memoMigRef.current) return;
+    if((authInfo?.role||'')!=='manager') return;
+    memoMigRef.current=true;
+    if(brands.every(b=>b.memoReqMig)) return;
+    const tot=brands.reduce((s,b)=>s+migMemoReq(b).n,0);
+    setBrands(prev=>prev.map(b=>migMemoReq(b).b));
+    if(tot) setMsg(`🙋 메모가 있는 ${tot}명을 검토 요청으로 올렸어요 (대시보드 관리자 할 일)`);
   },[brands]);
   const sweepRef=useRef(false);
   useEffect(()=>{
