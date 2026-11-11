@@ -1514,7 +1514,7 @@ const extrasText=(brand,extras)=>(extras||[]).filter(e=>e&&String(e.product||'')
 // 패스 = 바로 거절 처리(endReason·contactStatus·rejectDate 같이 기록)
 const rvAnswer=(rq,status,reply)=>({...(rq||{}),status,reply:reply||'',replyAt:today()});
 const rvStamp=()=>{ const d=new Date(), z=n=>String(n).padStart(2,'0'); return today()+' '+z(d.getHours())+':'+z(d.getMinutes()); };
-const rvAck=rq=>({...(rq||{}),ack:'Y',ackAt:rvStamp()});   // 담당자가 관리자 답변을 확인한 시각
+const rvAck=(rq,by)=>({...(rq||{}),ack:'Y',ackAt:rvStamp(),ackBy:by||''});   // 담당자가 관리자 답변을 확인한 시각
 const rvWho=pa=>{ const s=String(pa||'').trim(); return s&&s!==AUTO_PA?s:'담당자'; };
 const rvPassPatch=(row,rq,reply)=>({endReason:autoEndReason(row),contactStatus:'거절',rejectDate:today(),reviewReq:rvAnswer(rq,'패스',reply)});
 const optText=(brand,product,opt)=>optionsOf(brand,product).map(g=>(opt||{})[g.k]).filter(Boolean).join(' / ');
@@ -4741,9 +4741,10 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
               {(rq.status==='진행'||rq.status==='보류')&&<span style={{fontSize:12,fontWeight:700,color:rq.status==='진행'?'var(--green)':'#f59e0b'}}>💬 관리자: {rq.status}{rq.reply?' — '+rq.reply:''}</span>}
               {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&IS_STAFF&&<button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} onClick={()=>upd({reviewReq:rvAck(rq)})}>확인</button>}
               {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<span style={{fontSize:12,fontWeight:700,color:'#f59e0b'}}>⏳ {rvWho(r.pa)} 확인 대기</span>}
-              {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&<span style={{fontSize:12,fontWeight:700,color:'var(--green)'}}>✓ {rvWho(r.pa)} 확인{rq.ackAt?' '+rq.ackAt:''}</span>}
+              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="담당자 대신 관리자가 확인 처리" onClick={()=>upd({reviewReq:rvAck(rq,'관리자')})}>✓ 대신 확인</button>}
+              {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&<span style={{fontSize:12,fontWeight:700,color:'var(--green)'}}>✓ {rvWho(r.pa)} 확인{rq.ackAt?' '+rq.ackAt:''}{rq.ackBy==='관리자'?' (관리자가 대신)':''}</span>}
               {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="답변을 취소하고 다시 검토 요청 상태로" onClick={()=>upd({reviewReq:{...rq,status:'요청',reply:'',replyAt:''}})}>↩ 답변 취소</button>}
-              {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="확인을 취소하고 다시 확인 전 상태로" onClick={()=>upd({reviewReq:{...rq,ack:'',ackAt:''}})}>↩ 확인 취소</button>}
+              {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&(IS_STAFF||rq.ackBy==='관리자')&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="확인을 취소하고 다시 확인 전 상태로" onClick={()=>upd({reviewReq:{...rq,ack:'',ackAt:'',ackBy:''}})}>↩ 확인 취소</button>}
               <button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} title="메모 내용을 관리자에게 보내 진행할지 물어봅니다" onClick={ask}>🙋 검토 요청</button>
             </div>}
           </div>; })()}

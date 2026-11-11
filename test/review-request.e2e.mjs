@@ -23,7 +23,7 @@ const server = http.createServer((req, res) => {
     html = html.replace('<div id="root"></div>',
       `<div id="root"></div><script>window.PA_API='http://127.0.0.1:${PORT}/api';
        localStorage.setItem('pa_finder_url','http://127.0.0.1:${FPORT}');
-       localStorage.setItem('pa_mgr_auth', JSON.stringify({token:'T',username:'테스터',role:'manager',brand:'all'}));</script>`);
+       localStorage.setItem('pa_mgr_auth', JSON.stringify(location.search.includes('staff')?{token:'T',username:'박민선',role:'staff',brand:'all',tabs:'claudeS2,step2,dashboard'}:{token:'T',username:'테스터',role:'manager',brand:'all'}));</script>`);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html); return;
   }
   let body = ''; req.setEncoding('utf8'); req.on('data', (c) => body += c);
@@ -148,6 +148,19 @@ await click('.s2p button', '답변 취소'); await wait(1800);
 chk(B().step2Rows.find((r) => r.id === 's1').reviewReq.status === '요청', '↩ 답변 취소: 다시 검토 요청 상태', B().step2Rows.find((r) => r.id === 's1').reviewReq);
 await click('.s2p button', '요청 취소'); await wait(1800);
 chk(!B().step2Rows.find((r) => r.id === 's1').reviewReq.status, '↩ 요청 취소: 요청 해제', B().step2Rows.find((r) => r.id === 's1').reviewReq);
+// 담당자(알바) 계정으로 확인
+const s1c = B().step2Rows.find((r) => r.id === 's1'); s1c.reviewReq = { status: '진행', note: s1c.memo, reply: '', reqTs: 1, reqAt: '26.11.11', replyAt: '26.11.11', ack: '', ackAt: '' }; rev++;
+await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/?staff` });
+await waitFor(`[...document.querySelectorAll('.brand-tab')].some(b=>b.textContent.includes('해트케'))||[...document.querySelectorAll('.step-tab')].length`, '담당자 로딩');
+await wait(800);
+await evalJs(`(()=>{const b=[...document.querySelectorAll('.brand-tab')].find(x=>x.textContent.includes('해트케')); if(b) b.click(); return 1})()`); await wait(800);
+await click('.step-tab', '인플루언서 관리'); await wait(700);
+await openCh('고로'); await waitFor(`document.querySelector('.s2p')`, '상세 창 6');
+const stTxt = await evalJs(`document.querySelector('.s2p').innerText`);
+chk(stTxt.includes('관리자: 진행') && !stTxt.includes('대신 확인'), '담당자 화면: 관리자: 진행 + 확인 버튼(대신 확인은 없음)', stTxt.slice(stTxt.indexOf('관리자') - 10, stTxt.indexOf('관리자') + 60));
+await evalJs(`(()=>{const b=[...document.querySelectorAll('.s2p button')].find(x=>x.textContent.trim()==='확인'); if(!b) throw new Error('확인 버튼 없음'); b.click(); return 1})()`); await wait(1800);
+const ak = B().step2Rows.find((r) => r.id === 's1').reviewReq;
+chk(ak.ack === 'Y' && /^\d\d\.\d\d\.\d\d \d\d:\d\d$/.test(ak.ackAt) && !ak.ackBy, '담당자 확인: 확인 시각 저장', ak);
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close(); finder.close();
 process.exit(fail ? 1 : 0);
