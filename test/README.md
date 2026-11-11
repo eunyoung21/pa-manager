@@ -84,3 +84,6 @@ node test/review-code-live.e2e.mjs <라이브스냅샷.json>  # 실제 운영 �
   → `pullMerge` 는 mine·base 를 **응답 도착 후에** 읽는다(함수로 전달).
 - 서버본을 화면에 적용한 뒤 5초 동안은 내용이 달라도 자동저장을 통째로 건너뛰었다
   → 내용이 같을 때만 생략한다.
+
+## 크롬 정리 (중요)
+테스트 뒤 남은 헤드리스 크롬은 `powershell -File test/kill-e2e-chrome.ps1` 로만 끈다. **`taskkill /IM chrome.exe` 금지** — 사용자 크롬 창이 전부 꺼진다.
