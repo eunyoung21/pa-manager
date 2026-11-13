@@ -3753,7 +3753,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       </div>
       {note&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}>{note}</div>}
     </div>; };
-  const bossTodo=(bossItems.length||dropShip.length||settleItems.length||reqItems.length)?[
+  const bossTodo=(bossItems.length||dropShip.length||reqItems.length)?[
     ...(reqItems.length?[<div key="rvq" className="todo-group">
       <div className="todo-group-h" style={{color:'#f59e0b'}}>🙋 검토 요청 <span>{reqItems.length}</span></div>
       {reqItems.slice(0,MAX).map(rvItem)}{moreRow(reqItems.length,()=>setPop({kind:'rv'}))}
@@ -3761,11 +3761,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     <div key="boss" className="todo-group">
       {dropShip.map(dropItem)}
       {bossItems.slice(0,MAX).map(item)}{moreRow(bossItems.length,()=>setPop({kind:'boss'}))}
-    </div>,
-    ...(settleItems.length?[<div key="settle" className="todo-group">
-      <div className="todo-group-h" style={{color:INF_STAGES[STAGE_IDX.adset].color}}>💰 정산 대기 <span>{settleItems.length}</span></div>
-      {settleItems.slice(0,MAX).map(settleItem)}{moreRow(settleItems.length,()=>setPop({kind:'settle'}))}
-    </div>]:[])
+    </div>
   ]:[];
 
   // 매니저 할 일 — 매니저가 여러 명이라 사람별로 묶는다
@@ -3855,12 +3851,17 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
         })}
         {moreRow(shipPending.length,()=>go('shipping','pend',paFocus))}
       </div>}
+      {settleItems.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4,borderLeft:'4px solid '+INF_STAGES[STAGE_IDX.adset].color}}>
+        <h3><span style={{color:INF_STAGES[STAGE_IDX.adset].color}}>💰</span> 정산 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({settleItems.length})</span><span style={{fontWeight:400,color:'var(--muted)',fontSize:11}}>광고코드·입금정보까지 끝난 사람 — 입금하면 ✓</span></h3>
+        {settleItems.slice(0,MAX).map(settleItem)}
+        {moreRow(settleItems.length,()=>setPop({kind:'settle'}))}
+      </div>}
       <div style={{marginTop:18}}/>
       {endSum.length>0&&<div className="end-sum">이번 달 종료 · {endSum.map(([k,n],j)=><span key={k}>{j?' · ':''}<b style={{color:END_KINDS[k]}}>{k}</b> {n}</span>)}</div>}
       {dupTalk.length>0&&!paFocus&&<div className="talk-dup">⚠️ 두 명 이상이 동시에 연락 중: {dupTalk.slice(0,8).map(d=>d.name+' ('+d.pas.join(', ')+')').join(' · ')}{dupTalk.length>8?` 외 ${dupTalk.length-8}명`:''}</div>}
       <div className="todo-grid">
         <div className="todo-box">
-          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length+dropShip.length+settleItems.length+reqItems.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length+dropShip.length+settleItems.length+reqItems.length})</span>}</h3>
+          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length+dropShip.length+reqItems.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length+dropShip.length+reqItems.length})</span>}</h3>
           {bossTodo.length?bossTodo:empty}
         </div>
         <div className="todo-box">

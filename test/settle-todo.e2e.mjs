@@ -98,21 +98,23 @@ savedData = { paList: ['안민영', '기타'], brands: [
     reviewRows: [{ id: 'r1', date: TD, channelName: '정산할사람', realName: '김정산', pa: '안민영', paCode: 'CODE1', postLink: '', live: 'Y', contractDone: 'Y', checks: {} }] },
 ], settlements: {} };
 const B = () => savedData.brands[0];
-const todo = async () => (await evalJs(`[...document.querySelectorAll('.todo-box')].find(b=>b.innerText.includes('관리자 할 일')).innerText`)).replace(/\s+/g, ' ');
+const todo = async () => (await evalJs(`[...document.querySelectorAll('.todo-box')].find(b=>b.innerText.includes('정산 정보')||b.innerText.includes('관리자 할 일')).innerText`)).replace(/\s+/g, ' ');
+const settleBox = async () => (await evalJs(`((([...document.querySelectorAll('.todo-box')].find(b=>b.innerText.includes('정산 정보')))||{}).innerText)||''`)).replace(/\s+/g, ' ');
 
 console.log('\n[관리자] 관리자 할 일에 정산 대기');
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
 await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩');
 await evalJs(`window.confirm=()=>true;1`);
 await click('.step-tab', '대시보드'); await wait(900);
-let t = await todo();
-chk(t.includes('정산 대기 1') && t.includes('정산할사람') && t.includes('정산 · 50,000'), '정산할사람 · 단가 50,000 표시', t);
-chk(!t.includes('진행중사람 안민영 정산'), '광고코드 전 사람은 정산 대기 아님', t);
-chk(await evalJs(`(()=>{const s=[...document.querySelectorAll('.todo-box')].find(b=>b.innerText.includes('출고 정보'));const t=[...document.querySelectorAll('.role-header')].find(b=>b.innerText.includes('소통 중'));return !!s&&!!(s.compareDocumentPosition(t)&Node.DOCUMENT_POSITION_FOLLOWING)})()`), '출고 정보가 담당자별 소통 중 위에 (2026-10-16)');
+let t = await settleBox();
+chk(t.includes('정산 정보 (1)') && t.includes('정산할사람') && t.includes('정산 · 50,000'), '💰 정산 정보 박스에 정산할사람 · 단가 50,000', t);
+chk(!t.includes('진행중사람 안민영 정산'), '광고코드 전 사람은 정산 정보 아님', t);
+chk(!(await todo()).includes('정산할사람') || !(await evalJs(`[...document.querySelectorAll('.todo-box')].find(b=>b.innerText.includes('관리자 할 일')).innerText`)).includes('정산할사람'), '관리자 할 일에는 정산 줄이 없음(별도 박스)');
+chk(await evalJs(`(()=>{const s=[...document.querySelectorAll('.todo-box')].find(b=>b.innerText.includes('정산 정보'));const g=document.querySelector('.todo-grid');return !!s&&!!g&&!!(s.compareDocumentPosition(g)&Node.DOCUMENT_POSITION_FOLLOWING)})()`), '출고 정보가 담당자별 소통 중 위에 (2026-10-16)');
 await evalJs(`(()=>{const it=[...document.querySelectorAll('.todo-item')].find(x=>x.innerText.includes('정산할사람'));[...it.querySelectorAll('button')].find(b=>b.textContent.includes('입금')).click();return 1})()`); await wait(1500);
 const c1 = B().claudeStep2Rows.find((r) => r.id === 'c1');
 chk(c1.infSettled === 'Y' || c1.stage === 'done', '✓ 입금 → 정산 완료 기록', { s: c1.stage, i: c1.infSettled });
-t = await todo();
+t = await settleBox();
 chk(!t.includes('정산할사람'), '처리하면 목록에서 사라짐', t);
 
 console.log('\n[더 보기 → 팝업 전체]');
@@ -121,7 +123,7 @@ await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
 await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩 2');
 await evalJs(`window.confirm=()=>true;1`);
 await click('.step-tab', '대시보드'); await wait(900);
-await evalJs(`(()=>{const g=[...document.querySelectorAll('.todo-group')].find(x=>x.innerText.includes('정산 대기'));[...g.querySelectorAll('.todo-item')].find(x=>x.innerText.includes('더 보기')).click();return 1})()`); await wait(500);
+await evalJs(`(()=>{const g=[...document.querySelectorAll('.todo-box')].find(x=>x.innerText.includes('정산 정보'));[...g.querySelectorAll('.todo-item')].find(x=>x.innerText.includes('더 보기')).click();return 1})()`); await wait(500);
 const popN = () => evalJs(`(()=>{const m=document.querySelector('.overlay .modal');return m?m.querySelectorAll('.todo-item').length:-1})()`);
 chk(await popN() === 7, '팝업에 7명 전부', await popN());
 await evalJs(`(()=>{const it=document.querySelector('.overlay .modal .todo-item');[...it.querySelectorAll('button')].find(b=>b.textContent.includes('입금')).click();return 1})()`); await wait(1500);
