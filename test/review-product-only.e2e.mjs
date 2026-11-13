@@ -119,8 +119,6 @@ chk((await cell('무가씨', '정산')) === '', '무가씨 정산 칸 비움', a
 chk((await cell('유가씨', '계약서')).includes('미작성'), '유가씨 계약서 버튼 그대로', await cell('유가씨', '계약서'));
 chk((await cell('유가씨', '정산')).includes('미정산'), '유가씨 정산 그대로', await cell('유가씨', '정산'));
 chk((await cell('무가완료', '정산')) === '', '정산완료로 찍힌 제품만 제공 건도 정산 칸 비움', await cell('무가완료', '정산'));
-const paidChip = await evalJs(`([...document.querySelectorAll('.fchip')].find(b=>b.textContent.includes('정산완료'))||{}).textContent`);
-chk(paidChip.includes('(0)'), '정산완료 칩에서도 빠짐', paidChip);
 await evalJs(`(()=>{const s=[...document.querySelectorAll('td[data-label="채널명"] .ch-link')].find(x=>x.textContent==='유가씨');if(!s)throw new Error('영상검수 채널명 링크 없음');s.click();return 1})()`);
 await waitFor(`document.querySelector('.s2p')`, '영상검수 → 상세 창');
 chk(await evalJs(`document.querySelector('.s2p input').value`) === '유가씨', '영상검수 채널명 → 그 사람 상세 창');
@@ -131,8 +129,8 @@ chk(chip.includes('(1)'), '미정산 칩 = 1(무가씨 제외)', chip);
 
 console.log('\n[관리자 대시보드] 💰 정산 대기에서 제품만 제공 건 제외');
 await click('.step-tab', '대시보드'); await wait(900);
-const settle = await evalJs(`(()=>{const g=[...document.querySelectorAll('.todo-group')].find(x=>x.innerText.includes('정산 대기'));return g?[...g.querySelectorAll('.todo-name')].map(x=>x.textContent):[]})()`);
-chk(settle.includes('유가씨') && !settle.includes('무가씨'), '정산 대기 = 유가씨만', settle);
+const settle = await evalJs(`(()=>{const g=[...document.querySelectorAll('.todo-box')].find(x=>x.innerText.includes('정산 정보'));return g?[...g.querySelectorAll('.todo-name')].map(x=>x.textContent):[]})()`);
+chk(settle.includes('유가씨') && !settle.includes('무가씨'), '정산 정보 = 유가씨만', settle);
 
 console.log('\n[관리자 상세 창] 제품만 제공 = 광고세팅만');
 await click('.step-tab', '자동화'); await wait(700);

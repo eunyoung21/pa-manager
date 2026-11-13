@@ -127,7 +127,7 @@ chk(st.length === 6 && st.includes('계약서발송/수집*'), '압력이불: �
 await closeP(); await wait(300);
 await openCh('새차렵'); await waitFor(`document.querySelector('.s2p')`, '상세 창 3');
 const pt = await panelText();
-chk(pt.includes('계약서 없는 제품') && !pt.includes('📦 제품만 협찬'), 'DM 단계: 제품만 협찬 버튼 대신 안내 문구', pt.slice(0, 400));
+chk(pt.includes('제품 기본값 따름 (무가)') && !pt.includes('📦 제품만 협찬'), '시딩 방식 드롭다운: 무가 제품은 기본값 무가, 옛 제품만 협찬 버튼 없음', pt.slice(0, 400));
 await closeP(); await wait(300);
 
 console.log('\n[영상검수 · 계약서 칸]');
