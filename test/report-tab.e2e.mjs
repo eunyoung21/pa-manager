@@ -12,7 +12,7 @@ const TMP = path.join(os.tmpdir(), 'pa-report-tab-e2e');
 const PORT = 8972;
 
 const HEADER = ['kind', 'brand', 'name', 'channel', 'pa', 'category', 'posts', 'postedAt', 'postUrl', 'status', 'views', 'viewsPrev', 'likes', 'comments', 'followers', 'engRate', 'rate', 'metaOn', 'metaFirstAt',
-  'wCost', 'wConv', 'wRev', 'wAtc', 'wDCount', 'wDAmount', 'wkStart', 'wkEnd'];
+  'wCost', 'wConv', 'wRev', 'wAtc', 'wDCount', 'wDAmount', 'wkStart', 'wkEnd', 'product'];
 const P = (o) => HEADER.map((h) => (o[h] === undefined ? (h === 'kind' ? (o.wkEnd ? 'wk' : 'now') : '') : o[h]));
 const ROWS = [
   P({ brand: '베이스튠', name: '염지윤', channel: 'yjy', pa: '유송미', status: 'ok', views: 200000, viewsPrev: 100000, postUrl: 'https://www.instagram.com/reel/x/', metaOn: 'Y', metaFirstAt: '2026-11-03',
@@ -26,7 +26,7 @@ const ROWS = [
   P({ brand: '베이스튠', name: '양형석', wkStart: '2026-11-02', wkEnd: '2026-11-08', wCost: 1000000, wConv: 0, wRev: 0, wAtc: 0, wDCount: 5, wDAmount: 500000 }),
   P({ brand: '베이스튠', name: '염지윤', wkStart: '2026-10-19', wkEnd: '2026-10-25', wCost: 1000000, wConv: 10, wRev: 1200000, wAtc: 20, wDCount: 8, wDAmount: 1200000 }),
   P({ brand: '그래니살라', name: '그래니전용', wkStart: '2026-11-02', wkEnd: '2026-11-08', wCost: 99999, wConv: 1, wRev: 1, wAtc: 1, wDCount: 1, wDAmount: 1 }),
-  P({ brand: '그래니살라', name: '그래니사람', channel: 'gr', pa: '안민영', status: 'ok', views: 9000, wCost: 200000, wConv: 2, wRev: 300000, wAtc: 4, wDCount: 1, wDAmount: 100000 }),
+  P({ brand: '그래니살라', name: '그래니사람', product: '그래니 올인원', channel: 'gr', pa: '안민영', status: 'ok', views: 9000, wCost: 200000, wConv: 2, wRev: 300000, wAtc: 4, wDCount: 1, wDAmount: 100000 }),
 ];
 const META = { updatedAt: new Date().toISOString(), snapshotDate: '2026-11-13', weeks: { '베이스튠': { start: '2026-11-09', end: '2026-11-15' } },
   insights: { '베이스튠': { weeks: ['2026-11-15', '2026-11-08'], byWeek: {
@@ -152,6 +152,11 @@ await click('.rpt-weeks button', '이번 주'); await wait(300);
 chk(J(await names()).includes('염지윤') && !J(await names()).includes('그래니전용'), '이번 주로 돌아오면 이번 주 표(이전 데이터 사람 안 섞임)', await names());
 await click('.brand-tab', '그래니살라'); await wait(500);
 chk(J(await names()) === J(['그래니사람']), '그래니살라 탭: 그래니 사람만', await names());
+const gh = await evalJs(`[...document.querySelectorAll('.rpt-table thead tr')].at(-1).innerText`);
+chk(gh.includes('제품') && (await evalJs(`document.querySelector('.rpt-table tbody tr').innerText`)).includes('그래니 올인원'), '제품이 적힌 브랜드(그래니)는 제품 칸이 생기고 제품명이 나옴', gh);
+await click('.brand-tab', '베이스튠'); await wait(500);
+chk(!(await evalJs(`[...document.querySelectorAll('.rpt-table thead tr')].at(-1).innerText`)).includes('제품'), '제품이 한 개도 없는 브랜드(베이스튠)는 제품 칸이 숨겨짐');
+await click('.brand-tab', '그래니살라'); await wait(500);
 chk((await page()).includes('그래니살라 리포트'), '제목이 브랜드별');
 chk(!(await page()).includes('섭외 확장 제안'), '인사이트가 없는 브랜드엔 확장 제안 영역이 안 보임');
 
