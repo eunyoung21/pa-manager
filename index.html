@@ -1643,6 +1643,8 @@ const DEFAULT_BRANDS = [
 // 출고 상품명은 브랜드별로 고정 — 베이스튠=베이스튠(2026-11-06 (1) 뗌), 그래니살라=그래니살라(2)
 const SHIP_PRODUCT = { basetune:'베이스튠', granny:'그래니살라(2)' };
 const shipProductOf = brandId => SHIP_PRODUCT[brandId] || '';
+// 옛 '베이스튠(1)' 이 남아 있어도 출고 표·복사에서는 '베이스튠'으로 — 수량 (1)과 겹쳐 '(1) (1)' 되는 실수 방지(2026-11-16)
+const cleanShipProd = p => p==='베이스튠(1)' ? '베이스튠' : p;
 // 브랜드 안의 제품 목록 — brand.products(수동 추가) + 행에 실제로 쓰인 제품명(2026-09-30, 해트케 합류)
 // 협찬 제품 옵션(2026-10-13) — 상세 창에서 고르고, 출고 상품명·출고 복사에 같이 붙는다. 행에는 opt:{그룹:값} 로 저장.
 // 제품·옵션은 브랜드마다 PA 데이터(brand.productOptions)에 저장 — 상세 창 [⚙ 제품·옵션]에서 누구든 관리자가 추가한다.
@@ -2523,7 +2525,8 @@ function normalizeData(d) {
         const r2 = (!r.pa||!String(r.pa).trim()) && s1PaByName[nm(r.name)] ? {...r, pa:s1PaByName[nm(r.name)]} : r;
         return normStatus(r2.contactStatus)!==r2.contactStatus ? {...r2, contactStatus:normStatus(r2.contactStatus)} : r2;
       })),
-      shippingRows: mapPa(ensureId(b.shippingRows),'requester'),
+      // 옛 상품명 '베이스튠(1)' → '베이스튠'(2026-11-16): 상품명에 (1)이 박혀 있으면 수량 (1)이 또 붙어 '베이스튠(1) (1)'이 된다. 불러올 때마다 바로잡는다.
+      shippingRows: mapPa(ensureId(b.shippingRows),'requester').map(r => r.product==='베이스튠(1)' ? {...r, product:'베이스튠'} : r),
       reviewRows:   mapPa(ensureId(b.reviewRows),'pa'),
       privacyRows:  ensureId(b.privacyRows),
       // Claude 리스트업(claudeStep1Rows)을 컨택현황(claudeStep2Rows)으로 1회 자동 통합 —
@@ -2840,7 +2843,7 @@ function ShipCopyBtn({ row, product }){
   function copy(){
     // 상품 뒤에 수량 '(1)'(2026-10-21 사용자) — 출고 시트에 그대로 붙여넣는다
     const qty=String(row.qty||'').trim()||'1';
-    const text=[row.recipient||'',row.phone||'',row.address||'',`${product||row.product||''} (${qty})`].join('\t');
+    const text=[row.recipient||'',row.phone||'',row.address||'',`${cleanShipProd(product||row.product||'')} (${qty})`].join('\t');
     navigator.clipboard.writeText(text).then(()=>{setDone(true);setTimeout(()=>setDone(false),1200);});
   }
   return <button className="row-copy-btn" onClick={copy}
@@ -5194,7 +5197,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
     [...(step2Rows||[]),...((brand&&brand.claudeStep2Rows)||[])].forEach(x=>{const pr=String(x.product||'').trim(); if(!pr) return;
       [x.name,x.realName].forEach(v=>{const k=nzs(v); if(k&&!m[k]) m[k]=pr;});});
     return m;},[step2Rows,brand]);
-  const prodOfShip=r=>String(r.product||'').trim()||s2prod[nzs(r.channelName)]||s2prod[nzs(r.recipient)]||product||(brand&&brand.name)||'';
+  const prodOfShip=r=>cleanShipProd(String(r.product||'').trim()||s2prod[nzs(r.channelName)]||s2prod[nzs(r.recipient)]||product||(brand&&brand.name)||'');
   // 협찬 제품 옵션(색상·사이즈·무게) — 출고 행에 없으면 인플루언서 관리 행에서 찾는다(2026-10-13)
   const s2opt=useMemo(()=>{const m={};
     [...(step2Rows||[]),...((brand&&brand.claudeStep2Rows)||[])].forEach(x=>{const t=optText(brand,x.product,x.opt); if(!t) return;
