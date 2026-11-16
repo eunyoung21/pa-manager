@@ -6699,14 +6699,14 @@ function ReportNote({brand,week,auto,saved,onSaved}){
 
 /* ─── 📈 리포트 (관리자) — 브랜드별 인플루언서 광고 성과 ───
    데이터는 내 PC의 주간 성과수집이 시트 `_report` 탭에 자동으로 올린다(앱은 읽기만, reportGet).
-   · 이번 주(kind=now): 사람당 한 행 — 게시·조회수·광고 ON/OFF + 액션툴 7일 창 성과
-   · 이전 데이터(kind=wk): 사람×주차 — 액션툴 일별 기록에서 겹치지 않게 이어 붙인 지난 주차(바로 볼 수 있는 기록)
+   · 이번 주(kind=now): 사람당 한 행 — 라이브 ON/OFF·세팅일 + 액션툴 7일 창 성과 (세팅일 최신순)
+   · 이전 데이터(kind=wk): 사람×주차 — 액션툴 일별 기록에서 겹치지 않게 이어 붙인 지난 주차. 기본은 최신 주부터 주차별.
    직접값은 cafe24 직접전환(소재명 기준). 같은 사람이 합계에서 두 번 세지지 않게 사람 단위로만 합산한다. */
 function ReportView({brand}) {
   const [st,setSt]=useState({loading:true});
-  const [span,setSpan]=useState('w');        // w=이번 주, h=이전 데이터
-  const [selWeek,setSelWeek]=useState('all'); // 이전 데이터: 'all' 또는 주차 끝 날짜
-  const [sortK,setSortK]=useState('cost');
+  const [span,setSpan]=useState('w');            // w=이번 주, h=이전 데이터
+  const [histMode,setHistMode]=useState('weeks'); // weeks=주차별(최신 주부터), people=전체 기간 사람별 합산
+  const [sortK,setSortK]=useState('setAt');
   const [showAll,setShowAll]=useState(false);
   const load=()=>{
     setSt({loading:true});
@@ -6716,6 +6716,7 @@ function ReportView({brand}) {
     }).catch(()=>setSt({err:'네트워크 오류'}));
   };
   useEffect(load,[]);
+  // 주차별 액션 코멘트(ReportNote) 저장 결과를 화면 상태에 반영
   const onNoteSaved=(b,w,rec)=>setSt(p=>{const n={...(p.data.notes||{})};const m={...(n[b]||{})};if(rec) m[w]=rec; else delete m[w];n[b]=m;return {data:{...p.data,notes:n}};});
 
   const won=n=>n==null?'–':Math.round(n).toLocaleString('ko-KR');
@@ -6736,32 +6737,32 @@ function ReportView({brand}) {
     if(!d) return [];
     const f=(r,k)=>{const v=r[H[k]];return v===''||v==null?null:Number(v);};
     return d.rows.filter(r=>r[H.brand]===brand?.name&&r[H.kind]!=='wk').map(r=>derive({
-      name:r[H.name],channel:r[H.channel],pa:r[H.pa],postUrl:r[H.postUrl],status:r[H.status],
-      views:f(r,'views'),viewsPrev:f(r,'viewsPrev'),on:r[H.metaOn],
+      name:r[H.name],channel:String(r[H.channel]||'').trim(),pa:r[H.pa],on:r[H.metaOn],setAt:String(r[H.metaFirstAt]||''),
       cost:f(r,'wCost'),rev:f(r,'wRev'),conv:f(r,'wConv'),atc:f(r,'wAtc'),dc:f(r,'wDCount'),da:f(r,'wDAmount')}));
   },[d,H,brand]);
+  // 이름 → 채널·라이브(지금 상태). 이전 데이터 표에서 이름 옆 채널명과 라이브 칸에 쓴다.
+  const who=useMemo(()=>{const m=new Map();nowRows.forEach(r=>{const k=nrm(r.name);if(k)m.set(k,{channel:r.channel,on:r.on});});return m;},[nowRows]);
 
-  // 이전 데이터: 주차별 합계 + 선택 기간 사람별 합산
+  // 이전 데이터: 주차별(각 주의 사람별) + 전체 기간 사람별 합산
   const hist=useMemo(()=>{
     if(!d) return {weeks:[],people:[],gaps:[]};
     const f=(r,k)=>{const v=r[H[k]];return v===''||v==null?0:Number(v);};
     const wk=d.rows.filter(r=>r[H.brand]===brand?.name&&r[H.kind]==='wk').map(r=>({
       name:r[H.name],start:r[H.wkStart],end:r[H.wkEnd],
       cost:f(r,'wCost'),rev:f(r,'wRev'),conv:f(r,'wConv'),atc:f(r,'wAtc'),dc:f(r,'wDCount'),da:f(r,'wDAmount')}));
+    const group=rs=>{const pm=new Map();rs.forEach(r=>{const k=nrm(r.name);const e=pm.get(k)||{name:r.name,weeks:new Set(),rows:[]};e.weeks.add(r.end);e.rows.push(r);pm.set(k,e);});
+      return [...pm.values()].map(e=>derive({...sum(e.rows),name:e.name,weeks:e.weeks.size}));};
     const byEnd=new Map();
     wk.forEach(r=>{const e=byEnd.get(r.end)||{start:r.start,end:r.end,rows:[]};e.rows.push(r);byEnd.set(r.end,e);});
-    const weeks=[...byEnd.values()].sort((a,b)=>b.end.localeCompare(a.end)).map(w=>derive({...sum(w.rows),start:w.start,end:w.end,n:new Set(w.rows.map(r=>nrm(r.name))).size}));
-    const sel=selWeek==='all'?wk:wk.filter(r=>r.end===selWeek);
-    const pm=new Map();
-    sel.forEach(r=>{const k=nrm(r.name);const e=pm.get(k)||{name:r.name,weeks:new Set(),rows:[]};e.weeks.add(r.end);e.rows.push(r);pm.set(k,e);});
-    const people=[...pm.values()].map(e=>derive({...sum(e.rows),name:e.name,weeks:e.weeks.size}));
+    const weeks=[...byEnd.values()].sort((a,b)=>b.end.localeCompare(a.end)).map(w=>{const people=group(w.rows);return derive({...sum(w.rows),start:w.start,end:w.end,n:people.length,people});});
     // 빠진 구간(액션툴에 기록이 없던 날짜)
     const asc=[...weeks].reverse(),gaps=[];
     const day=s=>new Date(s+'T00:00:00Z').getTime(), iso=t=>new Date(t).toISOString().slice(0,10);
     for(let i=1;i<asc.length;i++){const g=(day(asc[i].start)-day(asc[i-1].end))/864e5-1;
       if(g>0) gaps.push(md(iso(day(asc[i-1].end)+864e5))+(g>1?'~'+md(iso(day(asc[i].start)-864e5)):''));}
-    return {weeks,people,gaps,sel:derive(sum(sel)),selN:pm.size,tot:derive(sum(wk)),totN:new Set(wk.map(r=>nrm(r.name))).size};
-  },[d,H,brand,selWeek]);
+    const people=group(wk);
+    return {weeks,people,gaps,tot:derive(sum(wk)),totN:people.length};
+  },[d,H,brand]);
 
   if(st.loading) return <div className="log-page" style={{color:'var(--muted)'}}>불러오는 중…</div>;
   if(st.err) return <div className="log-page"><div style={{color:'var(--muted)',fontSize:13,lineHeight:1.8}}>
@@ -6774,6 +6775,7 @@ function ReportView({brand}) {
   const staleDays=updated?Math.floor((Date.now()-updated.getTime())/864e5):null;
   const sortRows=rs=>rs.slice().sort((a,b)=>{
     if(sortK==='name') return String(a.name).localeCompare(String(b.name),'ko');
+    if(sortK==='setAt'){ if(!a.setAt&&!b.setAt) return (b.cost||0)-(a.cost||0); if(!a.setAt) return 1; if(!b.setAt) return -1; return b.setAt.localeCompare(a.setAt)||(b.cost||0)-(a.cost||0); }
     const av=a[sortK],bv=b[sortK]; if(av==null&&bv==null) return 0; if(av==null) return 1; if(bv==null) return -1; return bv-av;});
   const th=(k,label,right=true)=><th className={'rpt-th'+(sortK===k?' on':'')} style={{textAlign:right?'right':'left'}} onClick={()=>setSortK(k)}>{label}</th>;
   const plain=(label,left)=><th className="rpt-th" style={{textAlign:left?'left':'right',cursor:'default'}}>{label}</th>;
@@ -6786,6 +6788,11 @@ function ReportView({brand}) {
     <Kpi l={label} v={n+'명'}/><Kpi l="비용" v={won(a.cost)}/><Kpi l="직접 ROAS" v={pct(a.dRoas)}/>
     <Kpi l="직접 CPA" v={won(a.dCpa)}/><Kpi l="직접 전환수" v={won(a.dc)}/><Kpi l="직접 전환값" v={won(a.da)}/></div>;
   const GroupRow=({lead})=><tr><th colSpan={lead}/><th colSpan={6} className="rpt-grp">매체 신고값</th><th colSpan={4} className="rpt-grp">직접 (cafe24)</th></tr>;
+  // 이름 옆에 채널명(+담당자는 아래 작은 글씨)
+  const NameCell=({name,channel,pa})=><td style={{textAlign:'left'}}>
+    <span>{name||channel}</span>{channel&&name&&<span className="rpt-ch">{channel}</span>}
+    {pa?<div className="rpt-sub">{pa}</div>:null}</td>;
+  const LiveCell=({on})=><td style={{textAlign:'left',color:'var(--muted)'}}>{on==='Y'?'ON':on==='N'?'OFF':'–'}</td>;
 
   // 이번 주
   const ad=nowRows.filter(r=>r.has);
@@ -6794,20 +6801,23 @@ function ReportView({brand}) {
   const Tn=derive({cost:S('cost'),rev:S('rev'),conv:S('conv'),atc:S('atc'),dc:S('dc'),da:S('da')});
   // 이전 데이터
   const h=hist;
-  const hp=sortRows(h.people);
   const hr=h.weeks.length?`${md(h.weeks[h.weeks.length-1].start)} ~ ${md(h.weeks[0].end)}`:'';
+  const hWho=r=>who.get(nrm(r.name))||{};
+  const noteAuto=w=>meta.notes&&meta.notes[brand.name]&&meta.notes[brand.name][w];
+  const noteSaved=w=>d.notes&&d.notes[brand.name]&&d.notes[brand.name][w];
+  const goSpan=(s)=>{setSpan(s);setSortK(s==='w'?'setAt':'cost');};
 
   return <div className="log-page rpt">
     <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap',marginBottom:6}}>
       <span style={{fontWeight:700,fontSize:15}}>{brand?.name} 리포트</span>
       <span className="rpt-seg">
-        <button className={span==='w'?'on':''} onClick={()=>setSpan('w')}>이번 주{wk&&wk.start?` (${md(wk.start)}~${md(wk.end)})`:''}</button>
-        <button className={span==='h'?'on':''} onClick={()=>setSpan('h')}>이전 데이터{hr?` (${hr})`:''}</button>
+        <button className={span==='w'?'on':''} onClick={()=>goSpan('w')}>이번 주{wk&&wk.start?` (${md(wk.start)}~${md(wk.end)})`:''}</button>
+        <button className={span==='h'?'on':''} onClick={()=>goSpan('h')}>이전 데이터{hr?` (${hr})`:''}</button>
       </span>
       <button className="btn btn-ghost" style={{fontSize:11,marginLeft:'auto'}} onClick={load}>새로고침</button>
     </div>
     <div style={{fontSize:11,color:staleDays!=null&&staleDays>9?'var(--red)':'var(--muted)',marginBottom:14}}>
-      {updated?`갱신 ${updated.toLocaleDateString('ko-KR')} ${updated.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})} · 인스타 수집 ${meta.snapshotDate||'–'}`:'아직 올라온 데이터가 없어요'}
+      {updated?`갱신 ${updated.toLocaleDateString('ko-KR')} ${updated.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`:'아직 올라온 데이터가 없어요'}
       {staleDays!=null&&staleDays>9&&' — 자동 갱신이 멈춘 것 같아요'}
     </div>
 
@@ -6815,30 +6825,19 @@ function ReportView({brand}) {
       <Kpis a={Tn} n={ad.length} label="광고 집행 인원"/>
       {wk&&wk.end&&<ReportNote brand={brand.name} week={wk.end} auto={meta.notes&&meta.notes[brand.name]&&meta.notes[brand.name][wk.end]} saved={d.notes&&d.notes[brand.name]&&d.notes[brand.name][wk.end]} onSaved={onNoteSaved}/>}
       <div style={{overflowX:'auto'}}>
-      <table className="rpt-table">
+      <table className="rpt-table" style={{minWidth:1100}}>
         <thead>
-          <GroupRow lead={4}/>
-          <tr>
-            {th('name','이름',false)}{th('views','조회수')}{plain(meta.prevDate?`${md(meta.prevDate)} 대비`:'지난 수집 대비')}{plain('광고',true)}
-            <MetricHead/>
-          </tr>
+          <GroupRow lead={3}/>
+          <tr>{th('name','이름 · 채널',false)}{plain('라이브',true)}{th('setAt','세팅일')}<MetricHead/></tr>
         </thead>
         <tbody>
-          {shown.map((r,i)=>{
-            const dv=r.views!=null&&r.viewsPrev!=null&&r.viewsPrev>0?(r.views-r.viewsPrev)/r.viewsPrev*100:null;
-            const live=r.status==='ok';
-            return <tr key={i}>
-              <td style={{textAlign:'left'}}>
-                {r.postUrl&&live?<a href={r.postUrl} target="_blank" rel="noreferrer" style={{color:'inherit'}}>{r.name||r.channel}</a>:(r.name||r.channel)}
-                <div className="rpt-sub">{r.channel}{r.pa?` · ${r.pa}`:''}</div>
-              </td>
-              <td style={r.status==='noPost'?{color:'var(--muted)'}:undefined}>{live?won(r.views):r.status==='noPost'?'게시 링크 없음':'확인 안 됨'}</td>
-              <td style={{color:'var(--muted)'}}>{dv==null?'–':(dv>0?'+':'')+Math.round(dv)+'%'}</td>
-              <td style={{textAlign:'left',color:'var(--muted)'}}>{r.on==='Y'?'ON':r.on==='N'?'OFF':'–'}</td>
-              <MetricCells r={r}/>
-            </tr>;
-          })}
-          {!shown.length&&<tr><td colSpan={14} style={{textAlign:'center',color:'var(--muted)',padding:24}}>이번 주 광고 집행 기록이 없어요.</td></tr>}
+          {shown.map((r,i)=><tr key={i}>
+            <NameCell name={r.name} channel={r.channel} pa={r.pa}/>
+            <LiveCell on={r.on}/>
+            <td style={{color:'var(--muted)'}}>{r.setAt?md(r.setAt):'–'}</td>
+            <MetricCells r={r}/>
+          </tr>)}
+          {!shown.length&&<tr><td colSpan={13} style={{textAlign:'center',color:'var(--muted)',padding:24}}>이번 주 광고 집행 기록이 없어요.</td></tr>}
         </tbody>
       </table>
       </div>
@@ -6850,44 +6849,48 @@ function ReportView({brand}) {
     {span==='h'&&(h.weeks.length===0
       ? <div style={{color:'var(--muted)',fontSize:13,padding:'24px 0'}}>이전 데이터가 아직 올라오지 않았어요.</div>
       : <>
-        <Kpis a={h.sel} n={h.selN} label={selWeek==='all'?'기간 내 집행 인원':'그 주 집행 인원'}/>
-        {selWeek!=='all'&&<ReportNote brand={brand.name} week={selWeek} auto={meta.notes&&meta.notes[brand.name]&&meta.notes[brand.name][selWeek]} saved={d.notes&&d.notes[brand.name]&&d.notes[brand.name][selWeek]} onSaved={onNoteSaved}/>}
-        <div style={{fontSize:11,color:'var(--muted)',marginBottom:8}}>주차를 누르면 그 주만, 「전체 합산」을 누르면 전체 기간을 사람별로 보여줘요.</div>
-        <div style={{overflowX:'auto',marginBottom:26}}>
-        <table className="rpt-table" style={{minWidth:720}}>
-          <thead><tr>{plain('기간',true)}{plain('인원')}{plain('비용')}{plain('직접ROAS')}{plain('직접CPA')}{plain('직접전환수')}{plain('직접전환값')}</tr></thead>
-          <tbody>
-            <tr className={'rpt-pick'+(selWeek==='all'?' on':'')} onClick={()=>setSelWeek('all')}>
-              <td style={{textAlign:'left',fontWeight:600}}>전체 합산</td><td>{h.totN}</td><td>{won(h.tot.cost)}</td>
-              <td style={{fontWeight:600,color:h.tot.dRoas!=null&&h.tot.dRoas<100?'var(--red)':undefined}}>{pct(h.tot.dRoas)}</td>
-              <td>{won(h.tot.dCpa)}</td><td>{won(h.tot.dc)}</td><td>{won(h.tot.da)}</td>
-            </tr>
-            {h.weeks.map(w=><tr key={w.end} className={'rpt-pick'+(selWeek===w.end?' on':'')} onClick={()=>setSelWeek(w.end)}>
-              <td style={{textAlign:'left'}}>{md(w.start)} ~ {md(w.end)}</td><td>{w.n}</td><td>{won(w.cost)}</td>
-              <td style={{fontWeight:600,color:w.dRoas!=null&&w.dRoas<100?'var(--red)':undefined}}>{pct(w.dRoas)}</td><td>{won(w.dCpa)}</td><td>{won(w.dc)}</td><td>{won(w.da)}</td>
-            </tr>)}
-          </tbody>
-        </table>
+        <Kpis a={h.tot} n={h.totN} label="기간 내 집행 인원"/>
+        <div style={{marginBottom:14}}>
+          <span className="rpt-seg">
+            <button className={histMode==='weeks'?'on':''} onClick={()=>setHistMode('weeks')}>주차별</button>
+            <button className={histMode==='people'?'on':''} onClick={()=>setHistMode('people')}>사람별 합산</button>
+          </span>
         </div>
-        <div style={{fontWeight:600,fontSize:13,marginBottom:8}}>{selWeek==='all'?`전체 합산 · 사람별 (${hr})`:`${md(h.weeks.find(w=>w.end===selWeek)?.start)} ~ ${md(selWeek)} · 사람별`}</div>
         <div style={{overflowX:'auto'}}>
-        <table className="rpt-table" style={{minWidth:1000}}>
-          <thead>
-            <GroupRow lead={2}/>
-            <tr>{th('name','이름',false)}{th('weeks','집행 주')}<MetricHead/></tr>
-          </thead>
-          <tbody>
-            {hp.map((r,i)=><tr key={i}><td style={{textAlign:'left'}}>{r.name}</td><td style={{color:'var(--muted)'}}>{r.weeks}</td><MetricCells r={r}/></tr>)}
-            {!hp.length&&<tr><td colSpan={12} style={{textAlign:'center',color:'var(--muted)',padding:24}}>기록이 없어요.</td></tr>}
-          </tbody>
-        </table>
+        {histMode==='weeks'
+          ? <table className="rpt-table" style={{minWidth:1100}}>
+              <thead>
+                <GroupRow lead={2}/>
+                <tr>{th('name','이름 · 채널',false)}{plain('라이브',true)}<MetricHead/></tr>
+              </thead>
+              <tbody>
+                {h.weeks.map(w=><React.Fragment key={w.end}>
+                  <tr className="rpt-wkrow"><td colSpan={12} style={{textAlign:'left'}}>
+                    <b>{md(w.start)} ~ {md(w.end)}</b>
+                    <span className="rpt-wksum">{w.n}명 · 비용 {won(w.cost)} · 직접ROAS <span style={{color:w.dRoas!=null&&w.dRoas<100?'var(--red)':undefined,fontWeight:600}}>{pct(w.dRoas)}</span> · 직접전환 {won(w.dc)}</span>
+                  </td></tr>
+                  {(noteAuto(w.end)||noteSaved(w.end))&&<tr><td colSpan={12} style={{padding:'0 10px'}}><ReportNote brand={brand.name} week={w.end} auto={noteAuto(w.end)} saved={noteSaved(w.end)} onSaved={onNoteSaved}/></td></tr>}
+                  {sortRows(w.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel}/><LiveCell on={x.on}/><MetricCells r={r}/></tr>;})}
+                </React.Fragment>)}
+              </tbody>
+            </table>
+          : <table className="rpt-table" style={{minWidth:1100}}>
+              <thead>
+                <GroupRow lead={3}/>
+                <tr>{th('name','이름 · 채널',false)}{plain('라이브',true)}{th('weeks','집행 주')}<MetricHead/></tr>
+              </thead>
+              <tbody>
+                {sortRows(h.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel}/><LiveCell on={x.on}/><td style={{color:'var(--muted)'}}>{r.weeks}</td><MetricCells r={r}/></tr>;})}
+                {!h.people.length&&<tr><td colSpan={13} style={{textAlign:'center',color:'var(--muted)',padding:24}}>기록이 없어요.</td></tr>}
+              </tbody>
+            </table>}
         </div>
         {h.gaps.length>0&&<div style={{fontSize:11,color:'var(--muted)',marginTop:12}}>빠진 구간(액션툴에 기록이 없어요): {h.gaps.join(', ')}</div>}
       </>)}
 
     <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.8,marginTop:14}}>
-      · 조회수는 인스타 표기 그대로(만 단위 반올림)라 추세용이에요. 광고로 태운 게시물은 조회수가 부풀 수 있어요.<br/>
       · 직접 값은 cafe24 직접전환(소재명 기준), 매체 신고값은 매체가 주장하는 값이라 보통 더 커요. 손익 판단은 직접 값으로 하세요.<br/>
+      · 라이브는 지금 광고가 켜져 있는지(ON) 꺼졌는지(OFF)예요. 이전 데이터의 라이브도 «지금» 상태예요.<br/>
       · 이전 데이터는 그 주를 수집한 시점의 값이에요. 표본이 적은 칸(전환 15건 미만)은 순위로 결론내지 마세요.
     </div>
   </div>;
