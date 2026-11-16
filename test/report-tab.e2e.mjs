@@ -25,7 +25,8 @@ const ROWS = [
   P({ brand: '베이스튠', name: '염지윤', wkStart: '2026-11-02', wkEnd: '2026-11-08', wCost: 2000000, wConv: 20, wRev: 2400000, wAtc: 40, wDCount: 15, wDAmount: 1800000 }),
   P({ brand: '베이스튠', name: '양형석', wkStart: '2026-11-02', wkEnd: '2026-11-08', wCost: 1000000, wConv: 0, wRev: 0, wAtc: 0, wDCount: 5, wDAmount: 500000 }),
   P({ brand: '베이스튠', name: '염지윤', wkStart: '2026-10-19', wkEnd: '2026-10-25', wCost: 1000000, wConv: 10, wRev: 1200000, wAtc: 20, wDCount: 8, wDAmount: 1200000 }),
-  P({ brand: '그래니살라', name: '그래니전용', wkStart: '2026-11-02', wkEnd: '2026-11-08', wCost: 99999, wConv: 1, wRev: 1, wAtc: 1, wDCount: 1, wDAmount: 1 }),
+  P({ brand: '그래니살라', name: '그래니둘째', channel: 'g2', product: 'B제품', status: 'ok', wCost: 100000, wConv: 1, wRev: 100000, wAtc: 1, wDCount: 1, wDAmount: 100000 }),
+  P({ brand: '그래니살라', name: '그래니전용', product: 'B제품', wkStart: '2026-11-02', wkEnd: '2026-11-08', wCost: 99999, wConv: 1, wRev: 1, wAtc: 1, wDCount: 1, wDAmount: 1 }),
   P({ brand: '그래니살라', name: '그래니사람', product: '그래니 올인원', channel: 'gr', pa: '안민영', status: 'ok', views: 9000, wCost: 200000, wConv: 2, wRev: 300000, wAtc: 4, wDCount: 1, wDAmount: 100000 }),
 ];
 const META = { updatedAt: new Date().toISOString(), snapshotDate: '2026-11-13', weeks: { '베이스튠': { start: '2026-11-09', end: '2026-11-15' } },
@@ -151,9 +152,21 @@ chk(!(await evalJs(`!!document.querySelector('.rpt-wkrow')`)), '전체 합산에
 await click('.rpt-weeks button', '이번 주'); await wait(300);
 chk(J(await names()).includes('염지윤') && !J(await names()).includes('그래니전용'), '이번 주로 돌아오면 이번 주 표(이전 데이터 사람 안 섞임)', await names());
 await click('.brand-tab', '그래니살라'); await wait(500);
-chk(J(await names()) === J(['그래니사람']), '그래니살라 탭: 그래니 사람만', await names());
+chk(J(await names()) === J(['그래니사람', '그래니둘째']), '그래니살라 탭: 그래니 사람만(비용순)', await names());
 const gh = await evalJs(`[...document.querySelectorAll('.rpt-table thead tr')].at(-1).innerText`);
 chk(gh.includes('제품') && (await evalJs(`document.querySelector('.rpt-table tbody tr').innerText`)).includes('그래니 올인원'), '제품이 적힌 브랜드(그래니)는 제품 칸이 생기고 제품명이 나옴', gh);
+// ── 제품별로 눌러서 보기 ──
+const chips = await evalJs(`[...document.querySelectorAll('.rpt-prods button')].map(b=>b.innerText)`);
+chk(J(chips) === J(['전체 제품', '그래니 올인원', 'B제품', '제품 미상']) || J(chips) === J(['전체 제품', 'B제품', '그래니 올인원', '제품 미상']), '제품 버튼: 전체 + 제품별 + 제품 미상', chips);
+await click('.rpt-prods button', 'B제품'); await wait(300);
+chk(J(await names()) === J(['그래니둘째']) && /비용\s+100,000/.test(await page()), 'B제품만 누르면 그 제품 사람만 · 합계도 그 제품 기준(비용 10만)', (await page()).slice(0, 300));
+await click('.rpt-weeks:not(.rpt-prods) button', '11-02~11-08'); await wait(300);
+chk(J(await names()).includes('그래니전용'), 'B제품 + 11-02~11-08 주차: 그 제품의 그 주 사람', await names());
+await click('.rpt-prods button', '그래니 올인원'); await wait(300);
+chk(!J(await names()).includes('그래니전용'), '다른 제품(올인원)으로 바꾸면 그 주 B제품 사람은 사라짐(주차 라벨은 유지)', await names());
+chk((await evalJs(`[...document.querySelectorAll('.rpt-weeks:not(.rpt-prods) button')].length`)) === 3, '제품을 골라도 주차 라벨은 그대로');
+await click('.rpt-prods button', '전체 제품'); await wait(300);
+await click('.rpt-weeks:not(.rpt-prods) button', '이번 주'); await wait(300);
 await click('.brand-tab', '베이스튠'); await wait(500);
 chk(!(await evalJs(`[...document.querySelectorAll('.rpt-table thead tr')].at(-1).innerText`)).includes('제품'), '제품이 한 개도 없는 브랜드(베이스튠)는 제품 칸이 숨겨짐');
 await click('.brand-tab', '그래니살라'); await wait(500);

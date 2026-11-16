@@ -6902,6 +6902,8 @@ function ReportView({brand}) {
   const [st,setSt]=useState({loading:true});
   const [span,setSpan]=useState('w');            // w=이번 주, h=이전 데이터
   const [histMode,setHistMode]=useState('weeks'); // weeks=고른 주차 하나, people=전체 기간 사람별 합산
+  const [prod,setProd]=useState('');               // 제품별 보기: ''=전체, '__none'=제품 미상, 그 외=제품명
+  useEffect(()=>{setProd('');},[brand&&brand.name]);
   const [selWeek,setSelWeek]=useState(null);       // 주차 라벨로 고른 주(끝 날짜). 없으면 가장 최근 지난 주
   const [sortK,setSortK]=useState('setAt');
   const [showAll,setShowAll]=useState(false);
@@ -6940,6 +6942,9 @@ function ReportView({brand}) {
     // 지난 주차 행에도 지금 라이브 상태가 실려 온다 — 이번 주 행이 없는 사람도 라이브를 보이게 먼저 깔고, 이번 주 행(채널명 포함)으로 덮는다
     if(d) d.rows.forEach(r=>{if(r[H.brand]===brand?.name&&r[H.kind]==='wk'){const k=nrm(r[H.name]);if(k&&(r[H.metaOn]||r[H.product])&&!m.has(k))m.set(k,{on:r[H.metaOn],product:String(r[H.product]||'')});}});
     nowRows.forEach(r=>{const k=nrm(r.name);if(k)m.set(k,{channel:r.channel,on:r.on||(m.get(k)||{}).on,product:r.product||(m.get(k)||{}).product});});return m;},[nowRows,d,H,brand]);
+  // 제품별 보기 — 한 사람이 두 제품을 맡았으면(« · » 로 이어 적힘) 두 제품 양쪽에 잡힌다
+  const prodMatch=p=>!prod||(prod==='__none'?!String(p||'').trim():String(p||'').split(' · ').includes(prod));
+  const prodList=useMemo(()=>{const c=new Map();const add=p=>String(p||'').split(' · ').filter(Boolean).forEach(x=>c.set(x,(c.get(x)||0)+1));nowRows.forEach(r=>add(r.product));who.forEach(x=>add(x.product));return [...c.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);},[nowRows,who]);
   // 제품이 한 개도 적힌 게 없는 브랜드(제품 하나뿐)는 제품 칸을 아예 숨긴다
   const hasProd=useMemo(()=>nowRows.some(r=>r.product)||[...who.values()].some(x=>x.product),[nowRows,who]);
 
@@ -6947,13 +6952,14 @@ function ReportView({brand}) {
   const hist=useMemo(()=>{
     if(!d) return {weeks:[],people:[],gaps:[]};
     const f=(r,k)=>{const v=r[H[k]];return v===''||v==null?0:Number(v);};
-    const wk=d.rows.filter(r=>r[H.brand]===brand?.name&&r[H.kind]==='wk').map(r=>({
-      name:r[H.name],start:r[H.wkStart],end:r[H.wkEnd],
+    const wkAll=d.rows.filter(r=>r[H.brand]===brand?.name&&r[H.kind]==='wk').map(r=>({
+      name:r[H.name],start:r[H.wkStart],end:r[H.wkEnd],product:String(r[H.product]||''),
       cost:f(r,'wCost'),rev:f(r,'wRev'),conv:f(r,'wConv'),atc:f(r,'wAtc'),dc:f(r,'wDCount'),da:f(r,'wDAmount')}));
+    const wk=wkAll.filter(r=>prodMatch(r.product));   // 고른 제품 행만 — 주차 라벨(기간)은 전체 기준으로 유지
     const group=rs=>{const pm=new Map();rs.forEach(r=>{const k=nrm(r.name);const e=pm.get(k)||{name:r.name,weeks:new Set(),rows:[]};e.weeks.add(r.end);e.rows.push(r);pm.set(k,e);});
       return [...pm.values()].map(e=>derive({...sum(e.rows),name:e.name,weeks:e.weeks.size}));};
     const byEnd=new Map();
-    wk.forEach(r=>{const e=byEnd.get(r.end)||{start:r.start,end:r.end,rows:[]};e.rows.push(r);byEnd.set(r.end,e);});
+    wkAll.forEach(r=>{const e=byEnd.get(r.end)||{start:r.start,end:r.end,rows:[]};if(prodMatch(r.product))e.rows.push(r);byEnd.set(r.end,e);});
     const weeks=[...byEnd.values()].sort((a,b)=>b.end.localeCompare(a.end)).map(w=>{const people=group(w.rows);return derive({...sum(w.rows),start:w.start,end:w.end,n:people.length,people});});
     // 빠진 구간(액션툴에 기록이 없던 날짜)
     const asc=[...weeks].reverse(),gaps=[];
@@ -6962,7 +6968,7 @@ function ReportView({brand}) {
       if(g>0) gaps.push(md(iso(day(asc[i-1].end)+864e5))+(g>1?'~'+md(iso(day(asc[i].start)-864e5)):''));}
     const people=group(wk);
     return {weeks,people,gaps,tot:derive(sum(wk)),totN:people.length};
-  },[d,H,brand]);
+  },[d,H,brand,prod]);
 
   if(st.loading) return <div className="log-page" style={{color:'var(--muted)'}}>불러오는 중…</div>;
   if(st.err) return <div className="log-page"><div style={{color:'var(--muted)',fontSize:13,lineHeight:1.8}}>
@@ -6996,8 +7002,9 @@ function ReportView({brand}) {
   const LiveCell=({on})=><td style={{textAlign:'left',color:'var(--muted)'}}>{on==='Y'?'ON':on==='N'?'OFF':'–'}</td>;
 
   // 이번 주
-  const ad=nowRows.filter(r=>r.has);
-  const shown=sortRows(showAll?nowRows:ad);
+  const nowF=nowRows.filter(r=>prodMatch(r.product));
+  const ad=nowF.filter(r=>r.has);
+  const shown=sortRows(showAll?nowF:ad);
   const S=k=>ad.reduce((s,r)=>s+(r[k]||0),0);
   const Tn=derive({cost:S('cost'),rev:S('rev'),conv:S('conv'),atc:S('atc'),dc:S('dc'),da:S('da')});
   // 이전 데이터
@@ -7021,6 +7028,12 @@ function ReportView({brand}) {
       {h.weeks.map(w=><button key={w.end} className={span==='h'&&histMode==='weeks'&&selW&&selW.end===w.end?'on':''} onClick={()=>pickWeek(w.end)}>{md(w.start)}~{md(w.end)}</button>)}
       {h.weeks.length>0&&<button className={span==='h'&&histMode==='people'?'on':''} onClick={pickAll}>전체 합산{hr?` (${hr})`:''}</button>}
     </div>
+    {hasProd&&<div className="rpt-seg rpt-weeks rpt-prods" style={{flexWrap:'wrap',marginBottom:8}}>
+      <button className={!prod?'on':''} onClick={()=>setProd('')}>전체 제품</button>
+      {prodList.map(p=><button key={p} className={prod===p?'on':''} onClick={()=>setProd(p)}>{p}</button>)}
+      <button className={prod==='__none'?'on':''} onClick={()=>setProd('__none')}>제품 미상</button>
+    </div>}
+    {hasProd&&prod&&<div style={{fontSize:12.5,color:'var(--muted)',margin:'0 0 8px'}}>{prod==='__none'?'제품이 적히지 않은 사람':prod} 기준으로 보고 있어요 — 두 제품을 맡은 사람은 양쪽에 잡혀요. 아래 «섭외 확장 제안»은 제품 구분 없이 브랜드 전체 기준이에요.</div>}
     <div style={{fontSize:11,color:staleDays!=null&&staleDays>9?'var(--red)':'var(--muted)',marginBottom:14}}>
       {updated?`갱신 ${updated.toLocaleDateString('ko-KR')} ${updated.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`:'아직 올라온 데이터가 없어요'}
       {staleDays!=null&&staleDays>9&&' — 자동 갱신이 멈춘 것 같아요'}
@@ -7048,7 +7061,7 @@ function ReportView({brand}) {
       </table>
       </div>
       <label style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'var(--muted)',marginTop:12,cursor:'pointer'}}>
-        <input type="checkbox" checked={showAll} onChange={e=>setShowAll(e.target.checked)}/> 광고 기록이 없는 인원도 보기 ({nowRows.length-ad.length}명)
+        <input type="checkbox" checked={showAll} onChange={e=>setShowAll(e.target.checked)}/> 광고 기록이 없는 인원도 보기 ({nowF.length-ad.length}명)
       </label>
     </>}
 
