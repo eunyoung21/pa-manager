@@ -6869,7 +6869,7 @@ function ReportView({brand}) {
                     <b>{md(w.start)} ~ {md(w.end)}</b>
                     <span className="rpt-wksum">{w.n}명 · 비용 {won(w.cost)} · 직접ROAS <span style={{color:w.dRoas!=null&&w.dRoas<100?'var(--red)':undefined,fontWeight:600}}>{pct(w.dRoas)}</span> · 직접전환 {won(w.dc)}</span>
                   </td></tr>
-                  {(noteAuto(w.end)||noteSaved(w.end))&&<tr><td colSpan={12} style={{padding:'0 10px'}}><ReportNote brand={brand.name} week={w.end} auto={noteAuto(w.end)} saved={noteSaved(w.end)} onSaved={onNoteSaved}/></td></tr>}
+                  {(noteAuto(w.end)||noteSaved(w.end))&&<tr><td colSpan={12} style={{padding:'0 10px',textAlign:'left',whiteSpace:'normal'}}><ReportNote brand={brand.name} week={w.end} auto={noteAuto(w.end)} saved={noteSaved(w.end)} onSaved={onNoteSaved}/></td></tr>}
                   {sortRows(w.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel}/><LiveCell on={x.on}/><MetricCells r={r}/></tr>;})}
                 </React.Fragment>)}
               </tbody>
