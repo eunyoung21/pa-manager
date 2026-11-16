@@ -3360,14 +3360,17 @@ function DealBoard({ brand, onClose, onEdit, canEdit }){
     }).sort((a,b)=>b.list.length-a.list.length||a.cat.localeCompare(b.cat));
   },[people]);
   const shown=cat?groups.filter(g=>g.cat===cat):groups;
-  const sel={border:'none',background:'transparent',color:'inherit',font:'inherit',fontSize:12,fontWeight:500,textAlign:'center',cursor:canEdit?'pointer':'default',maxWidth:'100%',padding:0,appearance:'none',WebkitAppearance:'none'};
-  const cell={flex:1,textAlign:'center',padding:'2px 4px',minWidth:0};
-  const lbl={display:'block',fontSize:10,color:'var(--muted)',marginBottom:2};
+  const sel={border:'none',background:'transparent',color:'inherit',fontFamily:'inherit',fontSize:13,fontWeight:500,lineHeight:'20px',height:20,textAlign:'center',textAlignLast:'center',cursor:canEdit?'pointer':'default',padding:0,margin:0,outline:'none',appearance:'none',WebkitAppearance:'none',MozAppearance:'none'};
+  const cell={flex:1,textAlign:'center',padding:'0 4px',minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',gap:3};
+  const lbl={fontSize:11,color:'var(--muted)',whiteSpace:'nowrap',lineHeight:1.2};
+  const val={fontSize:13,fontWeight:500,lineHeight:'20px',height:20,whiteSpace:'nowrap'};
+  // 채널명에 소개글이 통째로 들어 있는 경우가 있어 첫 토막만 쓴다(전체는 마우스를 올리면 보임)
+  const shortName=p=>{ const s=String(p.name||'').split(/\s*[|ㅣ·•\n]\s*/)[0].trim(); const t=s.length>16?s.slice(0,16)+'…':s; return t||p.key; };
   const Chip=({on,children,...p})=><button {...p} style={{padding:'4px 11px',borderRadius:14,fontSize:12,cursor:'pointer',border:'1px solid '+(on?'var(--text)':'var(--border)'),background:on?'var(--text)':'transparent',color:on?'var(--surface)':'var(--muted)'}}>{children}</button>;
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
     <div className="modal" style={{width:'min(980px,94vw)',maxHeight:'90vh'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,flexWrap:'wrap'}}>
-        <div className="modal-title" style={{margin:0}}>⭐ {brand.name} 성사 모음 <span style={{fontWeight:400,color:'var(--muted)',fontSize:12}}>· {people.length}명</span></div>
+        <div className="modal-title" style={{margin:0}}>⭐ {brand.name} 성사 모음 <span style={{fontWeight:400,color:'var(--muted)',fontSize:12}}>· {people.length}명</span> <span style={{fontWeight:400,color:'var(--muted)',fontSize:11,marginLeft:8}}>* 성별·연령은 사진·소개글로 추정한 값(바꾸면 확정)</span></div>
         <span style={{flex:1}}/>
         <button className="btn btn-ghost" style={{fontSize:11}} onClick={onClose}>닫기</button>
       </div>
@@ -3389,18 +3392,18 @@ function DealBoard({ brand, onClose, onEdit, canEdit }){
                   {p.pic?<img src={p.pic} alt="" style={{width:40,height:40,borderRadius:'50%',objectFit:'cover',flex:'none'}}/>
                     :<div style={{width:40,height:40,borderRadius:'50%',background:'var(--border)',flex:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'var(--muted)'}}>{(p.name||p.key||'?').slice(0,1)}</div>}
                   <div style={{minWidth:0}}>
-                    <a href={p.link||('https://www.instagram.com/'+p.key+'/')} target="_blank" rel="noopener" style={{fontSize:12,color:'inherit',textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name||p.key}</a>
-                    <div style={{fontSize:15,fontWeight:600}}>팔로워 {koFmt(p.fol)}</div>
+                    <a href={p.link||('https://www.instagram.com/'+p.key+'/')} target="_blank" rel="noopener" title={(p.name||'')+' @'+p.key} style={{fontSize:13,color:'inherit',textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{shortName(p)}</a>
+                    <div style={{fontSize:15,fontWeight:600,whiteSpace:'nowrap'}}>팔로워 {koFmt(p.fol)}</div>
                   </div>
                 </div>
                 <div style={{display:'flex',marginTop:10,paddingTop:8,borderTop:'1px solid var(--border)'}}>
-                  <div style={cell}><span style={lbl}>평균 조회수</span><b style={{fontSize:12,fontWeight:500}}>{koFmt(p.avgViews)}</b></div>
-                  <div style={{...cell,borderLeft:'1px solid var(--border)',borderRight:'1px solid var(--border)'}}><span style={lbl}>성별·연령{p.demoAuto==='Y'?' (추정)':''}</span>
-                    <div style={{display:'flex',justifyContent:'center',gap:4}}>
-                      <select disabled={!canEdit} value={p.gender} style={sel} onChange={e=>onEdit(p.key,{gender:e.target.value,demoAuto:''})}><option value="">-</option><option>여</option><option>남</option></select>
-                      <select disabled={!canEdit} value={p.ageBand} style={sel} onChange={e=>onEdit(p.key,{ageBand:e.target.value,demoAuto:''})}><option value="">-</option>{DEAL_AGES.map(a=><option key={a}>{a}</option>)}</select>
+                  <div style={cell}><span style={lbl}>조회수</span><b style={val}>{koFmt(p.avgViews)}</b></div>
+                  <div style={{...cell,borderLeft:'1px solid var(--border)',borderRight:'1px solid var(--border)'}}><span style={lbl} title={p.demoAuto==='Y'?'사진·소개글로 추정한 값 — 바꾸면 확정돼요':''}>성별·연령{p.demoAuto==='Y'?'*':''}</span>
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,height:20}}>
+                      <select disabled={!canEdit} value={p.gender} style={{...sel,width:p.gender?16:12}} onChange={e=>onEdit(p.key,{gender:e.target.value,demoAuto:''})}><option value="">-</option><option>여</option><option>남</option></select>
+                      <select disabled={!canEdit} value={p.ageBand} style={{...sel,width:p.ageBand?(p.ageBand.length>3?62:36):12}} onChange={e=>onEdit(p.key,{ageBand:e.target.value,demoAuto:''})}><option value="">-</option>{DEAL_AGES.map(a=><option key={a}>{a}</option>)}</select>
                     </div></div>
-                  <div style={cell}><span style={lbl}>협업비</span><b style={{fontSize:12,fontWeight:500}}>{p.rt?koFmt(p.rt)+'원':'-'}</b></div>
+                  <div style={cell}><span style={lbl}>협업비</span><b style={val}>{p.rt?koFmt(p.rt)+'원':'-'}</b></div>
                 </div>
                 <div style={{marginTop:6,textAlign:'right'}}>
                   <select disabled={!canEdit} value={p.category||''} style={{...sel,fontSize:10,fontWeight:400,color:'var(--muted)',textAlign:'right'}} title="카테고리 바꾸기" onChange={e=>onEdit(p.key,{category:e.target.value,catNew:''})}>

@@ -119,11 +119,11 @@ await click('button', '성사 모음'); await waitFor(`document.querySelector('.
 const t = await txt();
 chk(t.includes('3명'), '성사자 3명(같은 사람은 한 명, 성사 아닌 사람 제외)', t.slice(0, 80));
 chk(t.includes('낚시왕') && t.includes('팔로워 4.9천'), '카드: 이름·팔로워 4.9천');
-chk(t.includes('평균 조회수') && t.includes('1.2만'), '카드: 평균 조회수 1.2만');
+chk(t.includes('조회수') && t.includes('1.2만'), '카드: 조회수 1.2만');
 chk(t.includes('30만원'), '카드: 협업비 30만원');
 chk(!t.includes('아직안함'), '성사 아닌 사람은 안 나옴');
 chk(/낚시 2/.test(t) && /기타 1/.test(t), '카테고리 칩(낚시 2 · 기타 1)', t.slice(0, 200));
-chk(t.includes('(추정)'), '성별·연령에 (추정) 표시');
+chk(t.includes('성별·연령*'), '성별·연령에 추정(*) 표시');
 // 캠핑언니: 두 탭 값 병합 — 조회수는 claude 탭 8000, 팔로워는 step2 탭 2.1만
 chk(t.includes('팔로워 2.1만') && t.includes('8천'), '두 탭에 있는 사람은 값이 합쳐짐');
 // 성별 고치기 → 저장·추정 표시 해제
