@@ -508,7 +508,128 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
   .card-table tr.add-row td{padding:0;border:none;min-height:0;}
   .card-table tr.add-row td::before{display:none;}
 }
+
+/* ══════ 가독성·디자인 개편 (2026-11-16) ══════
+   기존 규칙 뒤에 덮어쓰는 블록. 되돌리려면 이 블록만 지우면 된다.
+   원칙: 최소 글자 12px, 흐린 글씨 대비 4.5:1 이상, 노랑은 '지금 선택된 것'에만. */
+:root{
+  --bg:#f4f5f3;--surface:#fff;--surface2:#f1f2f0;--surface3:#e6e8e4;
+  --border:#dcdedb;--text:#1b2230;--muted:#566070;--dim:#66707f;
+  --accent:#1b2230;--ah:#2f3a50;--accent-soft:#fbeeb8;--mark:#f4c430;--mark-soft:#fbeeb8;
+  --thead-bg:#fff;--thead-fg:#566070;--zebra:#fff;--row-hover:#faf6e4;
+  --ok:#1f7a45;--info:#2c5aa0;
+}
+body{font-family:'IBM Plex Sans KR','Pretendard','Malgun Gothic','Segoe UI',sans-serif;font-size:14px;font-variant-numeric:tabular-nums;}
+:focus-visible{outline:2px solid var(--text);outline-offset:2px;}
+button,input,select,textarea{font-family:inherit;}
+
+/* 머리·탭 */
+.header{height:54px;gap:14px;padding:0 20px;}
+.logo{font-size:16px;}
+.brand-tab{font-size:13.5px;padding:6px 13px;border-radius:4px;}
+.brand-tab.active{background:var(--surface3);font-weight:700;}
+.step-tab{font-size:14px;padding:11px 16px;}
+.step-tab.active{font-weight:700;border-bottom:3px solid var(--mark);}
+.step-tab.settle-tab{color:#7a5600;}
+.step-tab.settle-tab.active{border-bottom-color:var(--mark);}
+.step-tab.guide-tab.active{border-bottom-color:var(--mark);}
+.menu-item{font-size:13.5px;padding:9px 12px;}
+.contract-link{background:var(--ok);font-size:13px;}
+
+/* 도구줄·칩 */
+.toolbar{padding:9px 20px;gap:6px;}
+.fsel,.fchip{font-size:13px;padding:5px 12px;border-radius:4px;}
+.fchip.fchip.fchip.active,.fsel.active{background:var(--mark-soft);color:var(--text);border-color:transparent;font-weight:700;box-shadow:inset 0 -2px 0 var(--mark);}
+.cnt{font-size:13px;color:var(--muted);}
+.srch{font-size:13px;padding:5px 28px 5px 10px;}
+.mchip{font-size:12.5px;padding:4px 11px;border-radius:4px;}
+.mchip.active{background:var(--mark-soft);box-shadow:inset 0 -2px 0 var(--mark);border-color:transparent;font-weight:700;}
+.month-bar{padding:6px 20px;}
+
+/* 버튼 */
+.btn{font-size:13px;padding:6px 14px;border-radius:4px;}
+.btn-primary{background:var(--mark);color:var(--text);border:1px solid var(--text);font-weight:700;}
+.btn-primary:hover:not(:disabled){background:#ffd23f;}
+.btn-add{font-size:12.5px;}
+.prod-tab{font-size:13px;border-radius:4px;}
+.prod-tab.active{background:var(--mark);border-color:var(--text);color:var(--text);font-weight:700;}
+.prod-badge{font-size:12px;}
+.login-btn{background:var(--mark);color:var(--text);border:1px solid var(--text);}
+.login-btn:hover{background:#ffd23f;}
+
+/* 표 */
+th{font-size:12.5px;font-weight:500;color:var(--thead-fg);padding:10px 12px;border-bottom:2px solid var(--text);}
+td{font-size:14px;padding:11px 12px;}
+thead tr{background:var(--surface);}
+tbody tr{border-bottom:1px solid var(--border);}
+tbody tr:nth-child(even){background:transparent;}
+tbody tr:hover{background:var(--row-hover);}
+.roomy th{padding:11px 12px;}
+.roomy td{padding:11px 12px;}
+.roomy tbody tr{border-bottom-color:var(--border);}
+.roomy tbody tr:nth-child(even){background:var(--surface);}
+.roomy tbody tr:hover{background:var(--row-hover);}
+.colf-row th{border-bottom:1px solid var(--border);}
+.colf-inp{font-size:12.5px;padding:3px 7px;}
+.cell-val{line-height:1.5;}
+.cell-input,.cell-sel{font-size:14px;padding:3px 7px;}
+.cell-input:focus,.cell-sel:focus{box-shadow:0 0 0 3px var(--mark-soft);}
+.sel-box{width:15px;height:15px;}
+tbody tr.sel-on,tbody tr.sel-on:hover{background:var(--mark-soft)!important;}
+.bulk-bar{font-size:13px;padding:8px 20px;}
+
+/* 상태 — 색 알약 대신 점 + 글자 */
+.badge{font-size:13px;font-weight:500;padding:0;background:transparent!important;gap:7px;border-radius:0;}
+.badge::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto;}
+.b-ap,.b-done{color:var(--ok);}
+.b-wt{color:var(--muted);}
+.b-rj{color:#b03030;}
+.b-prog{color:var(--info);}
+.pa-badge{font-size:12px;padding:2px 9px;}
+.yn-btn{font-size:12.5px;padding:3px 11px;}
+
+/* 모달·입력 */
+.modal{padding:24px;border-radius:8px;}
+.modal-title{font-size:16px;font-weight:700;}
+.modal-lbl{font-size:12.5px;color:var(--muted);}
+.modal-inp,.modal-ta,.modal-sel{font-size:14px;padding:8px 11px;border-radius:4px;}
+.modal-inp:focus,.modal-ta:focus,.modal-sel:focus{border-color:var(--text);box-shadow:0 0 0 3px var(--mark-soft);}
+.login-sub,.login-lbl,.login-err{font-size:12.5px;}
+.login-inp{font-size:14px;}
+.login-inp:focus{border-color:var(--text);box-shadow:0 0 0 3px var(--mark-soft);}
+
+/* 정산·가이드·검수·달력 */
+.settle-stat-v{font-size:24px;}
+.settle-stat-l{font-size:12.5px;}
+.snum-l{font-size:11px;}
+.snum-v{font-size:14px;}
+.settle-row-item{font-size:12.5px;padding:5px 0;}
+.guide-h1{font-size:20px;}
+.guide-h2{font-size:16px;}
+.guide-sub,.guide-step-text{font-size:13.5px;line-height:1.75;}
+.guide-card-title{font-size:14.5px;}
+.guide-tip,.guide-warn,.privacy-warn{font-size:12.5px;}
+.guide-step-num{background:var(--text);width:24px;height:24px;font-size:12px;}
+.guide-step-text strong{color:var(--text);background:linear-gradient(transparent 62%,var(--mark-soft) 62%);}
+.rg-cat{font-size:11.5px;}
+.rg-label{font-size:12.5px;}
+.rg-desc{font-size:13px;opacity:.85;}
+.rg-num{font-size:11px;width:18px;height:18px;}
+.check-item{font-size:13.5px;}
+.check-cat-label{font-size:11px;}
+.review-guide-toggle{font-size:12.5px;}
+.cal-dow{font-size:11px;}
+.cal-day{font-size:12px;min-height:26px;}
+.cal-day.selected{background:var(--mark);color:var(--text);font-weight:700;}
+.cal-dot{background:var(--text);}
+.cal-list-item{font-size:12.5px;}
+.cal-list-item.active{color:var(--text);font-weight:700;}
+.empty-text{font-size:14px;}
+@media (min-width:769px){
+  .step-tab{padding:11px 16px;}
+}
 </style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
 </head>
 <body>
 <div id="root"></div>
