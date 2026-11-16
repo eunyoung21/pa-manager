@@ -6761,11 +6761,19 @@ function SheetLinkModal({ brand, onSave, onClose }) {
 /* 「어떤 유형이 잘 되나 → 이런 사람으로 확장」 — 수집이 누적 데이터로 계산해 _report 메타(insights)에 싣는다. 읽기 전용. */
 const RPT_IL={grow:'확장',cut:'축소',note:'참고'};
 function ReportInsights({ins}){
-  if(!ins||!ins.lines||!ins.lines.length) return null;
+  const [wk,setWk]=useState(null);
+  const weeks=(ins&&ins.weeks)||[];
+  const key=wk&&weeks.includes(wk)?wk:weeks[0];   // 기본은 가장 최근 주
+  const cur=ins&&ins.byWeek&&key?ins.byWeek[key]:ins;
+  if(!cur||!cur.lines||!cur.lines.length) return null;
+  const md=s=>String(s||'').slice(5).replace('-','/');
   return <details className="rpt-ins" open>
     <summary>섭외 확장 제안</summary>
-    <div className="b">{ins.basis}</div>
-    <ul>{ins.lines.map((l,i)=><li key={i}><span className={'lv '+l.kind}>{RPT_IL[l.kind]||''}</span><span style={l.kind==='note'?{color:'var(--muted)'}:undefined}>{l.text}</span></li>)}</ul>
+    {weeks.length>1&&<div className="rpt-seg" style={{flexWrap:'wrap',margin:'6px 0 2px'}}>
+      {weeks.map(w=><button key={w} className={w===key?'on':''} onClick={()=>setWk(w)}>{md(ins.byWeek[w].start)}~{md(w)}</button>)}
+    </div>}
+    <div className="b">{cur.basis}{weeks.length>1&&' · 그 주까지 쌓인 데이터 기준'}</div>
+    <ul>{cur.lines.map((l,i)=><li key={i}><span className={'lv '+l.kind}>{RPT_IL[l.kind]||''}</span><span style={l.kind==='note'?{color:'var(--muted)'}:undefined}>{l.text}</span></li>)}</ul>
   </details>;
 }
 
