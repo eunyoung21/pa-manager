@@ -526,7 +526,8 @@ button,input,select,textarea{font-family:inherit;}
 /* 머리·탭 */
 .header{height:54px;gap:14px;padding:0 20px;}
 .logo{font-size:16px;}
-.brand-tab{font-size:14px;padding:6px 13px;border-radius:4px;}
+.brand-tab{font-size:14px;padding:6px 13px;border-radius:4px;white-space:nowrap;}
+.logo{white-space:nowrap;}
 .brand-tab.active{background:var(--surface3);font-weight:700;}
 .step-tab{font-size:14px;padding:11px 16px;}
 .step-tab.active{font-weight:700;border-bottom:3px solid var(--mark);}
@@ -625,6 +626,11 @@ tbody tr.sel-on,tbody tr.sel-on:hover{background:var(--mark-soft)!important;}
 .cal-list-item{font-size:13px;}
 .cal-list-item.active{color:var(--text);font-weight:700;}
 .empty-text{font-size:14px;}
+/* 코드 안에 직접 적힌 작은 글씨(인라인 style)도 읽기 좋게 — 10~11px → 12~13px */
+[style*="font-size: 9px"],[style*="font-size:9px"]{font-size:11px!important;}
+[style*="font-size: 10px"],[style*="font-size:10px"]{font-size:12px!important;}
+[style*="font-size: 11px"],[style*="font-size:11px"]{font-size:13px!important;}
+[style*="font-size: 10.5px"],[style*="font-size:10.5px"],[style*="font-size: 11.5px"],[style*="font-size:11.5px"]{font-size:13px!important;}
 @media (min-width:769px){
   .step-tab{padding:11px 16px;}
 }
