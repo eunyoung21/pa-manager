@@ -312,14 +312,6 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 .rpt-th.on{color:var(--text,#e5e5e5);}
 .rpt-grp{font-size:11px;font-weight:500;color:var(--muted);text-align:center!important;border-bottom:1px solid var(--border);}
 .rpt-sub{font-size:10.5px;color:var(--muted);}
-.rpt-note{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:12px 0 14px;margin-bottom:22px;font-size:12.5px;line-height:1.75;}
-.rpt-note-h{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;}
-.rpt-note-h b{font-size:13px;}
-.rpt-note ul{list-style:none;margin:6px 0 0;padding:0;}
-.rpt-note li{display:flex;gap:10px;padding:2px 0;}
-.rpt-note li .lv{flex:0 0 74px;font-size:11px;color:var(--muted);}
-.rpt-note li .lv.stop{color:var(--red);font-weight:600;}
-.rpt-note textarea{width:100%;min-height:150px;box-sizing:border-box;background:transparent;color:inherit;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font:inherit;line-height:1.7;resize:vertical;}
 .rpt-ch{margin-left:7px;font-size:11px;color:var(--muted);}
 .rpt-wkrow td{background:var(--surface2);padding:11px 10px;font-size:12.5px;border-top:1px solid var(--border);}
 .rpt-wksum{margin-left:12px;font-size:11.5px;color:var(--muted);}
@@ -6646,57 +6638,6 @@ function SheetLinkModal({ brand, onSave, onClose }) {
   </div>;
 }
 
-/* 주차별 «추후 액션 코멘트» — 자동 초안(수집이 규칙으로 작성, _report 메타) + 관리자가 고쳐 쓴 수정본(_report_notes, reportNoteSet).
-   수정본이 있으면 수정본을, 없으면 자동 초안을 보여준다. 수정본을 비워 저장하면 자동 초안으로 돌아간다. */
-const RPT_LV={stop:'끄기·교체',scale:'늘리기',watch:'관찰',hold:'유지'};
-function reportNoteText(a){
-  if(!a) return '';
-  return [...(a.summary||[]),'',...(a.actions||[]).map(x=>'· '+x.name+' ['+RPT_LV[x.level]+'] '+x.text)].join(String.fromCharCode(10)).trim();
-}
-function ReportNote({brand,week,auto,saved,onSaved}){
-  const [edit,setEdit]=useState(false);
-  const [draft,setDraft]=useState('');
-  const [busy,setBusy]=useState(false);
-  const [err,setErr]=useState('');
-  useEffect(()=>{setEdit(false);setErr('');},[brand,week]);
-  if(!auto&&!saved&&!edit) return null;
-  const md=s=>String(s||'').slice(5);
-  const start=()=>{setDraft(saved?saved.text:reportNoteText(auto));setErr('');setEdit(true);};
-  const save=async(text)=>{
-    setBusy(true);setErr('');
-    const j=await callApi('reportNoteSet',{brand,week,text});
-    setBusy(false);
-    if(j&&j.ok){onSaved(brand,week,text.trim()?{text:text.trim(),by:j.by||'',at:j.at||''}:null);setEdit(false);}
-    else setErr(j&&j.error&&/unknown|알 수 없는/.test(j.error)?'백엔드(Code.gs)를 새 버전으로 배포해야 저장돼요.':((j&&(j.error||j.msg))||'저장하지 못했어요'));
-  };
-  return <div className="rpt-note">
-    <div className="rpt-note-h">
-      <b>이 주 액션 코멘트</b>
-      <span style={{fontSize:11,color:'var(--muted)'}}>{saved?('직접 작성'+(saved.by?' · '+saved.by:'')+(saved.at?' · '+new Date(saved.at).toLocaleDateString('ko-KR'):'')):'자동 초안 — 직접 값 기준'}</span>
-      {!edit&&<span style={{marginLeft:'auto',display:'flex',gap:6}}>
-        <button className="btn btn-ghost" style={{fontSize:11}} onClick={start}>{saved?'수정':'고쳐 쓰기'}</button>
-        {saved&&<button className="btn btn-ghost" style={{fontSize:11}} disabled={busy} onClick={()=>{if(confirm('직접 쓴 내용을 지우고 자동 초안으로 되돌릴까요?'))save('');}}>자동 초안으로</button>}
-      </span>}
-    </div>
-    {edit
-      ? <>
-          <textarea value={draft} onChange={e=>setDraft(e.target.value)} placeholder="이 주 결과를 보고 다음 주에 할 일을 적어주세요"/>
-          <div style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}>
-            <button className="btn btn-primary" style={{fontSize:12}} disabled={busy} onClick={()=>save(draft)}>{busy?'저장 중…':'저장'}</button>
-            <button className="btn btn-ghost" style={{fontSize:12}} disabled={busy} onClick={()=>setEdit(false)}>취소</button>
-            {err&&<span style={{fontSize:11.5,color:'var(--red)'}}>{err}</span>}
-          </div>
-        </>
-      : saved
-        ? <div style={{whiteSpace:'pre-wrap'}}>{saved.text}</div>
-        : <>
-            {(auto.summary||[]).map((t,i)=><div key={i} style={i?{color:'var(--muted)'}:{fontWeight:600}}>{t}</div>)}
-            {auto.actions&&auto.actions.length>0&&<ul>{auto.actions.map((a,i)=><li key={i}><span className={'lv '+a.level}>{RPT_LV[a.level]}</span><span><b style={{fontWeight:600}}>{a.name}</b> — {a.text}</span></li>)}</ul>}
-            {err&&<div style={{fontSize:11.5,color:'var(--red)'}}>{err}</div>}
-          </>}
-  </div>;
-}
-
 /* 「어떤 유형이 잘 되나 → 이런 사람으로 확장」 — 수집이 누적 데이터로 계산해 _report 메타(insights)에 싣는다. 읽기 전용. */
 const RPT_IL={grow:'확장',cut:'축소',note:'참고'};
 function ReportInsights({ins}){
@@ -6727,8 +6668,6 @@ function ReportView({brand}) {
     }).catch(()=>setSt({err:'네트워크 오류'}));
   };
   useEffect(load,[]);
-  // 주차별 액션 코멘트(ReportNote) 저장 결과를 화면 상태에 반영
-  const onNoteSaved=(b,w,rec)=>setSt(p=>{const n={...(p.data.notes||{})};const m={...(n[b]||{})};if(rec) m[w]=rec; else delete m[w];n[b]=m;return {data:{...p.data,notes:n}};});
 
   const won=n=>n==null?'–':Math.round(n).toLocaleString('ko-KR');
   const pct=n=>n==null?'–':Math.round(n)+'%';
@@ -6814,8 +6753,6 @@ function ReportView({brand}) {
   const h=hist;
   const hr=h.weeks.length?`${md(h.weeks[h.weeks.length-1].start)} ~ ${md(h.weeks[0].end)}`:'';
   const hWho=r=>who.get(nrm(r.name))||{};
-  const noteAuto=w=>meta.notes&&meta.notes[brand.name]&&meta.notes[brand.name][w];
-  const noteSaved=w=>d.notes&&d.notes[brand.name]&&d.notes[brand.name][w];
   const goSpan=(s)=>{setSpan(s);setSortK(s==='w'?'setAt':'cost');};
 
   return <div className="log-page rpt">
@@ -6835,7 +6772,6 @@ function ReportView({brand}) {
     <ReportInsights ins={meta.insights&&meta.insights[brand?.name]}/>
     {span==='w'&&<>
       <Kpis a={Tn} n={ad.length} label="광고 집행 인원"/>
-      {wk&&wk.end&&<ReportNote brand={brand.name} week={wk.end} auto={meta.notes&&meta.notes[brand.name]&&meta.notes[brand.name][wk.end]} saved={d.notes&&d.notes[brand.name]&&d.notes[brand.name][wk.end]} onSaved={onNoteSaved}/>}
       <div style={{overflowX:'auto'}}>
       <table className="rpt-table" style={{minWidth:1100}}>
         <thead>
@@ -6881,7 +6817,6 @@ function ReportView({brand}) {
                     <b>{md(w.start)} ~ {md(w.end)}</b>
                     <span className="rpt-wksum">{w.n}명 · 비용 {won(w.cost)} · 직접ROAS <span style={{color:w.dRoas!=null&&w.dRoas<100?'var(--red)':undefined,fontWeight:600}}>{pct(w.dRoas)}</span> · 직접전환 {won(w.dc)}</span>
                   </td></tr>
-                  {(noteAuto(w.end)||noteSaved(w.end))&&<tr><td colSpan={12} style={{padding:'0 10px',textAlign:'left',whiteSpace:'normal'}}><ReportNote brand={brand.name} week={w.end} auto={noteAuto(w.end)} saved={noteSaved(w.end)} onSaved={onNoteSaved}/></td></tr>}
                   {sortRows(w.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel}/><LiveCell on={x.on}/><MetricCells r={r}/></tr>;})}
                 </React.Fragment>)}
               </tbody>
