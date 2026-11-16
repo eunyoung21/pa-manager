@@ -19,6 +19,7 @@ const ROWS = [
       wCost: 1000000, wConv: 10, wRev: 1500000, wAtc: 50, wDCount: 8, wDAmount: 800000, cCost: 3000000, cConv: 20, cRev: 3600000, cAtc: 90, cDCount: 15, cDAmount: 4500000, cWeeks: 2 }),
   P({ brand: '베이스튠', name: '양형석', channel: 'yhs', pa: '유송미', status: 'ok', views: 50000, viewsPrev: 50000, metaOn: 'N',
       wCost: 500000, wConv: 0, wRev: 0, wAtc: 0, wDCount: 0, wDAmount: 0, cCost: 500000, cConv: 0, cRev: 0, cAtc: 0, cDCount: 0, cDAmount: 0, cWeeks: 1 }),
+  P({ brand: '베이스튠', name: '게시전사람', status: 'noPost', wCost: 300000, wConv: 0, wRev: 0, wAtc: 0, wDCount: 0, wDAmount: 0 }),
   P({ brand: '베이스튠', name: '광고없는사람', channel: 'noad', pa: '안민영', status: 'ok', views: 1000 }),
   P({ brand: '그래니살라', name: '그래니사람', channel: 'gr', pa: '안민영', status: 'ok', views: 9000, wCost: 200000, wConv: 2, wRev: 300000, wAtc: 4, wDCount: 1, wDAmount: 100000 }),
 ];
@@ -88,7 +89,9 @@ const open = async () => { await S('Page.navigate', { url: `http://127.0.0.1:${P
 await open();
 await click('.brand-tab', '베이스튠'); await wait(500);
 await click('.step-tab', '리포트'); await waitFor(`document.querySelector('.rpt-table')`, '리포트 표');
-chk(J(await names()) === J(['염지윤', '양형석']), '베이스튠: 광고 있는 두 명만(그래니·광고없는 사람 제외), 비용순', await names());
+chk(J(await names()) === J(['염지윤', '양형석', '게시전사람']), '베이스튠: 광고 있는 세 명(게시 링크 없는 사람 포함, 그래니·광고없는 사람 제외), 비용순', await names());
+const np = await cells('게시전사람');
+chk(np && np[1] === '게시 링크 없음' && np[4] === '300,000', '게시 링크 없는 광고 인원: 비용은 나오고 조회수 칸은 «게시 링크 없음»', np);
 const a = await cells('염지윤');
 // 비용 1,000,000 · 매출 1,500,000 · 전환 10 → CPA 100,000 · ROAS 150% · 담기당 20,000 · 직접CPA 125,000 · 직접ROAS 80% · 직접전환 8 · 직접값 800,000
 chk(a && a[4] === '1,000,000' && a[5] === '1,500,000' && a[6] === '10' && a[7] === '100,000' && a[8] === '150%' && a[9] === '20,000', '염지윤 매체 지표: 비용·매출·전환·CPA·ROAS·담기당비용', a);
@@ -97,7 +100,7 @@ chk(a && a[1] === '200,000' && a[2] === '+100%' && a[3] === 'ON', '조회수 20�
 const b = await cells('양형석');
 chk(b && b[7] === '–' && b[10] === '–' && b[11] === '0%' && b[3] === 'OFF', '전환 0건: CPA는 –(0으로 나누지 않음), 직접ROAS 0%, OFF', b);
 const t = await page();
-chk(t.includes('1,500,000') /* 합계 비용 */ && t.includes('2명') && /직접 ROAS\s*\n?\s*53%/.test(t), '합계: 비용 150만 · 직접ROAS 800,000/1,500,000=53% (사람당 한 번)', t.slice(0, 300));
+chk(t.includes('1,800,000') /* 합계 비용 */ && t.includes('3명') && /직접 ROAS\s+44%/.test(t), '합계: 비용 180만 · 직접ROAS 800,000/1,800,000=44% (게시 링크 없는 사람 포함, 사람당 한 번)', t.slice(0, 300));
 await click('.rpt-seg button', '자동 누적'); await wait(300);
 const c = await cells('염지윤');
 chk(c && c[4] === '3,000,000' && c[11] === '150%', '자동 누적으로 바꾸면 누적값(비용 300만 · 직접ROAS 150%)', c);

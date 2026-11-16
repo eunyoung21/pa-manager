@@ -6735,7 +6735,7 @@ function ReportView({brand}) {
               {r.postUrl&&live?<a href={r.postUrl} target="_blank" rel="noreferrer" style={{color:'inherit'}}>{r.name||r.channel}</a>:(r.name||r.channel)}
               <div className="rpt-sub">{r.channel}{r.pa?` · ${r.pa}`:''}</div>
             </td>
-            <td>{live?won(r.views):'확인 안 됨'}</td>
+            <td style={r.status==='noPost'?{color:'var(--muted)'}:undefined}>{live?won(r.views):r.status==='noPost'?'게시 링크 없음':'확인 안 됨'}</td>
             <td style={{color:'var(--muted)'}}>{dv==null?'–':(dv>0?'+':'')+Math.round(dv)+'%'}</td>
             <td style={{textAlign:'left',color:'var(--muted)'}}>{r.on==='Y'?'ON':r.on==='N'?'OFF':'–'}</td>
             <td>{won(r.cost)}</td><td>{won(r.rev)}</td><td>{won(r.conv)}</td><td>{won(r.cpa)}</td><td>{pct(r.roas)}</td><td>{won(r.atcCost)}</td>
