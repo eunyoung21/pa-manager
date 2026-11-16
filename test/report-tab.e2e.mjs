@@ -11,19 +11,24 @@ const REPO = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\//,
 const TMP = path.join(os.tmpdir(), 'pa-report-tab-e2e');
 const PORT = 8972;
 
-const HEADER = ['brand', 'name', 'channel', 'pa', 'category', 'posts', 'postedAt', 'postUrl', 'status', 'views', 'viewsPrev', 'likes', 'comments', 'followers', 'engRate', 'rate', 'metaOn', 'metaFirstAt',
-  'wCost', 'wConv', 'wRev', 'wAtc', 'wDCount', 'wDAmount', 'cCost', 'cConv', 'cRev', 'cAtc', 'cDCount', 'cDAmount', 'cWeeks'];
-const P = (o) => HEADER.map((h) => (o[h] === undefined ? '' : o[h]));
+const HEADER = ['kind', 'brand', 'name', 'channel', 'pa', 'category', 'posts', 'postedAt', 'postUrl', 'status', 'views', 'viewsPrev', 'likes', 'comments', 'followers', 'engRate', 'rate', 'metaOn', 'metaFirstAt',
+  'wCost', 'wConv', 'wRev', 'wAtc', 'wDCount', 'wDAmount', 'wkStart', 'wkEnd'];
+const P = (o) => HEADER.map((h) => (o[h] === undefined ? (h === 'kind' ? (o.wkEnd ? 'wk' : 'now') : '') : o[h]));
 const ROWS = [
   P({ brand: '베이스튠', name: '염지윤', channel: 'yjy', pa: '유송미', status: 'ok', views: 200000, viewsPrev: 100000, postUrl: 'https://www.instagram.com/reel/x/', metaOn: 'Y',
-      wCost: 1000000, wConv: 10, wRev: 1500000, wAtc: 50, wDCount: 8, wDAmount: 800000, cCost: 3000000, cConv: 20, cRev: 3600000, cAtc: 90, cDCount: 15, cDAmount: 4500000, cWeeks: 2 }),
+      wCost: 1000000, wConv: 10, wRev: 1500000, wAtc: 50, wDCount: 8, wDAmount: 800000 }),
   P({ brand: '베이스튠', name: '양형석', channel: 'yhs', pa: '유송미', status: 'ok', views: 50000, viewsPrev: 50000, metaOn: 'N',
-      wCost: 500000, wConv: 0, wRev: 0, wAtc: 0, wDCount: 0, wDAmount: 0, cCost: 500000, cConv: 0, cRev: 0, cAtc: 0, cDCount: 0, cDAmount: 0, cWeeks: 1 }),
+      wCost: 500000, wConv: 0, wRev: 0, wAtc: 0, wDCount: 0, wDAmount: 0 }),
   P({ brand: '베이스튠', name: '게시전사람', status: 'noPost', wCost: 300000, wConv: 0, wRev: 0, wAtc: 0, wDCount: 0, wDAmount: 0 }),
   P({ brand: '베이스튠', name: '광고없는사람', channel: 'noad', pa: '안민영', status: 'ok', views: 1000 }),
+  // 이전 데이터(주차별): 베이스튠 2주(사이에 한 주 빠짐) + 그래니 1주
+  P({ brand: '베이스튠', name: '염지윤', wkStart: '2026-11-02', wkEnd: '2026-11-08', wCost: 2000000, wConv: 20, wRev: 2400000, wAtc: 40, wDCount: 15, wDAmount: 1800000 }),
+  P({ brand: '베이스튠', name: '양형석', wkStart: '2026-11-02', wkEnd: '2026-11-08', wCost: 1000000, wConv: 0, wRev: 0, wAtc: 0, wDCount: 5, wDAmount: 500000 }),
+  P({ brand: '베이스튠', name: '염지윤', wkStart: '2026-10-19', wkEnd: '2026-10-25', wCost: 1000000, wConv: 10, wRev: 1200000, wAtc: 20, wDCount: 8, wDAmount: 1200000 }),
+  P({ brand: '그래니살라', name: '그래니전용', wkStart: '2026-11-02', wkEnd: '2026-11-08', wCost: 99999, wConv: 1, wRev: 1, wAtc: 1, wDCount: 1, wDAmount: 1 }),
   P({ brand: '그래니살라', name: '그래니사람', channel: 'gr', pa: '안민영', status: 'ok', views: 9000, wCost: 200000, wConv: 2, wRev: 300000, wAtc: 4, wDCount: 1, wDAmount: 100000 }),
 ];
-const META = { updatedAt: new Date().toISOString(), snapshotDate: '2026-11-13', weeks: { '베이스튠': { start: '2026-11-09', end: '2026-11-15' } }, ledgerSince: '2026-11-09' };
+const META = { updatedAt: new Date().toISOString(), snapshotDate: '2026-11-13', weeks: { '베이스튠': { start: '2026-11-09', end: '2026-11-15' } } };
 let ROLE = 'manager', DEPLOYED = true;
 
 const server = http.createServer((req, res) => {
@@ -101,11 +106,30 @@ const b = await cells('양형석');
 chk(b && b[7] === '–' && b[10] === '–' && b[11] === '0%' && b[3] === 'OFF', '전환 0건: CPA는 –(0으로 나누지 않음), 직접ROAS 0%, OFF', b);
 const t = await page();
 chk(t.includes('1,800,000') /* 합계 비용 */ && t.includes('3명') && /직접 ROAS\s+44%/.test(t), '합계: 비용 180만 · 직접ROAS 800,000/1,800,000=44% (게시 링크 없는 사람 포함, 사람당 한 번)', t.slice(0, 300));
-await click('.rpt-seg button', '자동 누적'); await wait(300);
-const c = await cells('염지윤');
-chk(c && c[4] === '3,000,000' && c[11] === '150%', '자동 누적으로 바꾸면 누적값(비용 300만 · 직접ROAS 150%)', c);
+// 광고 없는 인원도 보기는 이번 주 화면에서 먼저
 await evalJs(`(()=>{const i=document.querySelector('.rpt input[type=checkbox]');i.click();return 1})()`); await wait(300);
 chk(J(await names()) .includes('광고없는사람'), '광고 없는 인원도 보기 체크 → 표에 나옴', await names());
+// ── 이전 데이터 ──
+await click('.rpt-seg button', '이전 데이터'); await wait(400);
+const histT = await page();
+chk(histT.includes('이전 데이터 (10-19 ~ 11-08)'), '이전 데이터 버튼에 기간 표시(10-19 ~ 11-08)', histT.slice(0, 120));
+const weekRows = () => evalJs(`[...document.querySelectorAll('.rpt-pick')].map(tr=>[...tr.children].map(c=>c.innerText))`);
+let wr = await weekRows();
+chk(wr.length === 3 && wr[0][0] === '전체 합산' && wr[1][0] === '11-02 ~ 11-08' && wr[2][0] === '10-19 ~ 10-25', '주차 표: 전체 합산 + 최신 주부터 2주(그래니 주차는 안 섞임)', wr);
+// 전체: 비용 400만, 직접 350만 → 88%, 직접CPA 4,000,000/28=142,857, 전환수 28
+chk(wr[0][2] === '4,000,000' && wr[0][3] === '88%' && wr[0][4] === '142,857' && wr[0][5] === '28' && wr[0][6] === '3,500,000', '전체 합산: 비용 400만 · 직접ROAS 88% · 직접CPA 142,857 · 전환 28 · 전환값 350만', wr[0]);
+chk(wr[1][1] === '2' && wr[1][3] === '77%' && wr[1][4] === '150,000', '11-02~11-08 주: 2명 · 직접ROAS 77% · 직접CPA 150,000', wr[1]);
+const pcell = (n) => evalJs(`(()=>{const t=[...document.querySelectorAll('.rpt-table')].at(-1);const tr=[...t.querySelectorAll('tbody tr')].find(r=>r.children[0].innerText===${J(n)});return tr?[...tr.children].map(c=>c.innerText):null})()`);
+const y = await pcell('염지윤');
+// 염지윤 전체: 2주 · 비용 300만 · 직접값 300만 → ROAS 100% · CPA 3,000,000/23=130,435 · 전환수 23
+chk(y && y[1] === '2' && y[2] === '3,000,000' && y[9] === '100%' && y[8] === '130,435' && y[10] === '23', '염지윤 전체 합산: 2주 · 비용 300만 · 직접ROAS 100% · 직접CPA 130,435', y);
+await click('.rpt-pick', '10-19 ~ 10-25'); await wait(300);
+const y2 = await pcell('염지윤'), q2 = await pcell('양형석');
+chk(y2 && y2[1] === '1' && y2[2] === '1,000,000' && q2 === null, '10-19~10-25 주만 선택하면 그 주 사람만(양형석 없음)', [y2, q2]);
+const histT2 = await page();
+chk(histT2.includes('빠진 구간') && histT2.includes('10-26~11-01'), '빠진 구간 표시(10-26~11-01)', histT2.slice(-400));
+await click('.rpt-seg button', '이번 주'); await wait(300);
+chk(J(await names()).includes('염지윤') && !J(await names()).includes('그래니전용'), '이번 주로 돌아오면 이번 주 표(이전 데이터 사람 안 섞임)', await names());
 await click('.brand-tab', '그래니살라'); await wait(500);
 chk(J(await names()) === J(['그래니사람']), '그래니살라 탭: 그래니 사람만', await names());
 chk((await page()).includes('그래니살라 리포트'), '제목이 브랜드별');
