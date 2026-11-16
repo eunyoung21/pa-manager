@@ -422,6 +422,20 @@ function collectState(sess) {
   return json({ ok: true, req: cur.req, res: cur.res });
 }
 
+/* ── 리포트 탭 데이터 (관리자 전용, 읽기 전용) ─────────────────
+   `_report` 탭은 내 PC의 성과수집(pa-analytics/scripts/publish-report.mjs)이 매주 서비스계정으로 채운다.
+   A1 = 메타(JSON: updatedAt·기간 등) / 2행 = 머리글 / 3행~ = 한 사람 한 행.
+   앱은 읽기만 한다 — 이 주소로 쓸 수 있는 건 없다(실매출이라 관리자만 읽는다). */
+function reportGet(sess) {
+  var sh = sheet('_report');
+  var last = sh.getLastRow();
+  if (last < 2) return json({ ok: true, meta: null, header: [], rows: [] });
+  var vals = sh.getRange(1, 1, last, sh.getLastColumn()).getValues();
+  var meta = null;
+  try { meta = JSON.parse(vals[0][0]); } catch (e) {}
+  return json({ ok: true, meta: meta, header: vals[1], rows: vals.slice(2) });
+}
+
 /* ── 로그 ──────────────────────────────────────────────────── */
 function logAction(action, sess, e) {
   try {
@@ -483,6 +497,7 @@ function handle(e, body) {
       case 'sheetProxy':return sheetProxy(need(), body);
       case 'collectRun':  return collectRun(need(), body);
       case 'collectState':return collectState(need());
+      case 'reportGet':   return reportGet(mgr());
       case 'ping':     return json({ ok: true, rev: metaGet().rev });
       default:         return json({ error: 'unknown action: ' + action });
     }

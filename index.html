@@ -300,6 +300,18 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 
 /* ACCESS LOG */
 .log-page{flex:1 1 0;overflow-y:auto;padding:16px;}
+.rpt-seg{display:inline-flex;gap:2px;}
+.rpt-seg button{background:none;border:0;color:var(--muted);font-size:12px;padding:3px 10px;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;}
+.rpt-seg button.on{color:var(--text,#e5e5e5);border-bottom-color:var(--text,#e5e5e5);font-weight:600;}
+.rpt-kpis{display:flex;gap:36px;flex-wrap:wrap;margin-bottom:22px;}
+.rpt-kl{font-size:11px;color:var(--muted);margin-bottom:3px;}
+.rpt-kv{font-size:20px;font-weight:700;}
+.rpt-table{border-collapse:collapse;font-size:12.5px;width:100%;min-width:1150px;}
+.rpt-table th,.rpt-table td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;}
+.rpt-th{font-size:11px;font-weight:500;color:var(--muted);cursor:pointer;user-select:none;}
+.rpt-th.on{color:var(--text,#e5e5e5);}
+.rpt-grp{font-size:11px;font-weight:500;color:var(--muted);text-align:center!important;border-bottom:1px solid var(--border);}
+.rpt-sub{font-size:10.5px;color:var(--muted);}
 .log-table{width:100%;border-collapse:collapse;}
 .log-table th{padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--thead-fg);border-bottom:1px solid var(--border);background:var(--thead-bg);position:sticky;top:0;}
 .log-table td{padding:6px 10px;font-size:11px;border-bottom:1px solid var(--border);font-family:monospace;}
@@ -1590,6 +1602,7 @@ const TABS = [
   { key:'shipping', label:'📦 출고' },
   { key:'review',   label:'🎬 영상검수' },
   { key:'dm',       label:'💬 DM 템플릿' },
+  { key:'report',   label:'📈 리포트', mgr:true },
   { key:'settle',   label:'💰 정산', mgr:true, staffOwn:true },
   { key:'finder',   label:'🔎 인플루언서 찾기', mgr:true, staffOwn:true },
 ];
@@ -6622,6 +6635,130 @@ function SheetLinkModal({ brand, onSave, onClose }) {
   </div>;
 }
 
+/* ─── 📈 리포트 (관리자) — 브랜드별 인플루언서 광고 성과 ───
+   데이터는 내 PC의 주간 성과수집이 시트 `_report` 탭에 자동으로 올린다(앱은 읽기만, reportGet).
+   한 사람 = 한 행이라 합계에서 같은 사람이 두 번 세지지 않는다. 직접값은 cafe24 직접전환(소재명 기준). */
+function ReportView({brand}) {
+  const [st,setSt]=useState({loading:true});
+  const [span,setSpan]=useState('w');        // w=이번 주, c=자동 누적
+  const [sortK,setSortK]=useState('cost');
+  const [showAll,setShowAll]=useState(false);
+  const load=()=>{
+    setSt({loading:true});
+    callApi('reportGet').then(j=>{
+      if(j&&j.ok) setSt({data:j});
+      else setSt({err:(j&&(j.msg||j.error))||'불러오지 못했어요',old:!!(j&&j.ok===false&&!j.code)});
+    }).catch(()=>setSt({err:'네트워크 오류'}));
+  };
+  useEffect(load,[]);
+
+  const won=n=>n==null?'–':Math.round(n).toLocaleString('ko-KR');
+  const pct=n=>n==null?'–':Math.round(n)+'%';
+  const d=st.data;
+  const H=useMemo(()=>{const m={};((d&&d.header)||[]).forEach((h,i)=>m[h]=i);return m;},[d]);
+  const rows=useMemo(()=>{
+    if(!d) return [];
+    const pre=span; // 'w' | 'c'
+    const f=(r,k)=>{const v=r[H[k]]; return v===''||v==null?null:Number(v);};
+    return d.rows.filter(r=>r[H.brand]===brand?.name).map(r=>{
+      const cost=f(r,pre+'Cost'),conv=f(r,pre+'Conv'),rev=f(r,pre+'Rev'),atc=f(r,pre+'Atc'),dc=f(r,pre+'DCount'),da=f(r,pre+'DAmount');
+      const has=cost!=null;
+      return {
+        name:r[H.name],channel:r[H.channel],pa:r[H.pa],postedAt:r[H.postedAt],postUrl:r[H.postUrl],status:r[H.status],
+        views:f(r,'views'),viewsPrev:f(r,'viewsPrev'),on:r[H.metaOn],weeks:f(r,'cWeeks'),
+        has,cost,rev,conv,atc,dc,da,
+        cpa:has&&conv>0?cost/conv:null, roas:has&&cost>0&&rev!=null?rev/cost*100:null,
+        atcCost:has&&atc>0?cost/atc:null,
+        dCpa:has&&dc>0?cost/dc:null, dRoas:has&&cost>0&&da!=null?da/cost*100:null,
+      };
+    });
+  },[d,H,brand,span]);
+
+  if(st.loading) return <div className="log-page" style={{color:'var(--muted)'}}>불러오는 중…</div>;
+  if(st.err) return <div className="log-page"><div style={{color:'var(--muted)',fontSize:13,lineHeight:1.8}}>
+    {st.err}<br/>{st.old&&'백엔드(Code.gs)에 리포트 기능을 올린 뒤 Apps Script 새 버전 배포가 필요해요.'}
+  </div><button className="btn btn-ghost" style={{marginTop:10,fontSize:12}} onClick={load}>다시 시도</button></div>;
+
+  const meta=d.meta||{};
+  const shown=(showAll?rows:rows.filter(r=>r.has)).slice().sort((a,b)=>{
+    if(sortK==='name') return String(a.name).localeCompare(String(b.name),'ko');
+    const av=a[sortK],bv=b[sortK]; if(av==null&&bv==null) return 0; if(av==null) return 1; if(bv==null) return -1; return bv-av;
+  });
+  const ad=rows.filter(r=>r.has);
+  const S=k=>ad.reduce((s,r)=>s+(r[k]||0),0);
+  const T={cost:S('cost'),rev:S('rev'),conv:S('conv'),atc:S('atc'),dc:S('dc'),da:S('da')};
+  const wk=meta.weeks&&meta.weeks[brand?.name];
+  const updated=meta.updatedAt?new Date(meta.updatedAt):null;
+  const staleDays=updated?Math.floor((Date.now()-updated.getTime())/864e5):null;
+  const th=(k,label,right=true)=><th className={'rpt-th'+(sortK===k?' on':'')} style={{textAlign:right?'right':'left'}} onClick={()=>setSortK(k)}>{label}</th>;
+  const Kpi=({l,v})=><div><div className="rpt-kl">{l}</div><div className="rpt-kv">{v}</div></div>;
+
+  return <div className="log-page rpt">
+    <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap',marginBottom:6}}>
+      <span style={{fontWeight:700,fontSize:15}}>{brand?.name} 리포트</span>
+      <span className="rpt-seg">
+        <button className={span==='w'?'on':''} onClick={()=>setSpan('w')}>이번 주{wk&&wk.start?` (${wk.start.slice(5)}~${wk.end.slice(5)})`:''}</button>
+        <button className={span==='c'?'on':''} onClick={()=>setSpan('c')}>자동 누적{meta.ledgerSince?` (${meta.ledgerSince.slice(5)}~)`:''}</button>
+      </span>
+      <button className="btn btn-ghost" style={{fontSize:11,marginLeft:'auto'}} onClick={load}>새로고침</button>
+    </div>
+    <div style={{fontSize:11,color:staleDays!=null&&staleDays>9?'var(--red)':'var(--muted)',marginBottom:14}}>
+      {updated?`갱신 ${updated.toLocaleDateString('ko-KR')} ${updated.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})} · 인스타 수집 ${meta.snapshotDate||'–'}`:'아직 올라온 데이터가 없어요'}
+      {staleDays!=null&&staleDays>9&&' — 자동 갱신이 멈춘 것 같아요'}
+    </div>
+
+    <div className="rpt-kpis">
+      <Kpi l="광고 집행 인원" v={ad.length+'명'}/>
+      <Kpi l="비용" v={won(T.cost)}/>
+      <Kpi l="직접 ROAS" v={pct(T.cost>0?T.da/T.cost*100:null)}/>
+      <Kpi l="직접 CPA" v={won(T.dc>0?T.cost/T.dc:null)}/>
+      <Kpi l="직접 전환수" v={won(T.dc)}/>
+      <Kpi l="직접 전환값" v={won(T.da)}/>
+    </div>
+
+    <div style={{overflowX:'auto'}}>
+    <table className="rpt-table">
+      <thead>
+        <tr><th colSpan={4}/><th colSpan={6} className="rpt-grp">매체 신고값</th><th colSpan={4} className="rpt-grp">직접 (cafe24)</th></tr>
+        <tr>
+          {th('name','이름',false)}{th('views','조회수')}<th className="rpt-th" style={{textAlign:'right',cursor:'default'}}>{meta.prevDate?`${meta.prevDate.slice(5)} 대비`:'지난 수집 대비'}</th><th className="rpt-th" style={{cursor:'default'}}>광고</th>
+          {th('cost','비용')}{th('rev','매출')}{th('conv','전환')}{th('cpa','CPA')}{th('roas','ROAS')}{th('atcCost','담기당비용')}
+          {th('dCpa','직접CPA')}{th('dRoas','직접ROAS')}{th('dc','직접전환수')}{th('da','직접전환값')}
+        </tr>
+      </thead>
+      <tbody>
+        {shown.map((r,i)=>{
+          const dv=r.views!=null&&r.viewsPrev!=null&&r.viewsPrev>0?(r.views-r.viewsPrev)/r.viewsPrev*100:null;
+          const live=r.status==='ok';
+          return <tr key={i}>
+            <td style={{textAlign:'left'}}>
+              {r.postUrl&&live?<a href={r.postUrl} target="_blank" rel="noreferrer" style={{color:'inherit'}}>{r.name||r.channel}</a>:(r.name||r.channel)}
+              <div className="rpt-sub">{r.channel}{r.pa?` · ${r.pa}`:''}</div>
+            </td>
+            <td>{live?won(r.views):'확인 안 됨'}</td>
+            <td style={{color:'var(--muted)'}}>{dv==null?'–':(dv>0?'+':'')+Math.round(dv)+'%'}</td>
+            <td style={{textAlign:'left',color:'var(--muted)'}}>{r.on==='Y'?'ON':r.on==='N'?'OFF':'–'}</td>
+            <td>{won(r.cost)}</td><td>{won(r.rev)}</td><td>{won(r.conv)}</td><td>{won(r.cpa)}</td><td>{pct(r.roas)}</td><td>{won(r.atcCost)}</td>
+            <td>{won(r.dCpa)}</td>
+            <td style={{fontWeight:600,color:r.dRoas!=null&&r.dRoas<100?'var(--red)':undefined}}>{pct(r.dRoas)}</td>
+            <td>{won(r.dc)}</td><td>{won(r.da)}</td>
+          </tr>;
+        })}
+        {!shown.length&&<tr><td colSpan={14} style={{textAlign:'center',color:'var(--muted)',padding:24}}>{span==='c'?'누적은 자동 수집이 돈 주부터 쌓여요.':'이번 주 광고 집행 기록이 없어요.'}</td></tr>}
+      </tbody>
+    </table>
+    </div>
+    <label style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:'var(--muted)',marginTop:12,cursor:'pointer'}}>
+      <input type="checkbox" checked={showAll} onChange={e=>setShowAll(e.target.checked)}/> 광고 기록이 없는 인원도 보기 ({rows.length-ad.length}명)
+    </label>
+    <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.8,marginTop:14}}>
+      · 조회수는 인스타 표기 그대로(만 단위 반올림)라 추세용이에요. 광고로 태운 게시물은 조회수가 부풀 수 있어요.<br/>
+      · 직접 값은 cafe24 직접전환(소재명 기준), 매체 신고값은 매체가 주장하는 값이라 보통 더 커요. 손익 판단은 직접 값으로 하세요.<br/>
+      · 표본이 적은 칸(전환 15건 미만)은 순위로 결론내지 마세요.
+    </div>
+  </div>;
+}
+
 function AccessLogView() {
   const [logs, setLogs] = useState(null);
   useEffect(()=>{
@@ -7817,7 +7954,7 @@ function AppMain({ authInfo, onLogout }) {
     if(visibleTabs.length && !visibleTabs.some(t=>t.key===tab)) setTab(visibleTabs[0].key);
   },[authInfo]);
   // 자주 쓰는 핵심 탭만 노출, 나머지(Claude·DM·가이드·계정·로그)는 '⋯ 더보기'로 접어 어지러움 감소.
-  const PRIMARY_TABS=new Set(['dashboard','step2','finder','shipping','review','dm','settle','claudeS2']);
+  const PRIMARY_TABS=new Set(['dashboard','step2','finder','shipping','review','dm','report','settle','claudeS2']);
   const primaryTabs=visibleTabs.filter(t=>PRIMARY_TABS.has(t.key));
   const moreTabs=visibleTabs.filter(t=>!PRIMARY_TABS.has(t.key));
   const activeMore=moreTabs.find(t=>t.key===tab);
@@ -8017,6 +8154,7 @@ function AppMain({ authInfo, onLogout }) {
         setSettlements={setSettlements}
         staffPA={isManager?null:(authInfo?.pa||'')}
       />}
+      {tab==='report'&&isManager&&<ReportView brand={brand}/>}
       {tab==='users'&&<UserMgmtView brands={brands}/>}
       {tab==='log'&&<AccessLogView/>}
     </div>
