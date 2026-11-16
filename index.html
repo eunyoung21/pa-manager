@@ -303,6 +303,18 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 .rpt-seg{display:inline-flex;gap:2px;}
 .rpt-seg button{background:none;border:0;color:var(--muted);font-size:12px;padding:3px 10px;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;}
 .rpt-seg button.on{color:var(--text,#e5e5e5);border-bottom-color:var(--text,#e5e5e5);font-weight:600;}
+.rpt-weeks{display:flex;flex-wrap:wrap;gap:4px 6px;margin:4px 0 16px;}
+.rpt-weeks button{font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;border-bottom-width:1px;}
+.rpt-weeks button.on{border-color:var(--text,#e5e5e5);}
+.rpt-ins{margin:0 0 26px;padding:16px 0 4px;border-top:1px solid var(--border);font-size:13.5px;line-height:1.8;}
+.rpt-ins summary{cursor:pointer;font-weight:700;font-size:14.5px;margin-bottom:4px;}
+.rpt-ins .b{font-size:12.5px;color:var(--muted);margin:4px 0 12px;}
+.rpt-ins ul{margin:0;padding:0;list-style:none;}
+.rpt-ins li{display:flex;gap:14px;padding:7px 0;border-top:1px solid var(--border);}
+.rpt-ins li:first-child{border-top:0;}
+.rpt-ins .lv{flex:0 0 44px;font-size:12.5px;color:var(--muted);}
+.rpt-ins .lv.grow{color:var(--text,#e5e5e5);font-weight:700;}
+.rpt-ins .lv.cut{color:var(--red);font-weight:700;}
 .rpt-kpis{display:flex;gap:36px;flex-wrap:wrap;margin-bottom:22px;}
 .rpt-kl{font-size:11px;color:var(--muted);margin-bottom:3px;}
 .rpt-kv{font-size:20px;font-weight:700;}
@@ -3300,6 +3312,103 @@ function PaManageModal({ paList, setPaList, onClose }) {
 }
 
 /* ─── 브랜드 추가 모달 ─── */
+/* ─── ⭐ 성사 모음 — 협업 성사자를 카테고리별 카드로 모아 보는 화면 (2026-11-16) ───
+   한 사람 = 카드 하나(팔로워·평균 조회수·성별/연령·협업비). 값은 성사 행(step2Rows·claudeStep2Rows)에 쌓인다.
+   avgViews·pic·gender·ageBand 는 리스트업 쪽 scripts/enrich-deals.mjs 가 채우고, 여기서 고치면 demoAuto 를 꺼서 사람 값으로 굳힌다. */
+const DEAL_CATS=['낚시','캠핑','등산','골프','러닝','요가','필라테스','헬스','다이어트','뷰티','네일','헤어','패션','육아','반려동물','요리','베이킹','먹방','카페','여행','인테리어','반려식물','약사','건강','재테크','독서','자기계발','사진','음악','댄스','그림','게임','자동차','교육'];
+const DEAL_AGES=['20대 이하','30대','40대','50대+'];
+function koNum(v){ // "1,250"·"2.4만"·"163000" → 숫자(없으면 0)
+  const s=String(v==null?'':v).replace(/[,\s원명]/g,''); if(!s) return 0;
+  const m=s.match(/^([\d.]+)(억|만|천|k|K|m|M)?$/); if(!m) return 0;
+  const n=parseFloat(m[1]); if(!isFinite(n)) return 0;
+  return Math.round(n*({'억':1e8,'만':1e4,'천':1e3,k:1e3,K:1e3,m:1e6,M:1e6}[m[2]]||1));
+}
+function koFmt(n){ // 4900 → "4.9천", 21000 → "2.1만"
+  if(!n) return '-';
+  const f=(x)=>String(Math.round(x*10)/10).replace(/\.0$/,'');
+  if(n>=1e8) return f(n/1e8)+'억'; if(n>=1e4) return f(n/1e4)+'만'; if(n>=1e3) return f(n/1e3)+'천'; return String(n);
+}
+function DealBoard({ brand, onClose, onEdit, canEdit }){
+  const [cat,setCat]=useState('');
+  const keyOf=r=>String(r.username||igHandle(r.link)||r.name||'').toLowerCase();
+  const people=useMemo(()=>{
+    const map=new Map();
+    [...(brand.step2Rows||[]),...(brand.claudeStep2Rows||[])].forEach(r=>{
+      if(!(r.dealDone==='Y'||r.finalDone==='Y')) return;
+      const k=keyOf(r); if(!k) return;
+      const o=map.get(k)||{key:k,name:'',link:'',followers:'',rate:'',category:'',avgViews:0,gender:'',ageBand:'',pic:'',demoAuto:'',catNew:'',dealDate:''};
+      // 같은 사람이 두 탭에 있으면 값이 있는 쪽으로 합친다
+      ['name','link','followers','rate','category','gender','ageBand','pic','demoAuto','catNew'].forEach(f=>{ if(!o[f]&&r[f]) o[f]=r[f]; });
+      if(!o.avgViews&&r.avgViews) o.avgViews=koNum(r.avgViews);
+      o.dealDate=o.dealDate||r.dealDate||r.date||'';
+      map.set(k,o);
+    });
+    return [...map.values()].map(p=>({...p,cat:p.category||nicheOf([p.name,p.key].join(' '))||'기타',fol:koNum(p.followers),rt:koNum(p.rate)}));
+  },[brand]);
+  const groups=useMemo(()=>{
+    const g={}; people.forEach(p=>{(g[p.cat]=g[p.cat]||[]).push(p);});
+    return Object.entries(g).map(([c,list])=>{
+      const avg=f=>{const v=list.map(f).filter(x=>x>0); return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):0;};
+      return {cat:c,list:[...list].sort((a,b)=>b.fol-a.fol),fol:avg(p=>p.fol),views:avg(p=>p.avgViews),rate:avg(p=>p.rt)};
+    }).sort((a,b)=>b.list.length-a.list.length||a.cat.localeCompare(b.cat));
+  },[people]);
+  const shown=cat?groups.filter(g=>g.cat===cat):groups;
+  const sel={border:'none',background:'transparent',color:'inherit',font:'inherit',fontSize:12,fontWeight:500,textAlign:'center',cursor:canEdit?'pointer':'default',maxWidth:'100%',padding:0,appearance:'none',WebkitAppearance:'none'};
+  const cell={flex:1,textAlign:'center',padding:'2px 4px',minWidth:0};
+  const lbl={display:'block',fontSize:10,color:'var(--muted)',marginBottom:2};
+  const Chip=({on,children,...p})=><button {...p} style={{padding:'4px 11px',borderRadius:14,fontSize:12,cursor:'pointer',border:'1px solid '+(on?'var(--text)':'var(--border)'),background:on?'var(--text)':'transparent',color:on?'var(--surface)':'var(--muted)'}}>{children}</button>;
+  return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal" style={{width:'min(980px,94vw)',maxHeight:'90vh'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,flexWrap:'wrap'}}>
+        <div className="modal-title" style={{margin:0}}>⭐ {brand.name} 성사 모음 <span style={{fontWeight:400,color:'var(--muted)',fontSize:12}}>· {people.length}명</span></div>
+        <span style={{flex:1}}/>
+        <button className="btn btn-ghost" style={{fontSize:11}} onClick={onClose}>닫기</button>
+      </div>
+      {people.length===0
+        ? <div style={{padding:'40px 0',textAlign:'center',color:'var(--muted)',fontSize:12}}>아직 협업 성사된 사람이 없어요.</div>
+        : <>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:6}}>
+            <Chip on={!cat} onClick={()=>setCat('')}>전체</Chip>
+            {groups.map(g=><Chip key={g.cat} on={cat===g.cat} onClick={()=>setCat(cat===g.cat?'':g.cat)}>{g.cat} {g.list.length}</Chip>)}
+          </div>
+          {shown.map(g=><div key={g.cat}>
+            <div style={{display:'flex',alignItems:'baseline',gap:10,margin:'16px 0 8px',flexWrap:'wrap'}}>
+              <b style={{fontSize:14,fontWeight:600}}>{g.cat}</b>
+              <span style={{fontSize:11,color:'var(--muted)'}}>{g.list.length}명 · 평균 팔로워 {koFmt(g.fol)} · 평균 조회수 {koFmt(g.views)} · 평균 협업비 {g.rate?koFmt(g.rate)+'원':'-'}</span>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
+              {g.list.map(p=><div key={p.key} style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:10,padding:12}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  {p.pic?<img src={p.pic} alt="" style={{width:40,height:40,borderRadius:'50%',objectFit:'cover',flex:'none'}}/>
+                    :<div style={{width:40,height:40,borderRadius:'50%',background:'var(--border)',flex:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'var(--muted)'}}>{(p.name||p.key||'?').slice(0,1)}</div>}
+                  <div style={{minWidth:0}}>
+                    <a href={p.link||('https://www.instagram.com/'+p.key+'/')} target="_blank" rel="noopener" style={{fontSize:12,color:'inherit',textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name||p.key}</a>
+                    <div style={{fontSize:15,fontWeight:600}}>팔로워 {koFmt(p.fol)}</div>
+                  </div>
+                </div>
+                <div style={{display:'flex',marginTop:10,paddingTop:8,borderTop:'1px solid var(--border)'}}>
+                  <div style={cell}><span style={lbl}>평균 조회수</span><b style={{fontSize:12,fontWeight:500}}>{koFmt(p.avgViews)}</b></div>
+                  <div style={{...cell,borderLeft:'1px solid var(--border)',borderRight:'1px solid var(--border)'}}><span style={lbl}>성별·연령{p.demoAuto==='Y'?' (추정)':''}</span>
+                    <div style={{display:'flex',justifyContent:'center',gap:4}}>
+                      <select disabled={!canEdit} value={p.gender} style={sel} onChange={e=>onEdit(p.key,{gender:e.target.value,demoAuto:''})}><option value="">-</option><option>여</option><option>남</option></select>
+                      <select disabled={!canEdit} value={p.ageBand} style={sel} onChange={e=>onEdit(p.key,{ageBand:e.target.value,demoAuto:''})}><option value="">-</option>{DEAL_AGES.map(a=><option key={a}>{a}</option>)}</select>
+                    </div></div>
+                  <div style={cell}><span style={lbl}>협업비</span><b style={{fontSize:12,fontWeight:500}}>{p.rt?koFmt(p.rt)+'원':'-'}</b></div>
+                </div>
+                <div style={{marginTop:6,textAlign:'right'}}>
+                  <select disabled={!canEdit} value={p.category||''} style={{...sel,fontSize:10,fontWeight:400,color:'var(--muted)',textAlign:'right'}} title="카테고리 바꾸기" onChange={e=>onEdit(p.key,{category:e.target.value,catNew:''})}>
+                    <option value="">{p.cat}{p.catNew==='Y'?' · 새 분류':''}</option>
+                    {DEAL_CATS.map(c=><option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>)}
+            </div>
+          </div>)}
+        </>}
+    </div>
+  </div>;
+}
+
 function BrandAddModal({ existingNames, onAdd, onClose }) {
   const [name,setName]=useState('');
   const dup = existingNames.some(n=>n.trim()===name.trim());
@@ -6766,18 +6875,14 @@ function SheetLinkModal({ brand, onSave, onClose }) {
 
 /* 「어떤 유형이 잘 되나 → 이런 사람으로 확장」 — 수집이 누적 데이터로 계산해 _report 메타(insights)에 싣는다. 읽기 전용. */
 const RPT_IL={grow:'확장',cut:'축소',note:'참고'};
-function ReportInsights({ins}){
-  const [wk,setWk]=useState(null);
+function ReportInsights({ins,weekKey}){
+  // 어느 주를 볼지는 리포트 위쪽 주차 라벨이 정한다(weekKey). 없거나 그 주 계산이 없으면 가장 최근 주.
   const weeks=(ins&&ins.weeks)||[];
-  const key=wk&&weeks.includes(wk)?wk:weeks[0];   // 기본은 가장 최근 주
+  const key=weekKey&&weeks.includes(weekKey)?weekKey:weeks[0];
   const cur=ins&&ins.byWeek&&key?ins.byWeek[key]:ins;
   if(!cur||!cur.lines||!cur.lines.length) return null;
-  const md=s=>String(s||'').slice(5).replace('-','/');
   return <details className="rpt-ins" open>
     <summary>섭외 확장 제안</summary>
-    {weeks.length>1&&<div className="rpt-seg" style={{flexWrap:'wrap',margin:'6px 0 2px'}}>
-      {weeks.map(w=><button key={w} className={w===key?'on':''} onClick={()=>setWk(w)}>{md(ins.byWeek[w].start)}~{md(w)}</button>)}
-    </div>}
     <div className="b">{cur.basis}{weeks.length>1&&' · 그 주까지 쌓인 데이터 기준'}</div>
     <ul>{cur.lines.map((l,i)=><li key={i}><span className={'lv '+l.kind}>{RPT_IL[l.kind]||''}</span><span style={l.kind==='note'?{color:'var(--muted)'}:undefined}>{l.text}</span></li>)}</ul>
   </details>;
@@ -6791,7 +6896,8 @@ function ReportInsights({ins}){
 function ReportView({brand}) {
   const [st,setSt]=useState({loading:true});
   const [span,setSpan]=useState('w');            // w=이번 주, h=이전 데이터
-  const [histMode,setHistMode]=useState('weeks'); // weeks=주차별(최신 주부터), people=전체 기간 사람별 합산
+  const [histMode,setHistMode]=useState('weeks'); // weeks=고른 주차 하나, people=전체 기간 사람별 합산
+  const [selWeek,setSelWeek]=useState(null);       // 주차 라벨로 고른 주(끝 날짜). 없으면 가장 최근 지난 주
   const [sortK,setSortK]=useState('setAt');
   const [showAll,setShowAll]=useState(false);
   const load=()=>{
@@ -6888,22 +6994,28 @@ function ReportView({brand}) {
   const hr=h.weeks.length?`${md(h.weeks[h.weeks.length-1].start)} ~ ${md(h.weeks[0].end)}`:'';
   const hWho=r=>who.get(nrm(r.name))||{};
   const goSpan=(s)=>{setSpan(s);setSortK(s==='w'?'setAt':'cost');};
+  // 주차 라벨: 이번 주 → 지난 주들(최신순) → 전체 합산. 라벨 하나가 표와 «섭외 확장 제안»을 함께 바꾼다.
+  const selW=h.weeks.find(w=>w.end===selWeek)||h.weeks[0];
+  const pickWeek=e=>{setSelWeek(e);setHistMode('weeks');goSpan('h');};
+  const pickAll=()=>{setHistMode('people');goSpan('h');};
+  const insWeek=span==='w'?(wk&&wk.end):(histMode==='weeks'&&selW?selW.end:null);
 
   return <div className="log-page rpt">
     <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap',marginBottom:6}}>
       <span style={{fontWeight:700,fontSize:15}}>{brand?.name} 리포트</span>
-      <span className="rpt-seg">
-        <button className={span==='w'?'on':''} onClick={()=>goSpan('w')}>이번 주{wk&&wk.start?` (${md(wk.start)}~${md(wk.end)})`:''}</button>
-        <button className={span==='h'?'on':''} onClick={()=>goSpan('h')}>이전 데이터{hr?` (${hr})`:''}</button>
-      </span>
       <button className="btn btn-ghost" style={{fontSize:11,marginLeft:'auto'}} onClick={load}>새로고침</button>
+    </div>
+    <div className="rpt-seg rpt-weeks" style={{flexWrap:'wrap',marginBottom:8}}>
+      <button className={span==='w'?'on':''} onClick={()=>goSpan('w')}>이번 주{wk&&wk.start?` ${md(wk.start)}~${md(wk.end)}`:''}</button>
+      {h.weeks.map(w=><button key={w.end} className={span==='h'&&histMode==='weeks'&&selW&&selW.end===w.end?'on':''} onClick={()=>pickWeek(w.end)}>{md(w.start)}~{md(w.end)}</button>)}
+      {h.weeks.length>0&&<button className={span==='h'&&histMode==='people'?'on':''} onClick={pickAll}>전체 합산{hr?` (${hr})`:''}</button>}
     </div>
     <div style={{fontSize:11,color:staleDays!=null&&staleDays>9?'var(--red)':'var(--muted)',marginBottom:14}}>
       {updated?`갱신 ${updated.toLocaleDateString('ko-KR')} ${updated.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`:'아직 올라온 데이터가 없어요'}
       {staleDays!=null&&staleDays>9&&' — 자동 갱신이 멈춘 것 같아요'}
     </div>
 
-    <ReportInsights ins={meta.insights&&meta.insights[brand?.name]}/>
+    <ReportInsights ins={meta.insights&&meta.insights[brand?.name]} weekKey={insWeek}/>
     {span==='w'&&<>
       <Kpis a={Tn} n={ad.length} label="광고 집행 인원"/>
       <div style={{overflowX:'auto'}}>
@@ -6931,13 +7043,9 @@ function ReportView({brand}) {
     {span==='h'&&(h.weeks.length===0
       ? <div style={{color:'var(--muted)',fontSize:13,padding:'24px 0'}}>이전 데이터가 아직 올라오지 않았어요.</div>
       : <>
-        <Kpis a={h.tot} n={h.totN} label="기간 내 집행 인원"/>
-        <div style={{marginBottom:14}}>
-          <span className="rpt-seg">
-            <button className={histMode==='weeks'?'on':''} onClick={()=>setHistMode('weeks')}>주차별</button>
-            <button className={histMode==='people'?'on':''} onClick={()=>setHistMode('people')}>사람별 합산</button>
-          </span>
-        </div>
+        {histMode==='weeks'&&selW
+          ? <Kpis a={selW} n={selW.n} label="그 주 집행 인원"/>
+          : <Kpis a={h.tot} n={h.totN} label="기간 내 집행 인원"/>}
         <div style={{overflowX:'auto'}}>
         {histMode==='weeks'
           ? <table className="rpt-table" style={{minWidth:1100}}>
@@ -6946,7 +7054,7 @@ function ReportView({brand}) {
                 <tr>{th('name','이름 · 채널',false)}{plain('라이브',true)}<MetricHead/></tr>
               </thead>
               <tbody>
-                {h.weeks.map(w=><React.Fragment key={w.end}>
+                {[selW].filter(Boolean).map(w=><React.Fragment key={w.end}>
                   <tr className="rpt-wkrow"><td colSpan={12} style={{textAlign:'left'}}>
                     <b>{md(w.start)} ~ {md(w.end)}</b>
                     <span className="rpt-wksum">{w.n}명 · 비용 {won(w.cost)} · 직접ROAS <span style={{color:w.dRoas!=null&&w.dRoas<100?'var(--red)':undefined,fontWeight:600}}>{pct(w.dRoas)}</span> · 직접전환 {won(w.dc)}</span>
@@ -7096,6 +7204,7 @@ function AppMain({ authInfo, onLogout }) {
   const [addBrandOpen,setAddBrandOpen]= useState(false); // ＋ 브랜드 추가 모달
   const [ctMenuOpen,  setCtMenuOpen]  = useState(false); // 계약서 양식 ▾ 메뉴
   const [ctGenOpen,   setCtGenOpen]   = useState(false); // 계약서 생성 모달
+  const [dealOpen,    setDealOpen]    = useState(false); // ⭐ 성사 모음 모달
   const [moreOpen,    setMoreOpen]    = useState(false); // ⋯ 더보기 탭 드롭다운
   const [privacyPrefill, setPrivacyPrefill] = useState(null);
   const [privacyModalRow, setPrivacyModalRow] = useState(null); // 컨택현황 개인정보 제출 → 개인정보 모달 대상
@@ -8215,6 +8324,13 @@ function AppMain({ authInfo, onLogout }) {
         {howOpen&&<HowToModal onClose={()=>setHowOpen(false)}/>}
         {/* 계약서 생성 — 모델 정보 입력 후 잠금 PDF 다운로드 (브랜드별 광고주 자동) */}
         <button className="contract-link" style={{cursor:'pointer'}} onClick={()=>setCtGenOpen(true)} title="모델명·모델료·계약일자 입력 후 계약서 PDF 생성">📄 계약서 생성</button>
+        <button className="contract-link" style={{cursor:'pointer'}} onClick={()=>setDealOpen(true)} title="협업 성사된 사람들을 카테고리별로 모아 보기">⭐ 성사 모음</button>
+        {dealOpen&&brand&&<DealBoard brand={brand} canEdit={true} onClose={()=>setDealOpen(false)}
+          onEdit={(key,patch)=>updateBrand(bId,b=>{
+            const hit=r=>String(r.username||igHandle(r.link)||r.name||'').toLowerCase()===key&&(r.dealDone==='Y'||r.finalDone==='Y');
+            const fix=rows=>(rows||[]).map(r=>hit(r)?{...r,...patch}:r);
+            return {...b,step2Rows:fix(b.step2Rows),claudeStep2Rows:fix(b.claudeStep2Rows)};
+          })}/>}
         {ctGenOpen&&<ContractGenModal brandId={bId} brandName={brand?.name} onClose={()=>setCtGenOpen(false)}
           template={brand?.contractTemplate} canEdit={isManager}
           onUploadTemplate={uploadContractTemplate} onRemoveTemplate={removeContractTemplate}/>}

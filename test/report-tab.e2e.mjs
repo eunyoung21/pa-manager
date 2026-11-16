@@ -118,34 +118,37 @@ chk(J(await names()) .includes('광고없는사람'), '광고 없는 인원도 �
 // ── 섭외 확장 제안(누적 인사이트) ──
 const insTxt = await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`);
 chk(insTxt.includes('섭외 확장 제안') && insTxt.includes('확장') && insTxt.includes('카테고리 육아') && insTxt.includes('참고'), '섭외 확장 제안: 확장/참고 문장과 근거 기간 표시', insTxt);
-chk(insTxt.includes('11/09~11/15') && insTxt.includes('11/02~11/08'), '섭외 확장 제안: 주차 라벨 표시', insTxt);
-await click('.rpt-ins .rpt-seg button', '11/02~11/08'); await wait(300);
+chk((await evalJs(`document.querySelector('.rpt-weeks')?.innerText||''`)).includes('11-02~11-08'), '주차 라벨 표시(이번 주 + 지난 주)');
+await click('.rpt-weeks button', '11-02~11-08'); await wait(300);
 const insTxt2 = await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`);
 chk(insTxt2.includes('조회수 3만 미만 구간은 약해요') && insTxt2.includes('10-19 ~ 11-08 누적') && !insTxt2.includes('카테고리 육아'), '라벨을 누르면 그 주 내용으로 바뀜', insTxt2);
-await click('.rpt-ins .rpt-seg button', '11/09~11/15'); await wait(300);
+await click('.rpt-weeks button', '이번 주'); await wait(300);
 chk((await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`)).includes('카테고리 육아'), '다시 최근 주 라벨을 누르면 최근 주 내용', '');
-// ── 이전 데이터: 기본은 주차별(최신 주부터) ──
-await click('.rpt-seg button', '이전 데이터'); await wait(400);
+// ── 주차 라벨: 누르면 그 주 인플루언서만 ──
+const labels = await evalJs(`[...document.querySelectorAll('.rpt-weeks button')].map(b=>b.innerText)`);
+chk(labels.length === 4 && labels[0].startsWith('이번 주') && labels[1] === '11-02~11-08' && labels[2] === '10-19~10-25' && labels[3].startsWith('전체 합산'), '라벨: 이번 주 → 최신 지난 주 → 오래된 주 → 전체 합산', labels);
+await click('.rpt-weeks button', '11-02~11-08'); await wait(400);
 const histT = await page();
-chk(histT.includes('이전 데이터 (10-19 ~ 11-08)'), '이전 데이터 버튼에 기간 표시(10-19 ~ 11-08)', histT.slice(0, 120));
-chk(/기간 내 집행 인원\s+2명\s+비용\s+4,000,000\s+직접 ROAS\s+88%/.test(histT), '이전 데이터 합계: 비용 400만 · 직접ROAS 88% (그래니 주차 안 섞임)', histT.slice(0, 260));
+chk(/그 주 집행 인원\s+2명\s+비용\s+3,000,000\s+직접 ROAS\s+77%/.test(histT), '11-02~11-08 라벨: 그 주 합계(2명 · 비용 300만 · 직접ROAS 77%)', histT.slice(0, 300));
 const blocks = () => evalJs(`(()=>{const out=[];let cur=null;for(const tr of document.querySelectorAll('.rpt-table tbody tr')){if(tr.classList.contains('rpt-wkrow')){cur={head:tr.innerText,rows:[]};out.push(cur);}else if(cur){cur.rows.push([...tr.children].map(c=>c.innerText));}}return out;})()`);
-const bl = await blocks();
-chk(bl.length === 2 && bl[0].head.startsWith('11-02 ~ 11-08') && bl[1].head.startsWith('10-19 ~ 10-25'), '주차 블록: 최신 주가 먼저(11-02~11-08 → 10-19~10-25)', bl.map((x) => x.head));
-chk(bl[0].head.includes('2명') && bl[0].head.includes('3,000,000') && bl[0].head.includes('77%'), '11-02~11-08 주 머리: 2명 · 비용 300만 · 직접ROAS 77%', bl[0].head);
-// 이전 데이터 열: 0 이름·채널 · 1 라이브 · 2 비용 · 3 매출 · 4 전환 · 5 CPA · 6 ROAS · 7 담기당 · 8 직접CPA · 9 직접ROAS · 10 직접전환수 · 11 직접전환값
+let bl = await blocks();
+chk(bl.length === 1 && bl[0].head.startsWith('11-02 ~ 11-08') && bl[0].rows.length === 2, '그 주 한 블록만 보임(다른 주 사람 안 섞임)', bl.map((x) => x.head));
+// 열: 0 이름·채널 · 1 라이브 · 2 비용 · 3 매출 · 4 전환 · 5 CPA · 6 ROAS · 7 담기당 · 8 직접CPA · 9 직접ROAS · 10 직접전환수 · 11 직접전환값
 const r0 = bl[0].rows[0], r1 = bl[0].rows[1];
 chk(r0 && r0[0].startsWith('염지윤') && r0[0].includes('yjy') && r0[1] === 'ON' && r0[2] === '2,000,000' && r0[9] === '90%' && r0[8] === '133,333', '그 주 염지윤: 채널 yjy · 라이브 ON(지금 상태) · 비용 200만 · 직접ROAS 90% · 직접CPA 133,333', r0);
 chk(r1 && r1[0].startsWith('양형석') && r1[1] === 'OFF' && r1[2] === '1,000,000', '그 주 양형석: 비용순 두 번째 · 라이브 OFF', r1);
-chk(bl[1].rows.length === 1 && bl[1].rows[0][2] === '1,000,000' && bl[1].rows[0][9] === '120%', '10-19~10-25 주: 염지윤만 · 직접ROAS 120%', bl[1].rows);
+chk((await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`)).includes('조회수 3만 미만 구간은 약해요'), '그 주 라벨을 누르면 확장 제안도 그 주 내용으로 같이 바뀜');
+await click('.rpt-weeks button', '10-19~10-25'); await wait(300);
+bl = await blocks();
+chk(bl.length === 1 && bl[0].rows.length === 1 && bl[0].rows[0][2] === '1,000,000' && bl[0].rows[0][9] === '120%', '10-19~10-25 라벨: 염지윤만 · 직접ROAS 120%', bl);
 chk((await page()).includes('빠진 구간') && (await page()).includes('10-26~11-01'), '빠진 구간 표시(10-26~11-01)', (await page()).slice(-300));
-// ── 사람별 합산 ──
-await click('.rpt-seg button', '사람별 합산'); await wait(300);
+// ── 전체 합산(사람별) ──
+await click('.rpt-weeks button', '전체 합산'); await wait(300);
+chk(/기간 내 집행 인원\s+2명\s+비용\s+4,000,000\s+직접 ROAS\s+88%/.test(await page()), '전체 합산 합계: 비용 400만 · 직접ROAS 88% (그래니 주차 안 섞임)', (await page()).slice(0, 300));
 const pm = await evalJs(`(()=>{const tr=[...document.querySelectorAll('.rpt-table tbody tr')].find(t=>t.children[0].querySelector('span')?.textContent==='염지윤');return tr?[...tr.children].map(c=>c.innerText):null})()`);
-// 열: 0 이름 · 1 라이브 · 2 집행 주 · 3 비용 ... 9 직접CPA · 10 직접ROAS · 11 전환수 — 염지윤 2주 · 비용 300만 · 직접 300만 → 100% · CPA 3,000,000/23=130,435
-chk(pm && pm[2] === '2' && pm[3] === '3,000,000' && pm[10] === '100%' && pm[9] === '130,435' && pm[11] === '23', '사람별 합산: 염지윤 2주 · 비용 300만 · 직접ROAS 100% · 직접CPA 130,435', pm);
-chk(!(await evalJs(`!!document.querySelector('.rpt-wkrow')`)), '사람별 합산에는 주차 머리줄이 없음');
-await click('.rpt-seg button', '이번 주'); await wait(300);
+chk(pm && pm[2] === '2' && pm[3] === '3,000,000' && pm[10] === '100%' && pm[9] === '130,435' && pm[11] === '23', '전체 합산: 염지윤 2주 · 비용 300만 · 직접ROAS 100% · 직접CPA 130,435', pm);
+chk(!(await evalJs(`!!document.querySelector('.rpt-wkrow')`)), '전체 합산에는 주차 머리줄이 없음');
+await click('.rpt-weeks button', '이번 주'); await wait(300);
 chk(J(await names()).includes('염지윤') && !J(await names()).includes('그래니전용'), '이번 주로 돌아오면 이번 주 표(이전 데이터 사람 안 섞임)', await names());
 await click('.brand-tab', '그래니살라'); await wait(500);
 chk(J(await names()) === J(['그래니사람']), '그래니살라 탭: 그래니 사람만', await names());
