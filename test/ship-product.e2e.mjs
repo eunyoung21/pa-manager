@@ -1,4 +1,4 @@
-/* 출고 상품명 '베이스튠(1)' 저장값 → '베이스튠 (1)' 로 보이고(수량 (1) 중복 없음) 데이터도 바로잡히는지 — node test/ship-product.e2e.mjs (2026-11-16) */
+/* 출고 상품명 '베이스튠(1)' 저장값 → '베이스튠(1)' 로 보이고(수량 (1) 중복 없음) 데이터도 바로잡히는지 — node test/ship-product.e2e.mjs (2026-11-16) */
 import fs from 'fs';
 import http from 'http';
 import path from 'path';
@@ -98,7 +98,7 @@ await click('.step-tab', '출고'); await wait(800);
 const cells = await evalJs(`[...document.querySelectorAll('td[data-label="상품명"]')].map(t=>t.textContent.trim())`);
 chk(cells.length === 4, '출고 4줄', cells);
 chk(!cells.some((t) => /\(1\)\s*\(1\)/.test(t)), "'(1) (1)' 중복 없음", cells);
-chk(cells.filter((t) => t === '베이스튠 (1)').length === 3 && cells.includes('베이스튠 (2)'), '3줄 베이스튠 (1) + 1줄 베이스튠 (2)', cells);
+chk(cells.filter((t) => t === '베이스튠(1)').length === 3 && cells.includes('베이스튠(2)'), '3줄 베이스튠(1) + 1줄 베이스튠(2)', cells);
 await wait(1500);
 const B = savedData.brands.find((b) => b.id === 'basetune');
 chk(B.shippingRows.filter((r) => r.product === '베이스튠(1)').length === 0, '저장 데이터의 옛 이름 베이스튠(1) 없음', B.shippingRows.map((r) => r.product));
