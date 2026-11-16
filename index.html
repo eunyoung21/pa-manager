@@ -4867,6 +4867,12 @@ function FinderView({ brand, brands, onAddListing, onAddAuto }){
       if(e.data.type==='pa-add'){
         const all=Array.isArray(e.data.rows)?e.data.rows:[];
         const product=String(e.data.product||'').trim();
+        // 제품이 여러 개인 브랜드인데 제품이 비었거나 PA 제품 목록에 없으면 추가하지 않는다 — 조용히 '제품 미지정' 행으로 들어가
+        // 나중에 DM 발송 표기와 어긋나 중복 행이 생기던 문제(2026-11-04·11-13)
+        if(products.length>1&&!products.includes(product)){
+          e.source.postMessage({type:'pa-added',to:e.data.to,added:0,skipped:all.length,error:product?`PA 제품 목록에 「${product}」가 없어요 — PA의 제품 설정에 먼저 추가해 주세요`:'제품이 선택되지 않았어요 — 제품을 고른 뒤 다시 눌러 주세요'},ORIGIN);
+          return;
+        }
         const have=haveFor(products.includes(product)?product:'');
         const seen=new Set();
         const rows=all.filter(r=>{const u=String(r&&r.username||'').toLowerCase();if(!u||have.has(u)||seen.has(u))return false;seen.add(u);return true;})
