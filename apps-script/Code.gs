@@ -429,11 +429,49 @@ function collectState(sess) {
 function reportGet(sess) {
   var sh = sheet('_report');
   var last = sh.getLastRow();
-  if (last < 2) return json({ ok: true, meta: null, header: [], rows: [] });
+  if (last < 2) return json({ ok: true, meta: null, header: [], rows: [], notes: reportNotesRead() });
   var vals = sh.getRange(1, 1, last, sh.getLastColumn()).getValues();
   var meta = null;
   try { meta = JSON.parse(vals[0][0]); } catch (e) {}
-  return json({ ok: true, meta: meta, header: vals[1], rows: vals.slice(2) });
+  return json({ ok: true, meta: meta, header: vals[1], rows: vals.slice(2), notes: reportNotesRead() });
+}
+
+/* 주차별 «추후 액션 코멘트» 관리자 수정본 — `_report_notes` 탭(브랜드 | 주 끝날짜 | 내용 | 쓴 사람 | 시각).
+   자동 초안은 `_report` 메타(notes)에 실려 오고, 여기 수정본이 있으면 앱이 수정본을 우선 보여준다.
+   `_report` 탭은 수집 때마다 통째로 지워지므로 수정본은 반드시 별도 탭에 둔다. */
+function reportNotesRead() {
+  var sh = sheet('_report_notes');
+  var last = sh.getLastRow();
+  var out = {};
+  if (last < 1) return out;
+  var vals = sh.getRange(1, 1, last, 5).getValues();
+  for (var i = 0; i < vals.length; i++) {
+    if (!vals[i][0] || !vals[i][1]) continue;
+    (out[vals[i][0]] = out[vals[i][0]] || {})[String(vals[i][1])] = { text: String(vals[i][2] || ''), by: String(vals[i][3] || ''), at: String(vals[i][4] || '') };
+  }
+  return out;
+}
+function reportNoteSet(sess, body) {
+  var brand = String(body.brand || ''), week = String(body.week || ''), text = String(body.text == null ? '' : body.text);
+  if (!brand || !/^\d{4}-\d{2}-\d{2}$/.test(week)) return json({ error: 'bad request' });
+  if (text.length > 4000) return json({ error: '너무 길어요(4000자 이하)' });
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return json({ error: 'busy, retry' });
+  try {
+    var sh = sheet('_report_notes');
+    var last = sh.getLastRow(), row = 0;
+    if (last >= 1) {
+      var keys = sh.getRange(1, 1, last, 2).getValues();
+      for (var i = 0; i < keys.length; i++) if (keys[i][0] === brand && String(keys[i][1]) === week) { row = i + 1; break; }
+    }
+    if (!text.trim()) { if (row) sh.deleteRow(row); return json({ ok: true, cleared: true }); }   // 비우면 자동 초안으로 되돌림
+    var at = new Date().toISOString();
+    // 날짜 문자열이 날짜 셀로 바뀌지 않게 텍스트로 고정
+    if (!row) row = Math.max(last, 0) + 1;
+    sh.getRange(row, 2).setNumberFormat('@');
+    sh.getRange(row, 1, 1, 5).setValues([[brand, week, text, sess.username || '', at]]);
+    return json({ ok: true, by: sess.username || '', at: at });
+  } finally { try { lock.releaseLock(); } catch (x) {} }
 }
 
 /* ── 로그 ──────────────────────────────────────────────────── */
@@ -498,6 +536,7 @@ function handle(e, body) {
       case 'collectRun':  return collectRun(need(), body);
       case 'collectState':return collectState(need());
       case 'reportGet':   return reportGet(mgr());
+      case 'reportNoteSet': return reportNoteSet(mgr(), body);
       case 'ping':     return json({ ok: true, rev: metaGet().rev });
       default:         return json({ error: 'unknown action: ' + action });
     }

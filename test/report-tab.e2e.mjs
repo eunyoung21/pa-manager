@@ -28,7 +28,12 @@ const ROWS = [
   P({ brand: '그래니살라', name: '그래니전용', wkStart: '2026-11-02', wkEnd: '2026-11-08', wCost: 99999, wConv: 1, wRev: 1, wAtc: 1, wDCount: 1, wDAmount: 1 }),
   P({ brand: '그래니살라', name: '그래니사람', channel: 'gr', pa: '안민영', status: 'ok', views: 9000, wCost: 200000, wConv: 2, wRev: 300000, wAtc: 4, wDCount: 1, wDAmount: 100000 }),
 ];
-const META = { updatedAt: new Date().toISOString(), snapshotDate: '2026-11-13', weeks: { '베이스튠': { start: '2026-11-09', end: '2026-11-15' } } };
+const META = { updatedAt: new Date().toISOString(), snapshotDate: '2026-11-13', weeks: { '베이스튠': { start: '2026-11-09', end: '2026-11-15' } },
+  // 수집이 규칙으로 만든 주차별 액션 코멘트 초안
+  notes: { '베이스튠': {
+    '2026-11-15': { start: '2026-11-09', summary: ['광고 3명 · 비용 180만원 · 직접ROAS 44%'], actions: [{ name: '양형석', level: 'stop', text: '전환 0건에 비용 50만원 — OFF하거나 소재를 바꿔 보세요.' }, { name: '염지윤', level: 'watch', text: '표본이 적어요' }] },
+    '2026-11-08': { start: '2026-11-02', summary: ['광고 2명 · 비용 300만원 · 직접ROAS 77%'], actions: [] } } } };
+const NOTES = {};   // 관리자가 고쳐 쓴 수정본 { 브랜드: { 주끝날짜: {text,by,at} } }
 let ROLE = 'manager', DEPLOYED = true;
 
 const server = http.createServer((req, res) => {
@@ -42,7 +47,12 @@ const server = http.createServer((req, res) => {
   req.on('end', () => {
     const b = JSON.parse(body || '{}');
     const send = (o) => { res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify(o)); };
-    if (b.action === 'reportGet') return DEPLOYED ? send({ ok: true, meta: META, header: HEADER, rows: ROWS }) : send({ ok: false, msg: '알 수 없는 요청' });
+    if (b.action === 'reportGet') return DEPLOYED ? send({ ok: true, meta: META, header: HEADER, rows: ROWS, notes: NOTES }) : send({ ok: false, msg: '알 수 없는 요청' });
+    if (b.action === 'reportNoteSet') {
+      if (!b.text || !String(b.text).trim()) { delete (NOTES[b.brand] || {})[b.week]; return send({ ok: true, cleared: true }); }
+      (NOTES[b.brand] = NOTES[b.brand] || {})[b.week] = { text: b.text, by: '테스터', at: new Date().toISOString() };
+      return send({ ok: true, by: '테스터', at: NOTES[b.brand][b.week].at });
+    }
     if (b.action === 'get') return send({ ok: true, rev: 1, data: { paList: [], brands: [
       { id: 'basetune', name: '베이스튠', step1Rows: [], step2Rows: [], shippingRows: [], reviewRows: [], privacyRows: [], claudeStep1Rows: [], claudeStep2Rows: [] },
       { id: 'granny', name: '그래니살라', step1Rows: [], step2Rows: [], shippingRows: [], reviewRows: [], privacyRows: [], claudeStep1Rows: [], claudeStep2Rows: [] }], settlements: {} } });
@@ -109,6 +119,23 @@ chk(t.includes('1,800,000') /* 합계 비용 */ && t.includes('3명') && /직접
 // 광고 없는 인원도 보기는 이번 주 화면에서 먼저
 await evalJs(`(()=>{const i=document.querySelector('.rpt input[type=checkbox]');i.click();return 1})()`); await wait(300);
 chk(J(await names()) .includes('광고없는사람'), '광고 없는 인원도 보기 체크 → 표에 나옴', await names());
+// ── 주차별 액션 코멘트 ──
+const noteTxt = () => evalJs(`document.querySelector('.rpt-note')?.innerText||''`);
+let nt = await noteTxt();
+chk(nt.includes('자동 초안') && nt.includes('전환 0건에 비용 50만원') && nt.includes('끄기·교체') && nt.includes('양형석'), '이번 주: 자동 초안 코멘트(요약 + 사람별 액션) 표시', nt);
+await click('.rpt-note button', '고쳐 쓰기');
+chk(await evalJs(`document.querySelector('.rpt-note textarea').value.includes('양형석')`), '고쳐 쓰기: 자동 초안이 편집창에 채워짐');
+await evalJs(`(()=>{const t=document.querySelector('.rpt-note textarea');const set=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;set.call(t,'양형석 소재 교체, 염지윤 증액 검토');t.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);
+await click('.rpt-note button', '저장'); await wait(600);
+nt = await noteTxt();
+chk(nt.includes('직접 작성') && nt.includes('양형석 소재 교체, 염지윤 증액 검토') && !nt.includes('자동 초안 —'), '저장하면 직접 쓴 내용이 우선 표시', nt);
+chk(NOTES['베이스튠']?.['2026-11-15']?.text === '양형석 소재 교체, 염지윤 증액 검토', '수정본이 백엔드(_report_notes)로 저장됨', NOTES);
+await evalJs(`[...document.querySelectorAll('.rpt button')].find(b=>b.textContent==='새로고침').click()`); await wait(800);
+chk((await noteTxt()).includes('염지윤 증액 검토'), '새로고침해도 수정본이 유지됨');
+await evalJs(`window.confirm=()=>true`);
+await click('.rpt-note button', '자동 초안으로'); await wait(600);
+nt = await noteTxt();
+chk(nt.includes('자동 초안') && !NOTES['베이스튠']?.['2026-11-15'], '자동 초안으로 되돌리면 수정본 삭제 후 자동 초안 표시', nt);
 // ── 이전 데이터 ──
 await click('.rpt-seg button', '이전 데이터'); await wait(400);
 const histT = await page();
@@ -123,7 +150,10 @@ const pcell = (n) => evalJs(`(()=>{const t=[...document.querySelectorAll('.rpt-t
 const y = await pcell('염지윤');
 // 염지윤 전체: 2주 · 비용 300만 · 직접값 300만 → ROAS 100% · CPA 3,000,000/23=130,435 · 전환수 23
 chk(y && y[1] === '2' && y[2] === '3,000,000' && y[9] === '100%' && y[8] === '130,435' && y[10] === '23', '염지윤 전체 합산: 2주 · 비용 300만 · 직접ROAS 100% · 직접CPA 130,435', y);
+await click('.rpt-pick', '11-02 ~ 11-08'); await wait(300);
+chk((await noteTxt()).includes('직접ROAS 77%'), '이전 데이터에서 주차를 고르면 그 주 코멘트가 나옴', await noteTxt());
 await click('.rpt-pick', '10-19 ~ 10-25'); await wait(300);
+chk((await noteTxt()) === '', '코멘트가 없는 주차엔 코멘트 영역이 안 보임');
 const y2 = await pcell('염지윤'), q2 = await pcell('양형석');
 chk(y2 && y2[1] === '1' && y2[2] === '1,000,000' && q2 === null, '10-19~10-25 주만 선택하면 그 주 사람만(양형석 없음)', [y2, q2]);
 const histT2 = await page();
