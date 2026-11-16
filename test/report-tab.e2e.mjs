@@ -30,6 +30,7 @@ const ROWS = [
 ];
 const META = { updatedAt: new Date().toISOString(), snapshotDate: '2026-11-13', weeks: { '베이스튠': { start: '2026-11-09', end: '2026-11-15' } },
   // 수집이 규칙으로 만든 주차별 액션 코멘트 초안
+  insights: { '베이스튠': { basis: '10-19 ~ 11-15 누적 · 비용 400만원 · 10만원 이상 집행 3명 · 직접ROAS 88%', lines: [{ kind: 'grow', text: '카테고리 육아(3명 · 직접ROAS 140%)이 평균보다 확실히 높아요 — 이 구간 섭외를 늘려 보세요.' }, { kind: 'note', text: '팔로워 구간별 차이가 거의 없어요' }] } },
   notes: { '베이스튠': {
     '2026-11-15': { start: '2026-11-09', summary: ['광고 3명 · 비용 180만원 · 직접ROAS 44%'], actions: [{ name: '양형석', level: 'stop', text: '전환 0건에 비용 50만원 — OFF하거나 소재를 바꿔 보세요.' }, { name: '염지윤', level: 'watch', text: '표본이 적어요' }] },
     '2026-11-08': { start: '2026-11-02', summary: ['광고 2명 · 비용 300만원 · 직접ROAS 77%'], actions: [] } } } };
@@ -122,6 +123,9 @@ chk(t.includes('1,800,000') /* 합계 비용 */ && t.includes('3명') && /직접
 // 광고 없는 인원도 보기는 이번 주 화면에서 먼저
 await evalJs(`(()=>{const i=document.querySelector('.rpt input[type=checkbox]');i.click();return 1})()`); await wait(300);
 chk(J(await names()) .includes('광고없는사람'), '광고 없는 인원도 보기 체크 → 표에 나옴', await names());
+// ── 섭외 확장 제안(누적 인사이트) ──
+const insTxt = await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`);
+chk(insTxt.includes('섭외 확장 제안') && insTxt.includes('확장') && insTxt.includes('카테고리 육아') && insTxt.includes('참고'), '섭외 확장 제안: 확장/참고 문장과 근거 기간 표시', insTxt);
 // ── 주차별 액션 코멘트 ──
 const noteTxt = () => evalJs(`document.querySelector('.rpt-note')?.innerText||''`);
 let nt = await noteTxt();
@@ -167,6 +171,7 @@ chk(J(await names()).includes('염지윤') && !J(await names()).includes('그래
 await click('.brand-tab', '그래니살라'); await wait(500);
 chk(J(await names()) === J(['그래니사람']), '그래니살라 탭: 그래니 사람만', await names());
 chk((await page()).includes('그래니살라 리포트'), '제목이 브랜드별');
+chk(!(await page()).includes('섭외 확장 제안'), '인사이트가 없는 브랜드엔 확장 제안 영역이 안 보임');
 
 DEPLOYED = false;
 await evalJs(`[...document.querySelectorAll('.rpt button')].find(b=>b.textContent==='새로고침').click()`); await wait(800);

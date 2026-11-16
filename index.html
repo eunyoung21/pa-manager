@@ -6697,6 +6697,17 @@ function ReportNote({brand,week,auto,saved,onSaved}){
   </div>;
 }
 
+/* 「어떤 유형이 잘 되나 → 이런 사람으로 확장」 — 수집이 누적 데이터로 계산해 _report 메타(insights)에 싣는다. 읽기 전용. */
+const RPT_IL={grow:'확장',cut:'축소',note:'참고'};
+function ReportInsights({ins}){
+  if(!ins||!ins.lines||!ins.lines.length) return null;
+  return <details className="rpt-ins" open>
+    <summary>섭외 확장 제안</summary>
+    <div className="b">{ins.basis}</div>
+    <ul>{ins.lines.map((l,i)=><li key={i}><span className={'lv '+l.kind}>{RPT_IL[l.kind]||''}</span><span style={l.kind==='note'?{color:'var(--muted)'}:undefined}>{l.text}</span></li>)}</ul>
+  </details>;
+}
+
 /* ─── 📈 리포트 (관리자) — 브랜드별 인플루언서 광고 성과 ───
    데이터는 내 PC의 주간 성과수집이 시트 `_report` 탭에 자동으로 올린다(앱은 읽기만, reportGet).
    · 이번 주(kind=now): 사람당 한 행 — 라이브 ON/OFF·세팅일 + 액션툴 7일 창 성과 (세팅일 최신순)
@@ -6821,6 +6832,7 @@ function ReportView({brand}) {
       {staleDays!=null&&staleDays>9&&' — 자동 갱신이 멈춘 것 같아요'}
     </div>
 
+    <ReportInsights ins={meta.insights&&meta.insights[brand?.name]}/>
     {span==='w'&&<>
       <Kpis a={Tn} n={ad.length} label="광고 집행 인원"/>
       {wk&&wk.end&&<ReportNote brand={brand.name} week={wk.end} auto={meta.notes&&meta.notes[brand.name]&&meta.notes[brand.name][wk.end]} saved={d.notes&&d.notes[brand.name]&&d.notes[brand.name][wk.end]} onSaved={onNoteSaved}/>}
