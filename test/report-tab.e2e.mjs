@@ -125,6 +125,10 @@ const insTxt2 = await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`
 chk(insTxt2.includes('조회수 3만 미만 구간은 약해요') && insTxt2.includes('10-19 ~ 11-08 누적') && !insTxt2.includes('카테고리 육아'), '라벨을 누르면 그 주 내용으로 바뀜', insTxt2);
 await click('.rpt-weeks button', '이번 주'); await wait(300);
 chk((await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`)).includes('카테고리 육아'), '다시 최근 주 라벨을 누르면 최근 주 내용', '');
+// ── 이름을 누르면 올린 영상으로 ──
+const linkOf = (n) => evalJs(`(()=>{const tr=[...document.querySelectorAll('.rpt-table tbody tr')].find(t=>t.children[0].innerText.startsWith(${J(n)}));const a=tr&&tr.querySelector('a.rpt-link');return a?a.href+'|'+a.target:null})()`);
+chk((await linkOf('염지윤')) === 'https://www.instagram.com/reel/x/|_blank', '이번 주: 이름이 올린 영상 링크(새 탭)', await linkOf('염지윤'));
+chk((await linkOf('양형석')) === null, '영상 링크가 없는 사람은 이름이 링크가 아님');
 // ── 주차 라벨: 누르면 그 주 인플루언서만 ──
 const labels = await evalJs(`[...document.querySelectorAll('.rpt-weeks button')].map(b=>b.innerText)`);
 chk(labels.length === 4 && labels[0].startsWith('이번 주') && labels[1] === '11-02~11-08' && labels[2] === '10-19~10-25' && labels[3].startsWith('전체 합산'), '라벨: 이번 주 → 최신 지난 주 → 오래된 주 → 전체 합산', labels);
@@ -139,6 +143,7 @@ const r0 = bl[0].rows[0], r1 = bl[0].rows[1];
 chk(r0 && r0[0].startsWith('염지윤') && r0[0].includes('yjy') && r0[1] === 'ON' && r0[2] === '2,000,000' && r0[9] === '90%' && r0[8] === '133,333', '그 주 염지윤: 채널 yjy · 라이브 ON(지금 상태) · 비용 200만 · 직접ROAS 90% · 직접CPA 133,333', r0);
 chk(r1 && r1[0].startsWith('양형석') && r1[1] === 'OFF' && r1[2] === '1,000,000', '그 주 양형석: 비용순 두 번째 · 라이브 OFF', r1);
 chk((await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`)).includes('조회수 3만 미만 구간은 약해요'), '그 주 라벨을 누르면 확장 제안도 그 주 내용으로 같이 바뀜');
+chk((await linkOf('염지윤')) === 'https://www.instagram.com/reel/x/|_blank', '지난 주 표에서도 이름 → 영상 링크', await linkOf('염지윤'));
 await click('.rpt-weeks button', '10-19~10-25'); await wait(300);
 bl = await blocks();
 chk(bl.length === 1 && bl[0].rows.length === 1 && bl[0].rows[0][2] === '1,000,000' && bl[0].rows[0][9] === '120%', '10-19~10-25 라벨: 염지윤만 · 직접ROAS 120%', bl);

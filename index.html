@@ -303,6 +303,8 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 .rpt-seg{display:inline-flex;gap:2px;}
 .rpt-seg button{background:none;border:0;color:var(--muted);font-size:12px;padding:3px 10px;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;}
 .rpt-seg button.on{color:var(--text,#e5e5e5);border-bottom-color:var(--text,#e5e5e5);font-weight:600;}
+.rpt-link{color:inherit;text-decoration:underline dotted;text-underline-offset:3px;}
+.rpt-link:hover{text-decoration:underline;}
 .rpt-weeks{display:flex;flex-wrap:wrap;gap:4px 6px;margin:4px 0 16px;}
 .rpt-weeks button{font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;border-bottom-width:1px;}
 .rpt-weeks button.on{border-color:var(--text,#e5e5e5);}
@@ -6934,14 +6936,14 @@ function ReportView({brand}) {
     if(!d) return [];
     const f=(r,k)=>{const v=r[H[k]];return v===''||v==null?null:Number(v);};
     return d.rows.filter(r=>r[H.brand]===brand?.name&&r[H.kind]!=='wk').map(r=>derive({
-      name:r[H.name],channel:String(r[H.channel]||'').trim(),pa:r[H.pa],product:String(r[H.product]||''),on:r[H.metaOn],setAt:String(r[H.metaFirstAt]||''),
+      name:r[H.name],channel:String(r[H.channel]||'').trim(),pa:r[H.pa],product:String(r[H.product]||''),postUrl:String(r[H.postUrl]||''),on:r[H.metaOn],setAt:String(r[H.metaFirstAt]||''),
       cost:f(r,'wCost'),rev:f(r,'wRev'),conv:f(r,'wConv'),atc:f(r,'wAtc'),dc:f(r,'wDCount'),da:f(r,'wDAmount')}));
   },[d,H,brand]);
   // 이름 → 채널·라이브(지금 상태). 이전 데이터 표에서 이름 옆 채널명과 라이브 칸에 쓴다.
   const who=useMemo(()=>{const m=new Map();
     // 지난 주차 행에도 지금 라이브 상태가 실려 온다 — 이번 주 행이 없는 사람도 라이브를 보이게 먼저 깔고, 이번 주 행(채널명 포함)으로 덮는다
-    if(d) d.rows.forEach(r=>{if(r[H.brand]===brand?.name&&r[H.kind]==='wk'){const k=nrm(r[H.name]);if(k&&(r[H.metaOn]||r[H.product])&&!m.has(k))m.set(k,{on:r[H.metaOn],product:String(r[H.product]||'')});}});
-    nowRows.forEach(r=>{const k=nrm(r.name);if(k)m.set(k,{channel:r.channel,on:r.on||(m.get(k)||{}).on,product:r.product||(m.get(k)||{}).product});});return m;},[nowRows,d,H,brand]);
+    if(d) d.rows.forEach(r=>{if(r[H.brand]===brand?.name&&r[H.kind]==='wk'){const k=nrm(r[H.name]);if(k&&(r[H.metaOn]||r[H.product]||r[H.postUrl])&&!m.has(k))m.set(k,{on:r[H.metaOn],product:String(r[H.product]||''),postUrl:String(r[H.postUrl]||'')});}});
+    nowRows.forEach(r=>{const k=nrm(r.name);if(k)m.set(k,{channel:r.channel,on:r.on||(m.get(k)||{}).on,product:r.product||(m.get(k)||{}).product,postUrl:r.postUrl||(m.get(k)||{}).postUrl});});return m;},[nowRows,d,H,brand]);
   // 제품별 보기 — 한 사람이 두 제품을 맡았으면(« · » 로 이어 적힘) 두 제품 양쪽에 잡힌다
   const prodMatch=p=>!prod||(prod==='__none'?!String(p||'').trim():String(p||'').split(' · ').includes(prod));
   const prodList=useMemo(()=>{const c=new Map();const add=p=>String(p||'').split(' · ').filter(Boolean).forEach(x=>c.set(x,(c.get(x)||0)+1));nowRows.forEach(r=>add(r.product));who.forEach(x=>add(x.product));return [...c.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);},[nowRows,who]);
@@ -6995,8 +6997,8 @@ function ReportView({brand}) {
     <Kpi l="직접 CPA" v={won(a.dCpa)}/><Kpi l="직접 전환수" v={won(a.dc)}/><Kpi l="직접 전환값" v={won(a.da)}/></div>;
   const GroupRow=({lead})=><tr><th colSpan={lead+(hasProd?1:0)}/><th colSpan={6} className="rpt-grp">매체 신고값</th><th colSpan={4} className="rpt-grp">직접 (cafe24)</th></tr>;
   // 이름 옆에 채널명(+담당자는 아래 작은 글씨)
-  const NameCell=({name,channel,pa})=><td style={{textAlign:'left'}}>
-    <span>{name||channel}</span>{channel&&name&&<span className="rpt-ch">{channel}</span>}
+  const NameCell=({name,channel,pa,url})=><td style={{textAlign:'left'}}>
+    <span>{url?<a href={url} target="_blank" rel="noreferrer" className="rpt-link" title="이 사람이 올린 영상 보기">{name||channel}</a>:(name||channel)}</span>{channel&&name&&<span className="rpt-ch">{channel}</span>}
     {pa?<div className="rpt-sub">{pa}</div>:null}</td>;
   const ProdCell=({p})=>hasProd?<td style={{textAlign:'left',color:'var(--muted)'}}>{p||'–'}</td>:null;
   const LiveCell=({on})=><td style={{textAlign:'left',color:'var(--muted)'}}>{on==='Y'?'ON':on==='N'?'OFF':'–'}</td>;
@@ -7050,7 +7052,7 @@ function ReportView({brand}) {
         </thead>
         <tbody>
           {shown.map((r,i)=><tr key={i}>
-            <NameCell name={r.name} channel={r.channel} pa={r.pa}/>
+            <NameCell name={r.name} channel={r.channel} pa={r.pa} url={r.postUrl}/>
             <ProdCell p={r.product}/>
             <LiveCell on={r.on}/>
             <td style={{color:'var(--muted)'}}>{r.setAt?md(r.setAt):'–'}</td>
@@ -7084,7 +7086,7 @@ function ReportView({brand}) {
                     <b>{md(w.start)} ~ {md(w.end)}</b>
                     <span className="rpt-wksum">{w.n}명 · 비용 {won(w.cost)} · 직접ROAS <span style={{color:w.dRoas!=null&&w.dRoas<100?'var(--red)':undefined,fontWeight:600}}>{pct(w.dRoas)}</span> · 직접전환 {won(w.dc)}</span>
                   </td></tr>
-                  {sortRows(w.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel}/><ProdCell p={x.product}/><LiveCell on={x.on}/><MetricCells r={r}/></tr>;})}
+                  {sortRows(w.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel} url={x.postUrl}/><ProdCell p={x.product}/><LiveCell on={x.on}/><MetricCells r={r}/></tr>;})}
                 </React.Fragment>)}
               </tbody>
             </table>
@@ -7094,7 +7096,7 @@ function ReportView({brand}) {
                 <tr>{th('name','이름 · 채널',false)}{hasProd&&plain('제품',true)}{plain('라이브',true)}{th('weeks','집행 주')}<MetricHead/></tr>
               </thead>
               <tbody>
-                {sortRows(h.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel}/><ProdCell p={x.product}/><LiveCell on={x.on}/><td style={{color:'var(--muted)'}}>{r.weeks}</td><MetricCells r={r}/></tr>;})}
+                {sortRows(h.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel} url={x.postUrl}/><ProdCell p={x.product}/><LiveCell on={x.on}/><td style={{color:'var(--muted)'}}>{r.weeks}</td><MetricCells r={r}/></tr>;})}
                 {!h.people.length&&<tr><td colSpan={13+(hasProd?1:0)} style={{textAlign:'center',color:'var(--muted)',padding:24}}>기록이 없어요.</td></tr>}
               </tbody>
             </table>}
