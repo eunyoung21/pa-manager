@@ -3576,7 +3576,7 @@ function DealBoard({ brand, onClose, onEdit, canEdit }){
     <div className="modal" style={{width:'min(980px,94vw)',maxHeight:'90vh'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,flexWrap:'wrap'}}>
         <div className="modal-title" style={{margin:0}}>⭐ {brand.name} 성사 모음 <span style={{fontWeight:400,color:'var(--muted)',fontSize:12}}>· {people.length}명</span> <span style={{fontWeight:400,color:'var(--muted)',fontSize:11,marginLeft:8}}>* 성별·연령은 사진·소개글로 추정한 값(바꾸면 확정)</span></div>
-        {perf&&people.some(p=>goodOf(p))&&<span style={{fontSize:12,color:'var(--muted)'}}><span style={{color:'#e0a800',fontSize:14}}>★</span> 직접ROAS 100% 이상 (리포트 기준)</span>}
+        {perf&&people.some(p=>goodOf(p))&&<span style={{fontSize:12,color:'var(--muted)'}}><span style={{color:'#e0a800',fontSize:18}}>★</span> 직접ROAS 100% 이상 (리포트 기준)</span>}
         <span style={{flex:1}}/>
         <button className="btn btn-ghost" style={{fontSize:11}} onClick={onClose}>닫기</button>
       </div>
@@ -3593,8 +3593,8 @@ function DealBoard({ brand, onClose, onEdit, canEdit }){
               <span style={{fontSize:11,color:'var(--muted)'}}>{g.list.length}명 · 평균 팔로워 {koFmt(g.fol)} · 평균 조회수 {koFmt(g.views)} · 평균 협업비 {g.rate?koFmt(g.rate)+'원':'-'}</span>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
-              {g.list.map(p=>{ const gd=goodOf(p); return <div key={p.key} style={{position:'relative',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:10,padding:12}}>
-                {gd&&<span title={'광고 성과 좋음 · 직접ROAS '+Math.round(gd.roas)+'% · 직접전환 '+gd.dc+'건 (리포트 기준)'} style={{position:'absolute',top:8,right:10,fontSize:16,lineHeight:1,color:'#e0a800'}}>★</span>}
+              {g.list.map(p=>{ const gd=goodOf(p); return <div key={p.key} style={{position:'relative',background:gd?'#fff6d6':'var(--surface2)',border:gd?'2px solid #e0a800':'1px solid var(--border)',borderRadius:10,padding:gd?11:12}}>
+                {gd&&<span title={'광고 성과 좋음 · 직접ROAS '+Math.round(gd.roas)+'% · 직접전환 '+gd.dc+'건 (리포트 기준)'} style={{position:'absolute',top:8,right:10,fontSize:24,lineHeight:1,color:'#e0a800',textShadow:'0 0 1px #8a6500'}}>★</span>}
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   {p.pic?<img src={p.pic} alt="" style={{width:40,height:40,borderRadius:'50%',objectFit:'cover',flex:'none'}}/>
                     :<div style={{width:40,height:40,borderRadius:'50%',background:'var(--border)',flex:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'var(--muted)'}}>{(p.name||p.key||'?').slice(0,1)}</div>}
