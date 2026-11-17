@@ -749,6 +749,8 @@ a.menu-item{display:block;}
 .auto-t th.num,.auto-t td.num{text-align:right;}
 .auto-t th{white-space:nowrap;}
 .auto-t tbody tr:hover td{background:#faf6e4;}
+.auto-t .gap{padding:0!important;}
+@media (max-width:768px){.auto-t .gap{display:none!important;}}
 .auto-t td.num .cell-val{width:auto!important;text-align:right;}
 .auto-t th.c{text-align:center;}
 .auto-t td.del-end .row-del-x,.ship-t td.del-end .row-del-x{font-size:18px;opacity:1;color:var(--muted);}
@@ -4735,32 +4737,34 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
       <table className="card-table auto-t">
         <thead>{isClaude?<tr>
           <th className="del-col"><SelAll sel={sel}/></th>
-          <th style={{width:'24%'}}>채널명</th>
-          <th style={{width:'13%'}}>진행 상태</th>
-          <th style={{width:'6%',textAlign:'center'}}>답장</th>
-          <th style={{width:'10%'}}>담당 PA</th>
-          <th className="num" style={{width:'9%'}}>팔로워</th>
-          <th style={{width:'10%',cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
-          <th style={{width:'10%'}}>완료일</th>
-          <th className="num" style={{width:'8%'}}>단가</th>
-          <th className="c" style={{width:'5%'}}>링크</th>
+          <th style={{width:300}}>채널명</th>
+          <th style={{width:140}}>진행 상태</th>
+          <th className="c" style={{width:70}}>답장</th>
+          <th style={{width:110}}>담당 PA</th>
+          <th className="gap"/>
+          <th className="num" style={{width:90}}>팔로워</th>
+          <th style={{width:100,cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
+          <th style={{width:100}}>완료일</th>
+          <th className="num" style={{width:90}}>단가</th>
+          <th className="c" style={{width:60}}>링크</th>
           <th className="del-end"/>
         </tr>:<tr>
           <th className="del-col"><SelAll sel={sel}/></th>
-          <th style={{width:'20%'}}>채널명</th>
-          <th style={{width:'10%'}}>담당 PA</th>
-          <th className="num" style={{width:'8%'}}>팔로워</th>
-          <th style={{width:'9%',cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
-          <th style={{width:'7%'}}>DM발송</th>
-          <th style={{width:'7%'}}>협업성사</th>
-          <th style={{width:'7%'}}>최종완료</th>
-          <th style={{width:'9%'}}>완료일</th>
-          <th className="num" style={{width:'8%'}}>단가</th>
-          <th className="c" style={{width:'5%'}}>링크</th>
+          <th style={{width:300}}>채널명</th>
+          <th style={{width:110}}>담당 PA</th>
+          <th className="c" style={{width:80}}>DM발송</th>
+          <th className="c" style={{width:80}}>협업성사</th>
+          <th className="c" style={{width:80}}>최종완료</th>
+          <th className="gap"/>
+          <th className="num" style={{width:90}}>팔로워</th>
+          <th style={{width:100,cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
+          <th style={{width:100}}>완료일</th>
+          <th className="num" style={{width:90}}>단가</th>
+          <th className="c" style={{width:60}}>링크</th>
           <th className="del-end"/>
         </tr>}
         {showColF&&<tr className="colf-row">
-          {(isClaude?[null,'name',null,'replied','pa','followers','date','finalDate','rate','link',null]:[null,'name','pa','followers','date','dmSent','dealDone','finalDone','finalDate','rate','link',null]).map((f,i)=>(
+          {(isClaude?[null,'name',null,'replied','pa',null,'followers','date','finalDate','rate','link',null]:[null,'name','pa','dmSent','dealDone','finalDone',null,'followers','date','finalDate','rate','link',null]).map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
           ))}
         </tr>}
@@ -5276,6 +5280,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
         onClick={()=>H.current.setReplied(r,r.replied==='Y'?'N':'Y')}>{r.replied==='Y'?'✓':''}</button></td>
       <td data-label="담당 PA" style={{whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
         style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:12}:undefined}/></td>
+      <td className="gap"/>
       <td data-label="팔로워" className="td-dim num"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
       <td data-label="날짜" className="td-dim"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
       <td data-label="완료일" className="td-dim"><Cell value={r.finalDate} onChange={v=>H.current.up(r.id,'finalDate',v)} type="date" style={{width:85}} placeholder={r.finalDone==='Y'?'날짜 입력':'—'}/></td>
@@ -5296,11 +5301,12 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                 {memoLine(r.memo)&&<div className="memo-line" title={r.memo}>{memoLine(r.memo)}</div>}</td>
               <td data-label="담당 PA" style={{whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
                 style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:12}:undefined}/></td>
-              <td data-label="팔로워" className="td-dim num"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
-              <td data-label="날짜" className="td-dim"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
               <td data-label="DM발송" style={{textAlign:'center'}}><YN value={r.dmSent} onChange={v=>H.current.setDm(r,v)}/></td>
               <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>H.current.setDeal(r,v)}/></td>
               <td data-label="최종완료" style={{textAlign:'center'}}><YN value={r.finalDone} onChange={v=>H.current.setFinal(r,v)}/></td>
+              <td className="gap"/>
+              <td data-label="팔로워" className="td-dim num"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
+              <td data-label="날짜" className="td-dim"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
               <td data-label="완료일" className="td-dim"><Cell value={r.finalDate} onChange={v=>H.current.up(r.id,'finalDate',v)} type="date" style={{width:85}} placeholder={r.finalDone==='Y'?'날짜 입력':'—'}/></td>
               <td data-label="단가" className="num"><Cell value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80}}/></td>
               <td data-label="링크" style={{textAlign:'center'}}>
