@@ -4873,29 +4873,31 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
   let action=null;
   if(st==='rejected') action=<>
     <p className="s2p-help"><span className="end-chip" style={{background:END_KINDS[endKind(r)]+'22',color:END_KINDS[endKind(r)],marginRight:6}}>{endKind(r)}</span>{r.endReason==='무응답'?`DM 후 ${NO_REPLY_DAYS}일 동안 답장이 없어 자동으로 옮겼어요.`:{거절:'협업이 성사되지 않았어요.',하차:'협업 성사 후 진행을 그만뒀어요.'}[endKind(r)]||''}{r.rejectDate?` (거절일 ${r.rejectDate})`:''}</p>
-    <button className="btn s2p-outline" onClick={()=>H.current.setStatus(r,r.dmSent==='Y'?'진행중':'컨택 전')}>↩ 복구</button></>;
+    <button className="btn s2p-ink" onClick={()=>H.current.setStatus(r,r.dmSent==='Y'?'진행중':'컨택 전')}>복구하기</button></>;
   else if(st==='done') action=<>
-    <p style={{color:'var(--green)',fontWeight:700,marginBottom:6}}>✓ 모든 단계 완료</p>
+    <div className="s2p-next"><b>✓ 모든 단계 완료</b></div>
     <p className="s2p-help">광고코드: {(rv&&rv.paCode)||'-'}{r.infSettledDate?` · 정산 ${r.infSettledDate}`:''}</p></>;
   else if(st===0) action=<>
     <p className="s2p-help">DM 발송 준비가 완료되면 다음 단계로 이동하세요.</p>
-    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>H.current.setDm(r,'Y')}>▶ DM 발송으로 이동</button>{reject}</div></>;
+    <button className="btn btn-primary s2p-final" onClick={()=>H.current.setDm(r,'Y')}>DM 발송으로 이동</button>
+    <div className="s2p-quit"><span>진행을 그만두려면</span>{reject}</div></>;
   else if(st===1) action=<>
     {/* 실명·연락처·주소 입력칸은 뺐다(2026-09-22 사용자 요청) — 뒤 단계(계약서·제품 발송)에서 채운다 */}
     {/* 모델료(2026-10-16) — 성사 때 적어 두면 계약서 발송 단계 모델료 칸에 그대로 채워진다(같은 rate 칸) */}
     {fld('모델료 (협의된 금액)','rate','예: 80,000')}
-    <div className="s2p-btns">
-      <button className="btn btn-primary" onClick={()=>{const v=f.rate.trim(); if(v!==String(r.rate||'')) upd({rate:v}); H.current.setDeal(r,'Y');}}>협찬 성사 완료</button>{reject}
-    </div></>;
+    <button className="btn btn-primary s2p-final" onClick={()=>{const v=f.rate.trim(); if(v!==String(r.rate||'')) upd({rate:v}); H.current.setDeal(r,'Y');}}>협찬 성사 완료</button>
+    <div className="s2p-quit"><span>진행을 그만두려면</span>{reject}</div></>;
   else if(st===2) action=<>
-    <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '완료'를 눌러주세요. 누르면 📦 출고 탭에도 '처리중'으로 자동 등록돼요(관리자가 실제 출고 시트에 옮겨 적으면 출고 탭에서 완료로 바꿔주세요).</p>
+    <p className="s2p-help">아래 정보를 복사해 제품을 발송한 뒤 '완료'를 눌러주세요.</p>
     {editCopy('실명 (받는 분)','realName','홍길동',r.realName,v=>upd({realName:v}))}
     {editCopy('연락처','phone','010-0000-0000',r.phone,v=>upd({phone:v}))}
     {editCopy('배송 주소','address','우편번호 / 주소 입력',r.address,v=>upd({address:v}))}
     <div className="s2p-btns" style={{marginBottom:8}}><CopyBtn value={[f.realName,f.phone,f.address].map(x=>x.trim()).filter(Boolean).join('\n')}/><span className="s2p-help" style={{margin:0}}>실명·연락처·주소 한 번에 복사</span></div>
-    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{const info={realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()};
+    <div className="s2p-next">완료를 누르면 📦 출고 탭에 '처리중'으로 자동 등록돼요. 관리자가 실제 출고 시트에 옮겨 적은 뒤 출고 탭에서 완료로 바꿔주세요.</div>
+    <button className="btn btn-primary s2p-final" onClick={()=>{const info={realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()};
       upd({...info,shippingDone:'✅ 완료',shipDate:r.shipDate||today()});
-      onShip&&onShip(r,info);}}>완료 →</button>{reject}</div></>;
+      onShip&&onShip(r,info);}}>완료</button>
+    <div className="s2p-quit"><span>진행을 그만두려면</span>{reject}</div></>;
   else if(st===3&&IS_STAFF){
     // 알바: 이름·연락처만 받고 완료/거절만 표시(모두싸인 발송은 관리자 PC에서만)
     action=<>
@@ -4951,7 +4953,6 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
     };
     action=<>
       <p className="s2p-help">아래 정보로 {(brand&&brand.name)||''} 계약서 양식을 채워 모두싸인(카카오톡)으로 보냅니다.</p>
-      <div className="s2p-callout"><b>보내기 전에 확인하세요.</b> 이 PC에서 「모두싸인 계약서 발송.bat」이 켜져 있어야 해요.</div>
       {fld('실명 (계약자)','realName','홍길동')}
       {fld('연락처 (카카오톡 받을 번호)','phone','010-0000-0000')}
       {fld('주소','address','주소 입력',true)}
@@ -5002,14 +5003,15 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
     {!nc&&<div className="s2p-btns" style={{marginBottom:10}}>
       <button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 통장사본·신분증 제출</button>
     </div>}
-    <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>{if(f.adCode.trim())onSetAdCode&&onSetAdCode(r,f.adCode.trim());H.current.setFinal(r,'Y');}}>협찬 완료</button>{reject}</div></>;
+    <button className="btn btn-primary s2p-final" onClick={()=>{if(f.adCode.trim())onSetAdCode&&onSetAdCode(r,f.adCode.trim());H.current.setFinal(r,'Y');}}>협찬 완료</button>
+    <div className="s2p-quit"><span>진행을 그만두려면</span>{reject}</div></>;
   // 제품만 제공(무가 시딩, 2026-10-21) — 입금이 없으니 '광고세팅'만. 완료 기록은 같은 칸(infSettled)이라 완료 처리 규칙은 그대로.
   else if(st===5&&nc) action=<>
     <p className="s2p-help">광고 세팅을 진행해주세요. 제품만 제공한 건이라 입금은 없어요.</p>
     {editCopy('광고코드 (복사용)','adCode','광고 코드 입력',(rv&&rv.paCode)||'',v=>onSetAdCode&&onSetAdCode(r,v))}
     {editCopy('게시 링크','postLink','https://www.instagram.com/reel/...',(rv&&rv.postLink)||'',v=>onSetPostLink&&onSetPostLink(r,v))}
     {IS_STAFF?<p className="s2p-help">광고세팅 완료는 관리자가 처리해요.</p>
-      :<div className="s2p-btns"><button className="btn s2p-success" onClick={()=>onSettle&&onSettle(r.name,true,{pa,realName:r.realName||(rv&&rv.realName)||''})}>✓ 광고세팅 완료</button></div>}</>;
+      :<button className="btn btn-primary s2p-final" onClick={()=>onSettle&&onSettle(r.name,true,{pa,realName:r.realName||(rv&&rv.realName)||''})}>광고세팅 완료</button>}</>;
   else if(st===5) action=<>
     <p className="s2p-help">광고 세팅 및 인플루언서 입금을 진행해주세요.</p>
     {editCopy('광고코드 (복사용)','adCode','광고 코드 입력',(rv&&rv.paCode)||'',v=>onSetAdCode&&onSetAdCode(r,v))}
@@ -5018,7 +5020,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
     {editCopy('단가','rate','예: 80,000',r.rate,v=>upd({rate:v}))}
     <div className="s2p-btns" style={{marginBottom:8}}><button className="btn s2p-outline" onClick={()=>H.current.onAddPrivacy(r)}>🔒 입금정보·서류 보기</button></div>
     {IS_STAFF?<p className="s2p-help">입금 완료는 관리자가 처리해요.</p>
-      :<div className="s2p-btns"><button className="btn s2p-success" onClick={()=>onSettle&&onSettle(r.name,true,{pa,realName:r.realName||(rv&&rv.realName)||''})}>✓ 광고세팅 및 입금 완료</button></div>}</>;
+      :<button className="btn btn-primary s2p-final" onClick={()=>onSettle&&onSettle(r.name,true,{pa,realName:r.realName||(rv&&rv.realName)||''})}>광고세팅 및 입금 완료</button>}</>;
 
   return <>
     <div className="s2p-backdrop" onClick={onClose}/>
