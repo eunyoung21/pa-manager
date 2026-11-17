@@ -121,6 +121,23 @@ await click("button", "확인"); await wait(4500);
 chk(row().reviewReq.ack === "Y", "알바 확인 처리됨", row().reviewReq);
 chk(row().thread.length === before + 1 && row().thread[before].kind === "확인" && row().thread[before].who === "안민영", "확인도 기록으로 남고 이름은 안민영", row().thread.slice(-2));
 chk(row().thread.slice(0, before).every((e, i) => e.text === ["10만원 제안", "진행", "배송은 내일 보내주세요"][i]), "관리자 말 3개 전부 그대로(사라지지 않음)", row().thread);
+// 4-2) 알바 보내기 하나로 끝 — 보내면 관리자 확인 요청까지 올라감(이미 요청 중이면 글만 추가), 관리자가 보내면 그냥 대화
+const ro = () => savedData.brands.find((b) => b.id === "hatke").step2Rows.find((r) => r.id === "m2");
+savedData.brands[0].step2Rows.push(S2("m2", "알바보내기", "alba_send", { dmSent: "Y", replied: "Y", pa: "안민영", contactStatus: "진행중", memo: "" }));
+rev++;
+await S("Page.navigate", { url: `http://127.0.0.1:${PORT}/?role=staff` }); await wait(3500);
+await evalJs("(()=>{const b=[...document.querySelectorAll('.brand-tab')].find(x=>x.textContent.includes('해트케'));if(b)b.click();return 1})()"); await wait(1200);
+const opened = await evalJs("(()=>{const t=[...document.querySelectorAll('.todo-item, .ch-link, tr')].find(x=>x.textContent.includes('알바보내기'));if(!t)return false;t.click();return true})()");
+chk(opened, "알바 화면에서 행 열기");
+if (opened) {
+  await wait(1000);
+  chk(!(await evalJs("[...document.querySelectorAll('.s2p button')].some(b=>b.textContent.includes('검토 요청'))")), "검토 요청 버튼 없음(보내기만 있음)");
+  await setVal(".th-send textarea", "10만원이면 어떨까요"); await click("button", "보내기"); await wait(4500);
+  chk(ro().reviewReq && ro().reviewReq.status === "요청" && ro().reviewReq.note === "10만원이면 어떨까요" && !!ro().reviewReq.reqTs, "알바가 보내면 관리자 확인 요청으로 올라감", ro().reviewReq);
+  const t1 = ro().reviewReq.reqTs;
+  await setVal(".th-send textarea", "추가로 하나 더"); await click("button", "보내기"); await wait(4500);
+  chk(ro().thread.length === 2 && ro().reviewReq.reqTs === t1, "요청 중에 또 보내면 글만 추가(알림 중복 없음)", { n: ro().thread.length, t1, now: ro().reviewReq.reqTs });
+}
 // 5) 동시 쓰기 병합
 const A = [{ who: "관리자", text: "A", at: "x", kind: "", ts: 2 }], Bm = [{ who: "안민영", text: "B", at: "y", kind: "", ts: 3 }];
 const merged = await evalJs(`(()=>{const m=mergeThread([],${J(A)},${J(Bm)});return m.map(e=>e.text).join("")})()`).catch(() => null);

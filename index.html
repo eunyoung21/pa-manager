@@ -5298,13 +5298,17 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
         <div className="th-box">
         {(()=>{ const me=thMe(r);
           // 메모는 지우지 않고 대화로 쌓는다 — 보낸 글은 thread 에 붙고, memo(목록에 한 줄로 보이는 값)는 가장 최근 말로 갱신
-          const send=kind=>{ const t=cmp.trim(); if(!t){ alert(kind==='요청'?'메모에 검토받을 내용을 먼저 적어 주세요.':'보낼 내용을 적어 주세요.'); return; }
-            upd({thread:thAppend(r,me,t,kind),memo:t,...(kind==='요청'?{reviewReq:{status:'요청',note:t,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}:{})});
+          // 보내기 하나로 끝(2026-11-17): 알바가 보내면 관리자 확인 요청까지 같이 올라가고(이미 요청 중이면 글만 추가), 관리자가 보내면 그냥 대화로 남는다.
+          // 거절된 건은 요청으로 올리지 않는다.
+          const send=kind=>{ const t=cmp.trim(); if(!t){ alert('보낼 내용을 적어 주세요.'); return; }
+            const open0=(r.reviewReq||{}).status==='요청', ended0=normStatus(r.contactStatus)==='거절';
+            const asReq=IS_STAFF&&!ended0&&!open0;
+            upd({thread:thAppend(r,me,t,asReq?'요청':kind),memo:t,...(asReq?{reviewReq:{status:'요청',note:t,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}:{})});
             setCmp(''); setThOpen(false); };
           return <div className="s2p-fg"><label>메모 · 대화 기록</label><div className="s2p-note" style={{marginTop:-2,marginBottom:8}}>남긴 메모는 지워지지 않고 쌓여요.</div>
             <ThreadView thread={threadOf(r)} open={thOpen} setOpen={setThOpen}/>
             <div className="th-send">
-              <textarea value={cmp} onChange={e=>setCmp(e.target.value)} placeholder={IS_STAFF?'관리자에게 남길 말…':'담당자에게 남길 말…'} onKeyDown={e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); send(''); } }}/>
+              <textarea value={cmp} onChange={e=>setCmp(e.target.value)} placeholder={IS_STAFF?'관리자에게 남길 말… (보내면 관리자 확인 요청으로 올라가요)':'담당자에게 남길 말…'} onKeyDown={e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); send(''); } }}/>
               <button type="button" className="btn s2p-outline" style={{padding:'6px 12px',fontSize:12}} onClick={()=>send('')}>보내기</button>
             </div></div>; })()}
         {(()=>{ const rq=r.reviewReq||{}; const open=rq.status==='요청'; const ended=normStatus(r.contactStatus)==='거절'; const me=thMe(r);
@@ -5332,7 +5336,6 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
               {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&<span style={{fontSize:12,fontWeight:700,color:'var(--green)'}}>✓ {rvWho(r.pa)} 확인{rq.ackAt?' '+rq.ackAt:''}{rq.ackBy==='관리자'?' (관리자가 대신)':''}</span>}
               {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="답변을 취소하고 다시 검토 요청 상태로" onClick={()=>upd({reviewReq:{...rq,status:'요청',reply:'',replyAt:''}})}>↩ 답변 취소</button>}
               {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&(IS_STAFF||rq.ackBy==='관리자')&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="확인을 취소하고 다시 확인 전 상태로" onClick={()=>upd({reviewReq:{...rq,ack:'',ackAt:'',ackBy:''}})}>↩ 확인 취소</button>}
-              <button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} title="메모 내용을 관리자에게 보내 진행할지 물어봅니다" onClick={ask}>🙋 검토 요청</button>
             </div>}
           </div>; })()}
         </div>
