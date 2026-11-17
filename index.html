@@ -4932,7 +4932,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
       if(!name) return setMsMsg({err:'실명(계약자)을 입력하세요.'});
       if(!/^010\d{8}$/.test(phone.replace(/[^0-9]/g,''))) return setMsMsg({err:'카카오톡으로 받을 010 휴대폰 번호를 입력하세요.'});
       if(!fee) return setMsMsg({err:'모델료(진행 단가)를 입력하세요.'});
-      if(!sealCompanyOf(brand)) return setMsMsg({err:'직인 회사를 고르세요(광고주 대표자 (인)에 찍을 도장).'});
+      if(!sealCompanyOf(brand)){ setCtOpen(true); return setMsMsg({err:'직인 회사를 고르세요(광고주 대표자 (인)에 찍을 도장). 위 「계약서 파일」을 펼친 칸에 있어요.'}); }
       const ask=`${name} 님 · 카카오톡 ${phone} · ${Number(fee).toLocaleString()}원`;
       if(msAsk!==ask){ setMsAsk(ask); setMsMsg(null); return; }
       setMsAsk(''); setMsBusy(true); setMsMsg(null);
@@ -4979,13 +4979,13 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
         </div>}
         <input ref={ctRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickCt}/>
       </div>
-      <div className="s2p-fg ct-seal"><label>직인 회사</label>
+      {ctOpen&&<div className="s2p-fg ct-seal"><label>직인 회사</label>
         <select value={sealCompanyOf(brand)} disabled={msBusy} onChange={e=>{onSaveSeal&&onSaveSeal(e.target.value);setMsAsk('');setMsMsg(null);}}>
           <option value="">고르세요</option>
           {[...new Set([...sealList, sealCompanyOf(brand)].filter(Boolean))].map(c=><option key={c} value={c}>{c}</option>)}
         </select>
         <div className="s2p-note">광고주 대표자 (인) 칸에 찍히고, {(brand&&brand.name)||''} 전체에 저장돼요.</div>
-      </div>
+      </div>}
       {msAsk&&!msBusy&&<p className="s2p-help ms-ask" style={{color:'var(--text)'}}>{msAsk} 으로 보냅니다. 맞으면 버튼을 한 번 더 누르세요.</p>}
       {msMsg&&<p className="s2p-help ms-msg" style={{color:msMsg.err?'var(--red)':'var(--green,#15803d)'}}>{msMsg.err||('✅ '+msMsg.ok)}</p>}
       <div className="s2p-btns" style={{marginBottom:10}}>
