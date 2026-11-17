@@ -362,6 +362,20 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 .s2p-tl-label.current{font-weight:700;}
 .s2p-date{font-size:11px;color:var(--muted);margin-left:6px;font-weight:400;}
 .s2p-fg{margin-bottom:12px;}
+/* 메모 대화 기록 — 관리자=오른쪽 검정, 알바=왼쪽 회색 (색 대신 위치·명암으로 구분) */
+.th-wrap{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+.th-msg{display:flex;flex-direction:column;max-width:88%;}
+.th-meta{font-size:10.5px;color:var(--muted);margin-bottom:2px;}
+.th-b{padding:6px 10px;border-radius:10px;font-size:12.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}
+.th-alba{align-self:flex-start;}
+.th-alba .th-b{background:var(--surface3);color:var(--text);border-top-left-radius:3px;}
+.th-adm{align-self:flex-end;align-items:flex-end;}
+.th-adm .th-b{background:var(--text);color:#fff;border-top-right-radius:3px;}
+.th-ack .th-b{background:transparent;border:1px solid var(--border);color:var(--muted);padding:2px 8px;font-size:11.5px;}
+.th-more{align-self:center;background:none;border:0;color:var(--muted);font-size:11.5px;cursor:pointer;padding:2px 6px;}
+.th-more:hover{color:var(--text);}
+.th-send{display:flex;gap:6px;align-items:flex-end;}
+.th-send textarea{flex:1;min-height:44px !important;}
 .s2p-fg label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;}
 .s2p-fg input,.s2p-fg textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--text);outline:none;font-family:inherit;}
 .s2p-fg input:focus,.s2p-fg textarea:focus{border-color:var(--accent);}
@@ -1684,6 +1698,34 @@ const rvAnswer=(rq,status,reply)=>({...(rq||{}),status,reply:reply||'',replyAt:t
 const rvStamp=()=>{ const d=new Date(), z=n=>String(n).padStart(2,'0'); return today()+' '+z(d.getHours())+':'+z(d.getMinutes()); };
 const rvAck=(rq,by)=>({...(rq||{}),ack:'Y',ackAt:rvStamp(),ackBy:by||''});   // 담당자가 관리자 답변을 확인한 시각
 const rvWho=pa=>{ const s=String(pa||'').trim(); return s&&s!==AUTO_PA?s:'담당자'; };
+/* 메모·검토 요청 대화 기록(2026-11-17) — 컨택 행의 r.thread=[{who,text,at,kind,ts}] 에 쌓기만 한다(지우지 않음).
+   who = '관리자' 또는 알바 이름. kind = ''(그냥 메모)|'요청'|'답변'|'확인'|'패스'. 옛 메모·검토요청은 처음 쓸 때 첫 대화로 옮겨 담는다(저장 전엔 화면에서만 만들어 보여줌). */
+function threadOf(r){
+  if(r&&Array.isArray(r.thread)&&r.thread.length) return r.thread;
+  const out=[], rq=(r&&r.reviewReq)||{}, memo=String((r&&r.memo)||'').trim(), note=String(rq.note||'').trim(), asker=rvWho(r&&r.pa);
+  if(note) out.push({who:asker,text:note,at:rq.reqAt||'',kind:'요청',ts:0});
+  if(memo&&memo!==note) out.push({who:asker,text:memo,at:'',kind:'',ts:0});
+  if(rq.status==='진행'||rq.status==='보류'||rq.status==='패스') out.push({who:'관리자',text:rq.status+(rq.reply?' — '+rq.reply:''),at:rq.replyAt||'',kind:rq.status==='패스'?'패스':'답변',ts:0});
+  if(rq.ack==='Y'&&(rq.status==='진행'||rq.status==='보류')) out.push({who:rq.ackBy==='관리자'?'관리자':asker,text:'✓ 확인',at:rq.ackAt||'',kind:'확인',ts:0});
+  return out; }
+const thAppend=(r,who,text,kind)=>[...threadOf(r),{who,text,at:rvStamp(),kind:kind||'',ts:Date.now()}];
+// 지금 쓰는 사람 이름 — 관리자는 '관리자', 알바는 로그인한 담당 이름(그 행 담당자가 내 담당이면 그 이름)
+function thMe(r){ if(!IS_STAFF) return '관리자';
+  const a=getAuth()||{}, mine=(Array.isArray(a.pa)?a.pa:[]).map(x=>String(x||'').trim()).filter(Boolean), rp=String((r&&r.pa)||'').trim();
+  if(rp&&rp!==AUTO_PA&&(!mine.length||mine.includes(rp))) return rp;
+  return mine[0]||rvWho(rp); }
+// 확인 줄은 빼고 가장 최근 말 1개 — 대시보드 카드·목록에 이것만 보인다
+const lastMsg=r=>{ const t=threadOf(r).filter(e=>e.kind!=='확인'); return t[t.length-1]||null; };
+function ThreadView({thread,open,setOpen}){
+  if(!thread.length) return <div style={{fontSize:12,color:'var(--dim)',marginBottom:6}}>아직 대화가 없어요</div>;
+  const shown=open?thread:thread.slice(-1), hidden=thread.length-shown.length;
+  return <div className="th-wrap">
+    {hidden>0&&<button type="button" className="th-more" onClick={()=>setOpen(true)}>이전 대화 {hidden}개 ▾</button>}
+    {open&&thread.length>1&&<button type="button" className="th-more" onClick={()=>setOpen(false)}>접기 ▴</button>}
+    {shown.map((e,i)=><div key={i} className={'th-msg '+(e.who==='관리자'?'th-adm':'th-alba')+(e.kind==='확인'?' th-ack':'')}>
+      <div className="th-meta">{e.who}{e.at?' · '+e.at:''}{e.kind&&e.kind!=='확인'?' · '+e.kind:''}</div>
+      <div className="th-b">{e.text}</div></div>)}
+  </div>; }
 const rvPassPatch=(row,rq,reply)=>({endReason:autoEndReason(row),contactStatus:'거절',rejectDate:today(),reviewReq:rvAnswer(rq,'패스',reply)});
 const optText=(brand,product,opt)=>optionsOf(brand,product).map(g=>(opt||{})[g.k]).filter(Boolean).join(' / ');
 
@@ -2563,6 +2605,13 @@ function normalizeData(d) {
 const MERGE_ROW_KEYS=['step1Rows','step2Rows','claudeStep1Rows','claudeStep2Rows','shippingRows','reviewRows','privacyRows','rejectedBilling'];
 const _eq=(a,b)=>JSON.stringify(a===undefined?null:a)===JSON.stringify(b===undefined?null:b);
 function _byId(rows){const m=Object.create(null);(rows||[]).forEach(r=>{if(r&&r.id!=null)m[r.id]=r;});return m;}
+// 대화 기록(thread) 병합: 서버 것 + 내가 새로 쓴 것(기준선에 없던 것)을 합쳐 시간순. 같은 말은 한 번만.
+function mergeThread(base, mine, theirs){
+  const key=e=>[e.who,e.kind||'',e.text,e.at||''].join('|');
+  const out=[...(theirs||[])], have=new Set(out.map(key)), had=new Set((base||[]).map(key));
+  (mine||[]).forEach(e=>{ const k=key(e); if(had.has(k)||have.has(k)) return; out.push(e); have.add(k); });
+  return out.map((e,i)=>[e,i]).sort((a,b)=>((a[0].ts||0)-(b[0].ts||0))||(a[1]-b[1])).map(x=>x[0]);
+}
 // 한 배열(예: step2Rows)의 3-way 병합. 기준=서버(theirs), 그 위에 내 변경(base→mine)만 반영.
 function mergeRows(base, mine, theirs){
   const B=_byId(base), M=_byId(mine), T=_byId(theirs);
@@ -2581,6 +2630,7 @@ function mergeRows(base, mine, theirs){
     for(const k of keys){
       if(_eq(mr[k],br[k])) continue;         // 내가 안 건드린 필드 → 서버 값(상대 수정) 유지
       if(!touched){ merged={...r}; touched=true; }
+      if(k==='thread'){ merged.thread=mergeThread(br.thread,mr.thread,r.thread); continue; }   // 대화 기록은 둘이 동시에 써도 둘 다 남긴다
       if(mr[k]===undefined) delete merged[k]; else merged[k]=mr[k];
     }
     out.push(merged);
@@ -3999,15 +4049,16 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       <div className="todo-right">
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
         <span className="todo-stage" style={{background:col+'22',color:col}}>{rq.status}</span>
-        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title={isStaff?'관리자 답변 확인':'담당자 대신 확인'} onClick={e=>{e.stopPropagation(); act.up(i,{reviewReq:rvAck(rq,isStaff?'':'관리자')});}}>✓ 확인</button>
+        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title={isStaff?'관리자 답변 확인':'담당자 대신 확인'} onClick={e=>{e.stopPropagation(); act.up(i,{reviewReq:rvAck(rq,isStaff?'':'관리자'),thread:thAppend(i.contact,isStaff?thMe(i.contact):'관리자',isStaff?'✓ 확인':'✓ 확인 (담당자 대신)','확인')});}}>✓ 확인</button>
       </div>
-      {(rq.reply||rq.note)&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}>{rq.reply?'💬 '+rq.reply:''}{rq.reply&&rq.note?' · ':''}{rq.note?'메모: '+rq.note:''}</div>}
+      {(()=>{ const m=lastMsg(i.contact); return m&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}><b style={{color:'var(--text)'}}>{m.who}</b> {m.text}</div>; })()}
     </div>; };
   const rvAns=(i,st)=>{ const rq=rqOf(i);
-    if(st==='패스'){ if(confirm(`${i.name} — 패스(거절) 처리할까요?`)) act.up(i,rvPassPatch(i.contact,rq,'')); return; }
+    if(st==='패스'){ if(confirm(`${i.name} — 패스(거절) 처리할까요?`)) act.up(i,{...rvPassPatch(i.contact,rq,''),thread:thAppend(i.contact,'관리자','패스(거절)','패스')}); return; }
     let reply=''; if(st==='보류'){ reply=prompt('담당자에게 남길 말 (예: 10만원이면 OK)',''); if(reply===null) return; }
-    act.up(i,{reviewReq:rvAnswer(rq,st,reply)}); };
-  const rvItem=i=>{ const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'}; const note=String(rqOf(i).note||'').trim();
+    const txt=st+(reply?' — '+reply:'');
+    act.up(i,{reviewReq:rvAnswer(rq,st,reply),thread:thAppend(i.contact,'관리자',txt,'답변'),memo:txt}); };
+  const rvItem=i=>{ const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'}; const lm=lastMsg(i.contact);
     return <div key={i.id} className="todo-item" style={{flexWrap:'wrap'}} onClick={()=>openInf(i)}>
       <span className="todo-name">{i.name}</span>
       <div className="todo-right">
@@ -4015,7 +4066,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
         <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={e=>{e.stopPropagation(); rvAns(i,'진행');}}>✓ 진행</button>
         <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={e=>{e.stopPropagation(); rvAns(i,'보류');}}>⏸ 보류</button>
       </div>
-      {note&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}>{note}</div>}
+      {lm&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}><b style={{color:'var(--text)'}}>{lm.who}</b> {lm.text}</div>}
     </div>; };
   const bossTodo=(bossItems.length||dropShip.length||reqItems.length)?[
     ...(reqItems.length?[<div key="rvq" className="todo-group">
@@ -4731,7 +4782,8 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
   useEffect(()=>{ if(IS_STAFF) return; let on=true;
     fetch(MS_BRIDGE+'/seals').then(x=>x.json()).then(j=>{ if(on&&j&&Array.isArray(j.items)&&j.items.length) setSealList(j.items); }).catch(()=>{});
     return ()=>{on=false;}; },[]);
-  useEffect(()=>{setF(init());setMsAsk('');setMsMsg(null);},[r.id]);
+  const [cmp,setCmp]=useState(''), [thOpen,setThOpen]=useState(false);   // 메모 대화: 쓰는 중인 글 · 이전 대화 펼침
+  useEffect(()=>{setF(init());setMsAsk('');setMsMsg(null);setCmp('');setThOpen(false);},[r.id]);
   const u=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const upd=patch=>H.current.onUpdate(r.id,patch);
   const dates=[r.date,r.dmDate,r.dealDate,r.contractDate||(rv&&rv.contractDate),r.shipDate,r.finalDate];
@@ -4989,13 +5041,24 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
           </select></div>
         {fldS('팔로워 수','followers','12,400')}
         {fldS('모집일','date','YY.MM.DD')}
-        {fldS('메모','memo','',true)}
-        {(()=>{ const rq=r.reviewReq||{}; const open=rq.status==='요청'; const ended=normStatus(r.contactStatus)==='거절';
-          const ask=()=>{ const n=f.memo.trim(); if(!n){ alert('메모에 검토받을 내용을 먼저 적어 주세요.'); return; }
-            upd({memo:f.memo,reviewReq:{status:'요청',note:n,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}); };
-          const ans=st=>{ if(st==='패스'){ if(!confirm(`'${r.name}' 을(를) 패스(거절) 처리할까요?`)) return; upd(rvPassPatch(r,rq,'')); return; }
+        {(()=>{ const me=thMe(r);
+          // 메모는 지우지 않고 대화로 쌓는다 — 보낸 글은 thread 에 붙고, memo(목록에 한 줄로 보이는 값)는 가장 최근 말로 갱신
+          const send=kind=>{ const t=cmp.trim(); if(!t){ alert(kind==='요청'?'메모에 검토받을 내용을 먼저 적어 주세요.':'보낼 내용을 적어 주세요.'); return; }
+            upd({thread:thAppend(r,me,t,kind),memo:t,...(kind==='요청'?{reviewReq:{status:'요청',note:t,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}:{})});
+            setCmp(''); setThOpen(false); };
+          return <div className="s2p-fg"><label>메모 · 대화 기록 <span style={{fontWeight:400,color:'var(--dim)'}}>(지워지지 않고 쌓여요)</span></label>
+            <ThreadView thread={threadOf(r)} open={thOpen} setOpen={setThOpen}/>
+            <div className="th-send">
+              <textarea value={cmp} onChange={e=>setCmp(e.target.value)} placeholder={IS_STAFF?'관리자에게 남길 말…':'담당자에게 남길 말…'} onKeyDown={e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); send(''); } }}/>
+              <button type="button" className="btn s2p-outline" style={{padding:'6px 12px',fontSize:12}} onClick={()=>send('')}>보내기</button>
+            </div></div>; })()}
+        {(()=>{ const rq=r.reviewReq||{}; const open=rq.status==='요청'; const ended=normStatus(r.contactStatus)==='거절'; const me=thMe(r);
+          const ask=()=>{ const t=cmp.trim(); if(!t){ alert('메모에 검토받을 내용을 먼저 적어 주세요.'); return; }
+            upd({thread:thAppend(r,me,t,'요청'),memo:t,reviewReq:{status:'요청',note:t,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}); setCmp(''); setThOpen(false); };
+          const ans=st=>{ if(st==='패스'){ if(!confirm(`'${r.name}' 을(를) 패스(거절) 처리할까요?`)) return; upd({...rvPassPatch(r,rq,''),thread:thAppend(r,'관리자','패스(거절)','패스')}); return; }
             let reply=''; if(st==='보류'){ reply=prompt('담당자에게 남길 말 (예: 10만원이면 OK)',''); if(reply===null) return; }
-            upd({reviewReq:rvAnswer(rq,st,reply)}); };
+            const txt=st+(reply?' — '+reply:'');
+            upd({reviewReq:rvAnswer(rq,st,reply),thread:thAppend(r,'관리자',txt,'답변'),memo:txt}); };
           if(ended&&!open) return null;
           return <div className="s2p-rq" style={{marginTop:2,marginBottom:12}}>
             {open?<div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
@@ -5008,9 +5071,9 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
               <button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="검토 요청 취소(잘못 눌렀을 때)" onClick={()=>upd({reviewReq:{...rq,status:'',ack:'Y'}})}>↩ 요청 취소</button>
             </div>:<div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
               {(rq.status==='진행'||rq.status==='보류')&&<span style={{fontSize:12,fontWeight:700,color:rq.status==='진행'?'var(--green)':'#f59e0b'}}>💬 관리자: {rq.status}{rq.reply?' — '+rq.reply:''}</span>}
-              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&IS_STAFF&&<button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} onClick={()=>upd({reviewReq:rvAck(rq)})}>확인</button>}
+              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&IS_STAFF&&<button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} onClick={()=>upd({reviewReq:rvAck(rq),thread:thAppend(r,me,'✓ 확인','확인')})}>확인</button>}
               {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<span style={{fontSize:12,fontWeight:700,color:'#f59e0b'}}>⏳ {rvWho(r.pa)} 확인 대기</span>}
-              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="담당자 대신 관리자가 확인 처리" onClick={()=>upd({reviewReq:rvAck(rq,'관리자')})}>✓ 확인</button>}
+              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="담당자 대신 관리자가 확인 처리" onClick={()=>upd({reviewReq:rvAck(rq,'관리자'),thread:thAppend(r,'관리자','✓ 확인 (담당자 대신)','확인')})}>✓ 확인</button>}
               {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&<span style={{fontSize:12,fontWeight:700,color:'var(--green)'}}>✓ {rvWho(r.pa)} 확인{rq.ackAt?' '+rq.ackAt:''}{rq.ackBy==='관리자'?' (관리자가 대신)':''}</span>}
               {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="답변을 취소하고 다시 검토 요청 상태로" onClick={()=>upd({reviewReq:{...rq,status:'요청',reply:'',replyAt:''}})}>↩ 답변 취소</button>}
               {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&(IS_STAFF||rq.ackBy==='관리자')&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="확인을 취소하고 다시 확인 전 상태로" onClick={()=>upd({reviewReq:{...rq,ack:'',ackAt:'',ackBy:''}})}>↩ 확인 취소</button>}
