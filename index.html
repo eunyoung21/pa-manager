@@ -661,6 +661,50 @@ tbody tr.sel-on,tbody tr.sel-on:hover{background:var(--mark-soft)!important;}
 [style*="font-size: 10px"],[style*="font-size:10px"]{font-size:12px!important;}
 [style*="font-size: 11px"],[style*="font-size:11px"]{font-size:13px!important;}
 [style*="font-size: 10.5px"],[style*="font-size:10.5px"],[style*="font-size: 11.5px"],[style*="font-size:11.5px"]{font-size:13px!important;}
+/* ── 상세 패널(.s2p) 개편 ── */
+.s2p-body{padding:20px 22px 44px;}
+.s2p-sec{font-size:17px;font-weight:700;color:var(--text);margin:0 0 14px;}
+.s2p-sec span{font-size:13px;color:var(--muted);}
+.s2p-body .s2p-sec:not(:first-child){margin-top:4px;}
+.s2p-fg{margin-bottom:16px;}
+.s2p-fg label{font-size:13px;font-weight:700;color:#2f3a50;margin-bottom:6px;}
+.s2p-note,.s2p-help{font-size:13px;color:var(--muted);line-height:1.55;}
+.s2p-note{margin-top:5px;}
+.s2p-fg input,.s2p-fg textarea,.s2p-body select{width:100%;height:42px;background:#fff;border:1px solid #aab0ab;border-radius:4px;padding:0 12px;font-size:14px;color:var(--text);}
+.s2p-fg textarea{height:auto;min-height:76px;padding:10px 12px;}
+.s2p-fg input[readonly]{background:var(--surface2);}
+.s2p-body select{appearance:none;-webkit-appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%231b2230' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 12px center;padding-right:32px;}
+.s2p-fg input:focus,.s2p-fg textarea:focus,.s2p-body select:focus{outline:0;border-color:var(--text);box-shadow:0 0 0 3px var(--mark-soft);}
+.s2p-fg ::placeholder{color:#6b7482;}
+.s2p-fg>div[style*="flex-wrap"]{display:grid!important;grid-template-columns:1fr 1fr;gap:8px!important;}
+.s2p-fg>div[style*="flex-wrap"] select{width:100%;}
+.s2p-fg>div[style*="flex-wrap"] .btn{justify-self:start;}
+.s2p-two{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.s2p-body .btn{min-height:36px;font-size:14px;}
+.s2p-body [style*="font-size: 12px"]{font-size:13px!important;}
+.s2p-outline{border:1px solid #aab0ab;}
+.s2p-outline:hover{border-color:var(--text);color:var(--text);background:var(--surface2);}
+.s2p-ink{background:#fff;border:1px solid var(--text);color:var(--text);font-weight:700;}
+.s2p-ink:hover:not(:disabled){background:var(--surface2);}
+.s2p-callout{border:1px solid #c9ccc7;background:#f4f5f3;border-radius:4px;padding:11px 14px;font-size:13px;margin:0 0 16px;line-height:1.55;}
+.s2p-next{background:#eef5ee;border:1px solid #a9cdb2;border-radius:4px;padding:11px 14px;font-size:14px;margin:0 0 14px;color:#1b3a26;line-height:1.55;}
+.s2p-final{width:100%;height:46px;font-size:15px!important;}
+.s2p-quit{margin-top:18px;padding-top:14px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);}
+.s2p-danger{background:none;color:#a32a2a;text-decoration:underline;padding:0 4px;min-height:0!important;}
+.s2p-danger:hover{filter:none;color:#7a1f1f;}
+/* 진행 단계 목록 */
+.s2p-dot{width:24px;height:24px;font-size:12px;}
+.s2p-dot.done{background:var(--ok);}
+.s2p-dot.current{background:var(--text);color:#fff;box-shadow:0 0 0 3px var(--mark);}
+.s2p-line{margin-left:11px;height:12px;}
+.s2p-tl-label{font-size:14px;}
+.s2p-date{font-size:12px;}
+.s2p-tl-item.back:hover .s2p-tl-label::after{font-size:12px;color:var(--text);}
+.s2p-head h2{font-size:18px;}
+.th-meta{font-size:12px;}
+.th-b{font-size:13px;}
+.th-ack .th-b{font-size:12px;}
+.th-more{font-size:13px;}
 @media (min-width:769px){
   .step-tab{padding:11px 16px;}
 }
@@ -4813,9 +4857,9 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
   // 성사 후에는 같은 버튼이 '하차'(2026-10-14) — 알바가 상세 창에서 바로 누른다. 하차는 지워지지 않고 제품 회수가 관리자 할 일에 뜬다.
   const reject=r.dealDone==='Y'
     ?<button className="btn s2p-danger" onClick={()=>{if(confirm(`${r.name} — 협업 성사 후 그만뒀나요?
-하차로 표시해요(제품을 보냈으면 관리자에게 회수 확인이 떠요).`))H.current.setStatus(r,'거절');}}>✕ 하차</button>
+하차로 표시해요(제품을 보냈으면 관리자에게 회수 확인이 떠요).`))H.current.setStatus(r,'거절');}}>하차 처리</button>
     :<button className="btn s2p-danger" onClick={()=>H.current.setStatus(r,'거절')}>✕ 거절됨으로</button>;
-  const fld=(label,k,ph,area)=><div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph}/>:<input value={f[k]} onChange={u(k)} placeholder={ph}/>}</div>;
+  const fld=(label,k,ph,area,help)=><div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph}/>:<input value={f[k]} onChange={u(k)} placeholder={ph}/>}{help&&<div className="s2p-note">{help}</div>}</div>;
   // 기본 정보 4칸(이름·팔로워·모집일·메모) — 칸을 벗어나면 바뀐 경우에만 자동 저장(2026-11-11, 저장 버튼 삭제)
   const fldS=(label,k,ph,area)=>{
     const save=()=>{ const v=k==='memo'?String(f[k]||''):String(f[k]||'').trim();
@@ -4858,7 +4902,8 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
       <p className="s2p-help">계약서는 관리자가 모두싸인으로 보내요. 서명 완료 후 계약완료를 눌러주세요.</p>
       {fld('이름','realName','홍길동')}
       {fld('연락처','phone','010-0000-0000')}
-      <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:today(),realName:f.realName.trim(),phone:f.phone.trim()})}>계약완료 →</button>{reject}</div></>;
+      <button className="btn btn-primary s2p-final" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:today(),realName:f.realName.trim(),phone:f.phone.trim()})}>계약완료</button>
+      <div className="s2p-quit"><span>진행을 그만두려면</span>{reject}</div></>;
   }
   else if(st===3){
     // 관리자(2026-10-13 다시 켬): 등록 양식 + 이 정보로 계약서를 만들어 관리자 PC 모두싸인 브리지(localhost:8791)로 보낸다
@@ -4905,13 +4950,16 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
       finally{ setMsBusy(false); }
     };
     action=<>
-      <p className="s2p-help">아래 정보로 {(brand&&brand.name)||''} 계약서 양식을 채워 모두싸인(카카오톡)으로 보냅니다. 이 PC에서 「모두싸인 계약서 발송.bat」이 켜져 있어야 해요.</p>
+      <p className="s2p-help">아래 정보로 {(brand&&brand.name)||''} 계약서 양식을 채워 모두싸인(카카오톡)으로 보냅니다.</p>
+      <div className="s2p-callout"><b>보내기 전에 확인하세요.</b> 이 PC에서 「모두싸인 계약서 발송.bat」이 켜져 있어야 해요.</div>
       {fld('실명 (계약자)','realName','홍길동')}
       {fld('연락처 (카카오톡 받을 번호)','phone','010-0000-0000')}
       {fld('주소','address','주소 입력',true)}
-      {fld('주민등록번호 (선택 — 비우면 모델이 서명할 때 입력 · 저장 안 됨)','rrn','')}
-      {fld('모델료 (진행 단가)','rate','예: 80,000')}
-      {fld('계약일자','contractDate','YY.MM.DD')}
+      {fld('주민등록번호 (선택)','rrn','',false,'비우면 모델이 서명할 때 직접 입력하고, 저장되지 않아요.')}
+      <div className="s2p-two">
+        {fld('모델료 (진행 단가)','rate','예: 80,000')}
+        {fld('계약일자','contractDate','YY.MM.DD')}
+      </div>
       {/* 계약서 파일 — 여기서 올리면 브랜드 전체 양식(brand.contractTemplate)으로 저장. 없으면 앱 내장 양식 */}
       <div className="s2p-fg ct-file"><label><button type="button" className="ct-tog" onClick={()=>setCtOpen(o=>!o)} aria-expanded={ctOpen}>계약서 파일 <span>{ctOpen?'▴':'▾'}</span></button></label>
         {ctOpen&&(()=>{ const tl=contractTplList(brand);
@@ -4930,21 +4978,23 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
         </div>}
         <input ref={ctRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickCt}/>
       </div>
-      <div className="s2p-fg ct-seal"><label>직인 회사 <span style={{fontWeight:400,color:'var(--muted)'}}>· 광고주 대표자 (인)에 찍힘 · {(brand&&brand.name)||''} 전체에 저장</span></label>
+      <div className="s2p-fg ct-seal"><label>직인 회사</label>
         <select value={sealCompanyOf(brand)} disabled={msBusy} onChange={e=>{onSaveSeal&&onSaveSeal(e.target.value);setMsAsk('');setMsMsg(null);}}>
           <option value="">고르세요</option>
           {[...new Set([...sealList, sealCompanyOf(brand)].filter(Boolean))].map(c=><option key={c} value={c}>{c}</option>)}
         </select>
+        <div className="s2p-note">광고주 대표자 (인) 칸에 찍히고, {(brand&&brand.name)||''} 전체에 저장돼요.</div>
       </div>
       {msAsk&&!msBusy&&<p className="s2p-help ms-ask" style={{color:'var(--text)'}}>{msAsk} 으로 보냅니다. 맞으면 버튼을 한 번 더 누르세요.</p>}
       {msMsg&&<p className="s2p-help ms-msg" style={{color:msMsg.err?'var(--red)':'var(--green,#15803d)'}}>{msMsg.err||('✅ '+msMsg.ok)}</p>}
-      {r.contractSent&&!msMsg&&<p className="s2p-help">✍️ {r.contractSent} 모두싸인 발송함 — 서명되면 '계약완료'를 누르세요.</p>}
       <div className="s2p-btns" style={{marginBottom:10}}>
-        <button className="btn btn-primary ms-send" disabled={msBusy} onClick={sendMs}>{msBusy?'모두싸인에서 보내는 중…':msAsk?'✅ 확인 — 보내기':'✍️ 모두싸인으로 계약서 보내기'}</button>
+        <button className={'btn ms-send '+(msAsk?'btn-primary':'s2p-ink')} disabled={msBusy} onClick={sendMs}>{msBusy?'모두싸인에서 보내는 중…':msAsk?'✅ 확인 — 보내기':'✍️ 모두싸인으로 계약서 보내기'}</button>
         <a className="s2p-help" href="https://app.modusign.co.kr/esign/documents/documents" target="_blank" rel="noopener" style={{margin:0}}>문서함 ↗</a>
       </div>
       <div className="s2p-hr"/>
-      <div className="s2p-btns"><button className="btn btn-primary" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),rate:f.rate.trim(),realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()})}>계약완료 →</button>{reject}</div></>;
+      {r.contractSent&&<div className="s2p-next"><b>{r.contractSent} 모두싸인 발송함.</b> 상대가 서명하면 아래 <b>계약완료</b>를 누르세요.</div>}
+      <button className="btn btn-primary s2p-final" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),rate:f.rate.trim(),realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()})}>계약완료</button>
+      <div className="s2p-quit"><span>진행을 그만두려면</span>{reject}</div></>;
   }
   else if(st===4) action=<>
     {fld('광고 코드','adCode','광고 코드 입력')}
@@ -5033,7 +5083,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
           <button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12,marginTop:6}} title="같은 사람에게 보내는 제품을 더 추가" onClick={()=>upd({extras:[...(r.extras||[]),{product:'',opt:{},qty:'1'}]})}>＋ 제품 추가</button>
           {pcOpen&&<ProductConfigModal brand={brand} onClose={()=>setPcOpen(false)} onSave={(p,o,nc)=>{onSaveProducts(p,o,nc);setPcOpen(false);}}/>}
         </div>
-        <div className="s2p-fg"><label>시딩 방식 <span style={{fontWeight:400,color:'var(--muted)'}}>· 유가=계약서·정산 있음 / 무가=없음</span></label>
+        <div className="s2p-fg"><label>시딩 방식</label>
           <select value={seedingOf(brand,r)} onChange={e=>{ const v=e.target.value;
             // 유가로 바꿨는데 이미 제품을 보냈고 계약서가 아직 없으면 → 계약서 단계로 되돌린다(저장된 단계·계약서 확인 표시도 함께)
             const back=v==='유가'&&r.shippingDone==='✅ 완료'&&r.contractDone!=='✅ 완료'&&r.finalDone!=='Y'&&r.infSettled!=='Y'&&!r.privacyPurged;
@@ -5041,15 +5091,17 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
             <option value="">제품 기본값 따름 ({productNoContract(brand,r.product)?'무가':'유가'})</option>
             <option value="유가">유가 시딩 (계약서·정산)</option>
             <option value="무가">무가 시딩 (계약서 없음)</option>
-          </select></div>
-        {fldS('팔로워 수','followers','12,400')}
-        {fldS('모집일','date','YY.MM.DD')}
+          </select><div className="s2p-note">유가는 계약서와 정산이 있고, 무가는 없어요.</div></div>
+        <div className="s2p-two">
+          {fldS('팔로워 수','followers','12,400')}
+          {fldS('모집일','date','YY.MM.DD')}
+        </div>
         {(()=>{ const me=thMe(r);
           // 메모는 지우지 않고 대화로 쌓는다 — 보낸 글은 thread 에 붙고, memo(목록에 한 줄로 보이는 값)는 가장 최근 말로 갱신
           const send=kind=>{ const t=cmp.trim(); if(!t){ alert(kind==='요청'?'메모에 검토받을 내용을 먼저 적어 주세요.':'보낼 내용을 적어 주세요.'); return; }
             upd({thread:thAppend(r,me,t,kind),memo:t,...(kind==='요청'?{reviewReq:{status:'요청',note:t,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}:{})});
             setCmp(''); setThOpen(false); };
-          return <div className="s2p-fg"><label>메모 · 대화 기록 <span style={{fontWeight:400,color:'var(--dim)'}}>(지워지지 않고 쌓여요)</span></label>
+          return <div className="s2p-fg"><label>메모 · 대화 기록</label><div className="s2p-note" style={{marginTop:-2,marginBottom:8}}>남긴 메모는 지워지지 않고 쌓여요.</div>
             <ThreadView thread={threadOf(r)} open={thOpen} setOpen={setThOpen}/>
             <div className="th-send">
               <textarea value={cmp} onChange={e=>setCmp(e.target.value)} placeholder={IS_STAFF?'관리자에게 남길 말…':'담당자에게 남길 말…'} onKeyDown={e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); send(''); } }}/>
