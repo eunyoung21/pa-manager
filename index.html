@@ -749,6 +749,10 @@ a.menu-item{display:block;}
 .auto-t th.num,.auto-t td.num{text-align:right;}
 .auto-t th{white-space:nowrap;}
 .auto-t tbody tr:hover td{background:#faf6e4;}
+.auto-t td.num .cell-val{width:auto!important;text-align:right;}
+.auto-t th.c{text-align:center;}
+.auto-t td.del-end .row-del-x,.ship-t td.del-end .row-del-x{font-size:18px;opacity:1;color:var(--muted);}
+.auto-t td.del-end .row-del-x:hover,.ship-t td.del-end .row-del-x:hover{color:var(--red);}
 .hdr-right>span[title^="변경하면"]{min-width:64px;}
 @media (min-width:769px){
   .auto-t{table-layout:fixed;width:100%;}
@@ -4739,7 +4743,7 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
           <th style={{width:'10%',cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
           <th style={{width:'10%'}}>완료일</th>
           <th className="num" style={{width:'8%'}}>단가</th>
-          <th style={{width:'5%'}}>링크</th>
+          <th className="c" style={{width:'5%'}}>링크</th>
           <th className="del-end"/>
         </tr>:<tr>
           <th className="del-col"><SelAll sel={sel}/></th>
@@ -4752,7 +4756,7 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
           <th style={{width:'7%'}}>최종완료</th>
           <th style={{width:'9%'}}>완료일</th>
           <th className="num" style={{width:'8%'}}>단가</th>
-          <th style={{width:'5%'}}>링크</th>
+          <th className="c" style={{width:'5%'}}>링크</th>
           <th className="del-end"/>
         </tr>}
         {showColF&&<tr className="colf-row">
