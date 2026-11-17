@@ -782,6 +782,51 @@ a.menu-item{display:block;}
 .ship-t td{vertical-align:middle;}
 .ship-t .cell-val.empty>span{opacity:0!important;}
 .ship-t .row-del-btn{opacity:1;color:var(--muted);font-size:18px;}
+/* ── 리포트 정리 (2026-11-17) ── */
+.rpt{word-break:keep-all;}
+.rpt-ins2{margin:6px 0 26px;}
+.rpt-ins2 h3{font-size:18px;margin:0 0 4px;}
+.rpt-ins2 .b{font-size:14px;color:var(--muted);margin:0 0 14px;}
+.rpt-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:12px;}
+.rpt-card{background:#fff;border:1px solid var(--border);border-left:5px solid var(--ok);border-radius:6px;padding:14px 18px;}
+.rpt-card.cut{border-left-color:var(--red);}
+.rpt-card .tg{display:inline-block;font-size:13px;font-weight:700;border-radius:4px;padding:1px 9px;margin-bottom:6px;background:#e4f2e9;color:var(--ok);}
+.rpt-card.cut .tg{background:#f7e2e2;color:var(--red);}
+.rpt-card .m{font-size:14px;line-height:1.65;color:var(--text);}
+.rpt-card .a{margin-top:8px;font-size:14px;font-weight:700;}
+.rpt-fold{background:#fff;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;}
+.rpt-fold>summary{list-style:none;cursor:pointer;padding:12px 16px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;}
+.rpt-fold>summary::-webkit-details-marker{display:none;}
+.rpt-fold>summary::before{content:'+';width:22px;height:22px;border:1px solid #aab0ab;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-weight:400;font-size:16px;}
+.rpt-fold[open]>summary::before{content:'−';}
+.rpt-fold ul{margin:0;padding:0 16px 12px;list-style:none;font-size:14px;color:var(--muted);}
+.rpt-fold li{padding:7px 0;border-top:1px solid var(--border);line-height:1.6;}
+.rpt-kpis2{display:grid;grid-template-columns:1.5fr repeat(4,1fr);gap:12px;margin:0 0 26px;}
+.rpt-kpis2 .k{background:#fff;border:1px solid var(--border);border-radius:6px;padding:14px 18px;}
+.rpt-kpis2 .k small{display:block;font-size:13px;color:var(--muted);margin-bottom:2px;}
+.rpt-kpis2 .k b{font-size:24px;font-weight:700;}
+.rpt-kpis2 .k.main b{font-size:40px;line-height:1.1;}
+.rpt-kpis2 .cmp{font-size:14px;font-weight:700;margin-top:4px;color:var(--muted);}
+.rpt-kpis2 .good,.rpt-roas.good{color:var(--ok);}
+.rpt-kpis2 .bad,.rpt-roas.bad{color:var(--red);}
+.rpt-tbar{display:flex;margin:0 0 10px;}
+.rpt-tbar .btn{height:36px;border:1px solid #aab0ab;background:#fff;font-size:14px;}
+.rpt-table th,.rpt-table td{padding:13px 14px;font-size:14px;}
+.rpt-th{font-size:13px;font-weight:700;color:var(--muted);}
+.rpt-nm{font-weight:700;font-size:15px;}
+.rpt-nm .rpt-link{text-decoration:none;}
+.rpt-nm .rpt-link:hover{text-decoration:underline;}
+.rpt-ch2{font-size:13px;color:var(--muted);margin-top:3px;}
+.rpt-roas{font-weight:700;font-size:16px;display:block;}
+.rpt-roas.mute,.mute{color:#8a93a0;}
+.rpt-fsub{display:block;font-size:12px;color:#8a93a0;font-weight:400;}
+.rpt-live{display:inline-flex;align-items:center;gap:7px;font-weight:700;}
+.rpt-live i{width:9px;height:9px;border-radius:50%;display:inline-block;}
+.rpt-weeks button{font-size:14px;padding:8px 14px;}
+.rpt-wsel{height:38px;font-size:14px;border:1px solid var(--border);border-radius:6px;background:#fff;padding:0 10px;color:var(--text);}
+.rpt-wsel.on{border-color:var(--text);font-weight:700;}
+.rpt-wksum{font-size:13px;}
+@media (max-width:768px){.rpt-kpis2{grid-template-columns:1fr 1fr;}}
 @media (min-width:769px){
   .step-tab{padding:11px 16px;}
 }
@@ -7159,17 +7204,25 @@ function SheetLinkModal({ brand, onSave, onClose }) {
 
 /* 「어떤 유형이 잘 되나 → 이런 사람으로 확장」 — 수집이 누적 데이터로 계산해 _report 메타(insights)에 싣는다. 읽기 전용. */
 const RPT_IL={grow:'확장',cut:'축소',note:'참고'};
-function ReportInsights({ins,weekKey}){
+function rptInsCur(ins,weekKey){
   // 어느 주를 볼지는 리포트 위쪽 주차 라벨이 정한다(weekKey). 없거나 그 주 계산이 없으면 가장 최근 주.
   const weeks=(ins&&ins.weeks)||[];
   const key=weekKey&&weeks.includes(weekKey)?weekKey:weeks[0];
-  const cur=ins&&ins.byWeek&&key?ins.byWeek[key]:ins;
+  return ins&&ins.byWeek&&key?ins.byWeek[key]:ins;
+}
+function ReportInsights({ins,weekKey}){
+  const cur=rptInsCur(ins,weekKey);
   if(!cur||!cur.lines||!cur.lines.length) return null;
-  return <details className="rpt-ins" open>
-    <summary>섭외 확장 제안</summary>
+  const weeks=(ins&&ins.weeks)||[];
+  const acts=cur.lines.filter(l=>l.kind!=='note'), notes=cur.lines.filter(l=>l.kind==='note');
+  const split=t=>{ const i=String(t).lastIndexOf(' — '); return i>0?[t.slice(0,i),t.slice(i+3)]:[t,'']; };
+  return <div className="rpt-ins2">
+    <h3>섭외 확장 제안</h3>
     <div className="b">{cur.basis}{weeks.length>1&&' · 그 주까지 쌓인 데이터 기준'}</div>
-    <ul>{cur.lines.map((l,i)=><li key={i}><span className={'lv '+l.kind}>{RPT_IL[l.kind]||''}</span><span style={l.kind==='note'?{color:'var(--muted)'}:undefined}>{l.text}</span></li>)}</ul>
-  </details>;
+    {acts.length>0&&<div className="rpt-cards">{acts.map((l,i)=>{ const [m,a]=split(l.text);
+      return <div key={i} className={'rpt-card '+l.kind}><span className="tg">{RPT_IL[l.kind]||''}</span><div className="m">{m}</div>{a&&<div className="a">→ {a}</div>}</div>; })}</div>}
+    {notes.length>0&&<details className="rpt-fold"><summary>참고 {notes.length}건</summary><ul>{notes.map((l,i)=><li key={i}>{l.text}</li>)}</ul></details>}
+  </div>;
 }
 
 /* ─── 📈 리포트 (관리자) — 브랜드별 인플루언서 광고 성과 ───
@@ -7186,6 +7239,7 @@ function ReportView({brand}) {
   const [selWeek,setSelWeek]=useState(null);       // 주차 라벨로 고른 주(끝 날짜). 없으면 가장 최근 지난 주
   const [sortK,setSortK]=useState('setAt');
   const [showAll,setShowAll]=useState(false);
+  const [showMedia,setShowMedia]=useState(false);   // 매체 신고값(매출·전환·CPA·ROAS·담기당비용·직접CPA) 열 펼치기
   const load=()=>{
     setSt({loading:true});
     callApi('reportGet').then(j=>{
@@ -7265,20 +7319,31 @@ function ReportView({brand}) {
   const th=(k,label,right=true)=><th className={'rpt-th'+(sortK===k?' on':'')} style={{textAlign:right?'right':'left'}} onClick={()=>setSortK(k)}>{label}</th>;
   const plain=(label,left)=><th className="rpt-th" style={{textAlign:left?'left':'right',cursor:'default'}}>{label}</th>;
   const Kpi=({l,v})=><div><div className="rpt-kl">{l}</div><div className="rpt-kv">{v}</div></div>;
-  const MetricHead=()=><>{th('cost','비용')}{th('rev','매출')}{th('conv','전환')}{th('cpa','CPA')}{th('roas','ROAS')}{th('atcCost','담기당비용')}
-    {th('dCpa','직접CPA')}{th('dRoas','직접ROAS')}{th('dc','직접전환수')}{th('da','직접전환값')}</>;
-  const MetricCells=({r})=><><td>{won(r.cost)}</td><td>{won(r.rev)}</td><td>{won(r.conv)}</td><td>{won(r.cpa)}</td><td>{pct(r.roas)}</td><td>{won(r.atcCost)}</td>
-    <td>{won(r.dCpa)}</td><td style={{fontWeight:600,color:r.dRoas!=null&&r.dRoas<100?'var(--red)':undefined}}>{pct(r.dRoas)}</td><td>{won(r.dc)}</td><td>{won(r.da)}</td></>;
-  const Kpis=({a,n,label})=><div className="rpt-kpis">
-    <Kpi l={label} v={n+'명'}/><Kpi l="비용" v={won(a.cost)}/><Kpi l="직접 ROAS" v={pct(a.dRoas)}/>
-    <Kpi l="직접 CPA" v={won(a.dCpa)}/><Kpi l="직접 전환수" v={won(a.dc)}/><Kpi l="직접 전환값" v={won(a.da)}/></div>;
-  const GroupRow=({lead})=><tr><th colSpan={lead+(hasProd?1:0)}/><th colSpan={6} className="rpt-grp">매체 신고값</th><th colSpan={4} className="rpt-grp">직접 (cafe24)</th></tr>;
-  // 이름 옆에 채널명(+담당자는 아래 작은 글씨)
+  // 열 순서: 직접ROAS → 직접전환 → 직접전환값 → 비용 → (세팅일/집행주) → [매체 신고값 보기 때만] 매출·전환·CPA·ROAS·담기당비용·직접CPA
+  const MetricHead=({tail})=><>{th('dRoas','직접ROAS')}{th('dc','직접전환')}{th('da','직접전환값')}{th('cost','비용')}{tail}
+    {showMedia&&<>{th('rev','매출')}{th('conv','전환')}{th('cpa','CPA')}{th('roas','ROAS')}{th('atcCost','담기당비용')}{th('dCpa','직접CPA')}</>}</>;
+  // 전환이 5건 미만이면 직접ROAS는 판단하지 않는다(회색) — 0%·소수 전환이 전부 빨갛게 보이던 문제
+  const RoasCell=({r})=>{ const few=!(r.dc>=5); const v=r.dRoas;
+    if(few) return <td><span className="rpt-roas mute">{v==null||!r.dc?'–':pct(v)}</span><span className="rpt-fsub">{'전환 '+(r.dc||0)+'건 · '+(r.dc?'표본 적음':'판단 보류')}</span></td>;
+    return <td><span className={'rpt-roas'+(v!=null&&v<100?' bad':v!=null&&v>=120?' good':'')}>{pct(v)}</span></td>; };
+  const MetricCells=({r,tail})=><><RoasCell r={r}/><td>{won(r.dc)}</td><td>{won(r.da)}</td><td>{won(r.cost)}</td>{tail}
+    {showMedia&&<><td>{won(r.rev)}</td><td>{won(r.conv)}</td><td>{won(r.cpa)}</td><td>{pct(r.roas)}</td><td>{won(r.atcCost)}</td><td>{won(r.dCpa)}</td></>}</>;
+  // 맨 위 요약: 직접ROAS를 가장 크게, 그 구간 누적 평균(제안의 «직접ROAS NN%»)과 비교
+  const Kpis=({a,n,label,avg})=>{ const v=a.dRoas; const cmp=(v!=null&&avg!=null)?(v>=avg+3?{c:'good',t:'▲ 평균 '+avg+'%보다 높아요'}:v<=avg-3?{c:'bad',t:'▼ 평균 '+avg+'%보다 낮아요'}:{c:'',t:'평균 '+avg+'%와 비슷해요'}):null;
+    return <div className="rpt-kpis2">
+      <div className="k main"><small>직접 ROAS</small><b className={cmp?cmp.c:''}>{pct(v)}</b>{cmp&&<div className={'cmp '+cmp.c}>{cmp.t}</div>}</div>
+      <div className="k"><small>비용</small><b>{won(a.cost)}</b></div>
+      <div className="k"><small>직접 전환</small><b>{won(a.dc)}건</b></div>
+      <div className="k"><small>직접 CPA</small><b>{won(a.dCpa)}</b></div>
+      <div className="k"><small>{label}</small><b>{n}명</b></div>
+    </div>; };
+  const MediaBar=()=><div className="rpt-tbar"><button className="btn" onClick={()=>setShowMedia(v=>!v)}>{showMedia?'매체 신고값 숨기기 −':'매체 신고값 보기 +'}</button></div>;
+  // 이름 칸: 이름(굵게) 아래 줄에 채널 · 담당자
   const NameCell=({name,channel,pa,url})=><td style={{textAlign:'left'}}>
-    <span>{url?<a href={url} target="_blank" rel="noreferrer" className="rpt-link" title="이 사람이 올린 영상 보기">{name||channel}</a>:(name||channel)}</span>{channel&&name&&<span className="rpt-ch">{channel}</span>}
-    {pa?<div className="rpt-sub">{pa}</div>:null}</td>;
+    <div className="rpt-nm">{url?<a href={url} target="_blank" rel="noreferrer" className="rpt-link" title="이 사람이 올린 영상 보기">{name||channel}</a>:(name||channel)}</div>
+    {((channel&&name)||pa)?<div className="rpt-ch2">{[(channel&&name)?channel:'',pa||''].filter(Boolean).join(' · ')}</div>:null}</td>;
   const ProdCell=({p})=>hasProd?<td style={{textAlign:'left',color:'var(--muted)'}}>{p||'–'}</td>:null;
-  const LiveCell=({on})=><td style={{textAlign:'left',color:'var(--muted)'}}>{on==='Y'?'ON':on==='N'?'OFF':'–'}</td>;
+  const LiveCell=({on})=><td style={{textAlign:'left'}}>{on==='Y'?<span className="rpt-live"><i style={{background:'var(--ok)'}}/>ON</span>:on==='N'?<span className="rpt-live mute"><i style={{background:'#aab0ab'}}/>OFF</span>:<span className="mute">–</span>}</td>;
 
   // 이번 주
   const nowF=nowRows.filter(r=>prodMatch(r.product));
@@ -7296,6 +7361,7 @@ function ReportView({brand}) {
   const pickWeek=e=>{setSelWeek(e);setHistMode('weeks');goSpan('h');};
   const pickAll=()=>{setHistMode('people');goSpan('h');};
   const insWeek=span==='w'?(wk&&wk.end):(histMode==='weeks'&&selW?selW.end:null);
+  const insAvg=(()=>{ const c=rptInsCur(meta.insights&&meta.insights[brand?.name],insWeek); const m=c&&String(c.basis||'').match(/직접ROAS\s*(\d+)%/); return m?Number(m[1]):null; })();
 
   return <div className="log-page rpt">
     <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap',marginBottom:6}}>
@@ -7304,8 +7370,12 @@ function ReportView({brand}) {
     </div>
     <div className="rpt-seg rpt-weeks" style={{flexWrap:'wrap',marginBottom:8}}>
       <button className={span==='w'?'on':''} onClick={()=>goSpan('w')}>이번 주{wk&&wk.start?` ${md(wk.start)}~${md(wk.end)}`:''}</button>
-      {h.weeks.map(w=><button key={w.end} className={span==='h'&&histMode==='weeks'&&selW&&selW.end===w.end?'on':''} onClick={()=>pickWeek(w.end)}>{md(w.start)}~{md(w.end)}</button>)}
+      {h.weeks.slice(0,1).map(w=><button key={w.end} className={span==='h'&&histMode==='weeks'&&selW&&selW.end===w.end?'on':''} onClick={()=>pickWeek(w.end)}>지난 주 {md(w.start)}~{md(w.end)}</button>)}
       {h.weeks.length>0&&<button className={span==='h'&&histMode==='people'?'on':''} onClick={pickAll}>전체 합산{hr?` (${hr})`:''}</button>}
+      {h.weeks.length>1&&<select className={'rpt-wsel'+(span==='h'&&histMode==='weeks'&&selW&&h.weeks.slice(1).some(w=>w.end===selW.end)?' on':'')} value={span==='h'&&histMode==='weeks'&&selW&&h.weeks.slice(1).some(w=>w.end===selW.end)?selW.end:''} onChange={e=>{ if(e.target.value) pickWeek(e.target.value); }}>
+        <option value="">이전 주차 ▾</option>
+        {h.weeks.slice(1).map(w=><option key={w.end} value={w.end}>{md(w.start)}~{md(w.end)}</option>)}
+      </select>}
     </div>
     {hasProd&&<div className="rpt-seg rpt-weeks rpt-prods" style={{flexWrap:'wrap',marginBottom:8}}>
       <button className={!prod?'on':''} onClick={()=>setProd('')}>전체 제품</button>
@@ -7320,22 +7390,21 @@ function ReportView({brand}) {
 
     <ReportInsights ins={meta.insights&&meta.insights[brand?.name]} weekKey={insWeek}/>
     {span==='w'&&<>
-      <Kpis a={Tn} n={ad.length} label="광고 집행 인원"/>
+      <Kpis a={Tn} n={ad.length} label="광고 집행" avg={insAvg}/>
+      <MediaBar/>
       <div style={{overflowX:'auto'}}>
-      <table className="rpt-table" style={{minWidth:1100}}>
+      <table className="rpt-table" style={{minWidth:showMedia?1500:900}}>
         <thead>
-          <GroupRow lead={3}/>
-          <tr>{th('name','이름 · 채널',false)}{hasProd&&plain('제품',true)}{plain('라이브',true)}{th('setAt','세팅일')}<MetricHead/></tr>
+          <tr>{th('name','이름 · 채널',false)}{hasProd&&plain('제품',true)}{plain('라이브',true)}<MetricHead tail={th('setAt','세팅일')}/></tr>
         </thead>
         <tbody>
           {shown.map((r,i)=><tr key={i}>
             <NameCell name={r.name} channel={r.channel} pa={r.pa} url={r.postUrl}/>
             <ProdCell p={r.product}/>
             <LiveCell on={r.on}/>
-            <td style={{color:'var(--muted)'}}>{r.setAt?md(r.setAt):'–'}</td>
-            <MetricCells r={r}/>
+            <MetricCells r={r} tail={<td style={{color:'var(--muted)'}}>{r.setAt?md(r.setAt):'–'}</td>}/>
           </tr>)}
-          {!shown.length&&<tr><td colSpan={13+(hasProd?1:0)} style={{textAlign:'center',color:'var(--muted)',padding:24}}>이번 주 광고 집행 기록이 없어요.</td></tr>}
+          {!shown.length&&<tr><td colSpan={8+(hasProd?1:0)+(showMedia?6:0)} style={{textAlign:'center',color:'var(--muted)',padding:24}}>이번 주 광고 집행 기록이 없어요.</td></tr>}
         </tbody>
       </table>
       </div>
@@ -7348,18 +7417,18 @@ function ReportView({brand}) {
       ? <div style={{color:'var(--muted)',fontSize:13,padding:'24px 0'}}>이전 데이터가 아직 올라오지 않았어요.</div>
       : <>
         {histMode==='weeks'&&selW
-          ? <Kpis a={selW} n={selW.n} label="그 주 집행 인원"/>
-          : <Kpis a={h.tot} n={h.totN} label="기간 내 집행 인원"/>}
+          ? <Kpis a={selW} n={selW.n} label="그 주 집행" avg={insAvg}/>
+          : <Kpis a={h.tot} n={h.totN} label="기간 내 집행" avg={insAvg}/>}
+        <MediaBar/>
         <div style={{overflowX:'auto'}}>
         {histMode==='weeks'
-          ? <table className="rpt-table" style={{minWidth:1100}}>
+          ? <table className="rpt-table" style={{minWidth:showMedia?1400:820}}>
               <thead>
-                <GroupRow lead={2}/>
                 <tr>{th('name','이름 · 채널',false)}{hasProd&&plain('제품',true)}{plain('라이브',true)}<MetricHead/></tr>
               </thead>
               <tbody>
                 {[selW].filter(Boolean).map(w=><React.Fragment key={w.end}>
-                  <tr className="rpt-wkrow"><td colSpan={12+(hasProd?1:0)} style={{textAlign:'left'}}>
+                  <tr className="rpt-wkrow"><td colSpan={7+(hasProd?1:0)+(showMedia?6:0)} style={{textAlign:'left'}}>
                     <b>{md(w.start)} ~ {md(w.end)}</b>
                     <span className="rpt-wksum">{w.n}명 · 비용 {won(w.cost)} · 직접ROAS <span style={{color:w.dRoas!=null&&w.dRoas<100?'var(--red)':undefined,fontWeight:600}}>{pct(w.dRoas)}</span> · 직접전환 {won(w.dc)}</span>
                   </td></tr>
@@ -7367,14 +7436,13 @@ function ReportView({brand}) {
                 </React.Fragment>)}
               </tbody>
             </table>
-          : <table className="rpt-table" style={{minWidth:1100}}>
+          : <table className="rpt-table" style={{minWidth:showMedia?1500:900}}>
               <thead>
-                <GroupRow lead={3}/>
-                <tr>{th('name','이름 · 채널',false)}{hasProd&&plain('제품',true)}{plain('라이브',true)}{th('weeks','집행 주')}<MetricHead/></tr>
+                <tr>{th('name','이름 · 채널',false)}{hasProd&&plain('제품',true)}{plain('라이브',true)}<MetricHead tail={th('weeks','집행 주')}/></tr>
               </thead>
               <tbody>
-                {sortRows(h.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel} url={x.postUrl}/><ProdCell p={x.product}/><LiveCell on={x.on}/><td style={{color:'var(--muted)'}}>{r.weeks}</td><MetricCells r={r}/></tr>;})}
-                {!h.people.length&&<tr><td colSpan={13+(hasProd?1:0)} style={{textAlign:'center',color:'var(--muted)',padding:24}}>기록이 없어요.</td></tr>}
+                {sortRows(h.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel} url={x.postUrl}/><ProdCell p={x.product}/><LiveCell on={x.on}/><MetricCells r={r} tail={<td style={{color:'var(--muted)'}}>{r.weeks}</td>}/></tr>;})}
+                {!h.people.length&&<tr><td colSpan={8+(hasProd?1:0)+(showMedia?6:0)} style={{textAlign:'center',color:'var(--muted)',padding:24}}>기록이 없어요.</td></tr>}
               </tbody>
             </table>}
         </div>

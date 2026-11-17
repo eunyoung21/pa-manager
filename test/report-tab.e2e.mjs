@@ -91,8 +91,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const J = JSON.stringify;
 const click = (sel, txt) => evalJs(`(()=>{const b=[...document.querySelectorAll(${J(sel)})].find(x=>x.textContent.includes(${J(txt)}));if(!b)throw new Error('없음: '+${J(sel + ' / ' + txt)});b.click();return 1})()`);
 const page = () => evalJs(`document.querySelector('.rpt')?.innerText||''`);
-const names = () => evalJs(`[...document.querySelectorAll('.rpt-table tbody tr')].map(tr=>tr.children[0].querySelector('span')?.textContent||'')`);
-const cells = (n) => evalJs(`(()=>{const tr=[...document.querySelectorAll('.rpt-table tbody tr')].find(t=>t.children[0].querySelector('span')?.textContent===${J(n)});return tr?[...tr.children].map(c=>c.innerText):null})()`);
+const names = () => evalJs(`[...document.querySelectorAll('.rpt-table tbody tr')].map(tr=>tr.children[0].querySelector('.rpt-nm')?.textContent||'')`);
+const cells = (n) => evalJs(`(()=>{const tr=[...document.querySelectorAll('.rpt-table tbody tr')].find(t=>t.children[0].querySelector('.rpt-nm')?.textContent===${J(n)});return tr?[...tr.children].map(c=>c.innerText):null})()`);
 const open = async () => { await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` }); await waitFor(`[...document.querySelectorAll('.brand-tab')].length>0`, '앱 로딩'); };
 
 await open();
@@ -102,57 +102,59 @@ await click('.step-tab', '리포트'); await waitFor(`document.querySelector('.r
 const head = await evalJs(`[...document.querySelectorAll('.rpt-table thead tr:last-child th')].map(t=>t.innerText)`);
 chk(head[0].includes('이름') && head[0].includes('채널') && head[1] === '라이브' && !head.includes('조회수') && !head.some((x) => x.includes('대비')) && !head.includes('광고'), '이번 주 표 머리글: 이름·채널 / 라이브 / 세팅일 — 조회수·«대비»·«광고» 열 없음', head);
 chk(J(await names()) === J(['양형석', '염지윤', '게시전사람']), '베이스튠: 광고 있는 세 명을 세팅일 최신순으로(양형석 11-08 → 염지윤 11-03 → 세팅일 없는 사람)', await names());
+await click('button', '매체 신고값 보기'); await wait(300);
 const np = await cells('게시전사람');
-chk(np && np[1] === '–' && np[2] === '–' && np[3] === '300,000', '게시 링크·세팅일이 없는 광고 인원도 비용은 나옴', np);
+chk(np && np[1] === '–' && np[6] === '–' && np[5] === '300,000', '게시 링크·세팅일이 없는 광고 인원도 비용은 나옴', np);
 const a = await cells('염지윤');
 // 비용 1,000,000 · 매출 1,500,000 · 전환 10 → CPA 100,000 · ROAS 150% · 담기당 20,000 · 직접CPA 125,000 · 직접ROAS 80% · 직접전환 8 · 직접값 800,000
-chk(a && a[3] === '1,000,000' && a[4] === '1,500,000' && a[5] === '10' && a[6] === '100,000' && a[7] === '150%' && a[8] === '20,000', '염지윤 매체 지표: 비용·매출·전환·CPA·ROAS·담기당비용', a);
-chk(a && a[9] === '125,000' && a[10] === '80%' && a[11] === '8' && a[12] === '800,000', '염지윤 직접 지표: 직접CPA 125,000 · 직접ROAS 80% · 전환수 8 · 전환값 800,000', a);
-chk(a && a[0].includes('yjy') && a[1] === 'ON' && a[2] === '11-03', '이름 옆에 채널명(yjy) · 라이브 ON · 세팅일 11-03', a);
+chk(a && a[5] === '1,000,000' && a[7] === '1,500,000' && a[8] === '10' && a[9] === '100,000' && a[10] === '150%' && a[11] === '20,000', '염지윤 매체 지표: 비용·매출·전환·CPA·ROAS·담기당비용', a);
+chk(a && a[12] === '125,000' && a[2] === '80%' && a[3] === '8' && a[4] === '800,000', '염지윤 직접 지표: 직접CPA 125,000 · 직접ROAS 80% · 전환수 8 · 전환값 800,000', a);
+chk(a && a[0].includes('yjy') && a[1] === 'ON' && a[6] === '11-03', '이름 옆에 채널명(yjy) · 라이브 ON · 세팅일 11-03', a);
 const b = await cells('양형석');
-chk(b && b[6] === '–' && b[9] === '–' && b[10] === '0%' && b[1] === 'OFF' && b[0].includes('yhs'), '전환 0건: CPA는 –(0으로 나누지 않음), 직접ROAS 0%, 라이브 OFF, 채널 yhs', b);
+chk(b && b[9] === '–' && b[12] === '–' && b[2].startsWith('–') && b[2].includes('판단 보류') && b[1] === 'OFF' && b[0].includes('yhs'), '전환 0건: CPA는 –(0으로 나누지 않음), 직접ROAS는 회색 – + 판단 보류, 라이브 OFF, 채널 yhs', b);
 const t = await page();
 chk(t.includes('1,800,000') /* 합계 비용 */ && t.includes('3명') && /직접 ROAS\s+44%/.test(t), '합계: 비용 180만 · 직접ROAS 800,000/1,800,000=44% (게시 링크 없는 사람 포함, 사람당 한 번)', t.slice(0, 300));
 // 광고 없는 인원도 보기는 이번 주 화면에서 먼저
 await evalJs(`(()=>{const i=document.querySelector('.rpt input[type=checkbox]');i.click();return 1})()`); await wait(300);
 chk(J(await names()) .includes('광고없는사람'), '광고 없는 인원도 보기 체크 → 표에 나옴', await names());
 // ── 섭외 확장 제안(누적 인사이트) ──
-const insTxt = await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`);
+const insTxt = await evalJs(`document.querySelector('.rpt-ins2')?.innerText||''`);
 chk(insTxt.includes('섭외 확장 제안') && insTxt.includes('확장') && insTxt.includes('카테고리 육아') && insTxt.includes('참고'), '섭외 확장 제안: 확장/참고 문장과 근거 기간 표시', insTxt);
 chk((await evalJs(`document.querySelector('.rpt-weeks')?.innerText||''`)).includes('11-02~11-08'), '주차 라벨 표시(이번 주 + 지난 주)');
 await click('.rpt-weeks button', '11-02~11-08'); await wait(300);
-const insTxt2 = await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`);
+const insTxt2 = await evalJs(`document.querySelector('.rpt-ins2')?.innerText||''`);
 chk(insTxt2.includes('조회수 3만 미만 구간은 약해요') && insTxt2.includes('10-19 ~ 11-08 누적') && !insTxt2.includes('카테고리 육아'), '라벨을 누르면 그 주 내용으로 바뀜', insTxt2);
 await click('.rpt-weeks button', '이번 주'); await wait(300);
-chk((await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`)).includes('카테고리 육아'), '다시 최근 주 라벨을 누르면 최근 주 내용', '');
+chk((await evalJs(`document.querySelector('.rpt-ins2')?.innerText||''`)).includes('카테고리 육아'), '다시 최근 주 라벨을 누르면 최근 주 내용', '');
 // ── 이름을 누르면 올린 영상으로 ──
 const linkOf = (n) => evalJs(`(()=>{const tr=[...document.querySelectorAll('.rpt-table tbody tr')].find(t=>t.children[0].innerText.startsWith(${J(n)}));const a=tr&&tr.querySelector('a.rpt-link');return a?a.href+'|'+a.target:null})()`);
 chk((await linkOf('염지윤')) === 'https://www.instagram.com/reel/x/|_blank', '이번 주: 이름이 올린 영상 링크(새 탭)', await linkOf('염지윤'));
 chk((await linkOf('양형석')) === null, '영상 링크가 없는 사람은 이름이 링크가 아님');
 // ── 주차 라벨: 누르면 그 주 인플루언서만 ──
 const labels = await evalJs(`[...document.querySelectorAll('.rpt-weeks button')].map(b=>b.innerText)`);
-chk(labels.length === 4 && labels[0].startsWith('이번 주') && labels[1] === '11-02~11-08' && labels[2] === '10-19~10-25' && labels[3].startsWith('전체 합산'), '라벨: 이번 주 → 최신 지난 주 → 오래된 주 → 전체 합산', labels);
+const wopts = await evalJs(`[...document.querySelectorAll('.rpt-wsel option')].map(o=>o.text)`);
+chk(labels.length === 3 && labels[0].startsWith('이번 주') && labels[1].includes('11-02~11-08') && labels[2].startsWith('전체 합산') && J(wopts) === J(['이전 주차 ▾', '10-19~10-25']), '라벨: 이번 주 · 지난 주 · 전체 합산 + 이전 주차 드롭다운(오래된 주)', [labels, wopts]);
 await click('.rpt-weeks button', '11-02~11-08'); await wait(400);
 const histT = await page();
-chk(/그 주 집행 인원\s+2명\s+비용\s+3,000,000\s+직접 ROAS\s+77%/.test(histT), '11-02~11-08 라벨: 그 주 합계(2명 · 비용 300만 · 직접ROAS 77%)', histT.slice(0, 300));
+chk(/직접 ROAS\s+77%/.test(histT) && /비용\s+3,000,000/.test(histT) && /그 주 집행\s+2명/.test(histT), '11-02~11-08 라벨: 그 주 합계(2명 · 비용 300만 · 직접ROAS 77%)', histT.slice(0, 300));
 const blocks = () => evalJs(`(()=>{const out=[];let cur=null;for(const tr of document.querySelectorAll('.rpt-table tbody tr')){if(tr.classList.contains('rpt-wkrow')){cur={head:tr.innerText,rows:[]};out.push(cur);}else if(cur){cur.rows.push([...tr.children].map(c=>c.innerText));}}return out;})()`);
 let bl = await blocks();
 chk(bl.length === 1 && bl[0].head.startsWith('11-02 ~ 11-08') && bl[0].rows.length === 2, '그 주 한 블록만 보임(다른 주 사람 안 섞임)', bl.map((x) => x.head));
 // 열: 0 이름·채널 · 1 라이브 · 2 비용 · 3 매출 · 4 전환 · 5 CPA · 6 ROAS · 7 담기당 · 8 직접CPA · 9 직접ROAS · 10 직접전환수 · 11 직접전환값
 const r0 = bl[0].rows[0], r1 = bl[0].rows[1];
-chk(r0 && r0[0].startsWith('염지윤') && r0[0].includes('yjy') && r0[1] === 'ON' && r0[2] === '2,000,000' && r0[9] === '90%' && r0[8] === '133,333', '그 주 염지윤: 채널 yjy · 라이브 ON(지금 상태) · 비용 200만 · 직접ROAS 90% · 직접CPA 133,333', r0);
-chk(r1 && r1[0].startsWith('양형석') && r1[1] === 'OFF' && r1[2] === '1,000,000', '그 주 양형석: 비용순 두 번째 · 라이브 OFF', r1);
-chk((await evalJs(`document.querySelector('.rpt-ins')?.innerText||''`)).includes('조회수 3만 미만 구간은 약해요'), '그 주 라벨을 누르면 확장 제안도 그 주 내용으로 같이 바뀜');
+chk(r0 && r0[0].startsWith('염지윤') && r0[0].includes('yjy') && r0[1] === 'ON' && r0[5] === '2,000,000' && r0[2].startsWith('90%') && r0[3] === '15', '그 주 염지윤: 채널 yjy · 라이브 ON(지금 상태) · 비용 200만 · 직접ROAS 90% · 직접CPA 133,333', r0);
+chk(r1 && r1[0].startsWith('양형석') && r1[1] === 'OFF' && r1[5] === '1,000,000', '그 주 양형석: 비용순 두 번째 · 라이브 OFF', r1);
+chk((await evalJs(`document.querySelector('.rpt-ins2')?.innerText||''`)).includes('조회수 3만 미만 구간은 약해요'), '그 주 라벨을 누르면 확장 제안도 그 주 내용으로 같이 바뀜');
 chk((await linkOf('염지윤')) === 'https://www.instagram.com/reel/x/|_blank', '지난 주 표에서도 이름 → 영상 링크', await linkOf('염지윤'));
-await click('.rpt-weeks button', '10-19~10-25'); await wait(300);
+await evalJs(`(()=>{const s=document.querySelector('.rpt-wsel');s.value=[...s.options].find(o=>o.text==='10-19~10-25').value;s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`); await wait(300);
 bl = await blocks();
-chk(bl.length === 1 && bl[0].rows.length === 1 && bl[0].rows[0][2] === '1,000,000' && bl[0].rows[0][9] === '120%', '10-19~10-25 라벨: 염지윤만 · 직접ROAS 120%', bl);
+chk(bl.length === 1 && bl[0].rows.length === 1 && bl[0].rows[0][5] === '1,000,000' && bl[0].rows[0][2].startsWith('120%'), '10-19~10-25 라벨: 염지윤만 · 직접ROAS 120%', bl);
 chk((await page()).includes('빠진 구간') && (await page()).includes('10-26~11-01'), '빠진 구간 표시(10-26~11-01)', (await page()).slice(-300));
 // ── 전체 합산(사람별) ──
 await click('.rpt-weeks button', '전체 합산'); await wait(300);
-chk(/기간 내 집행 인원\s+2명\s+비용\s+4,000,000\s+직접 ROAS\s+88%/.test(await page()), '전체 합산 합계: 비용 400만 · 직접ROAS 88% (그래니 주차 안 섞임)', (await page()).slice(0, 300));
-const pm = await evalJs(`(()=>{const tr=[...document.querySelectorAll('.rpt-table tbody tr')].find(t=>t.children[0].querySelector('span')?.textContent==='염지윤');return tr?[...tr.children].map(c=>c.innerText):null})()`);
-chk(pm && pm[2] === '2' && pm[3] === '3,000,000' && pm[10] === '100%' && pm[9] === '130,435' && pm[11] === '23', '전체 합산: 염지윤 2주 · 비용 300만 · 직접ROAS 100% · 직접CPA 130,435', pm);
+chk(/직접 ROAS\s+88%/.test(await page()) && /비용\s+4,000,000/.test(await page()) && /기간 내 집행\s+2명/.test(await page()), '전체 합산 합계: 비용 400만 · 직접ROAS 88% (그래니 주차 안 섞임)', (await page()).slice(0, 300));
+const pm = await evalJs(`(()=>{const tr=[...document.querySelectorAll('.rpt-table tbody tr')].find(t=>t.children[0].querySelector('.rpt-nm')?.textContent==='염지윤');return tr?[...tr.children].map(c=>c.innerText):null})()`);
+chk(pm && pm[6] === '2' && pm[5] === '3,000,000' && pm[2].startsWith('100%') && pm[3] === '23', '전체 합산: 염지윤 2주 · 비용 300만 · 직접ROAS 100% · 직접전환 23', pm);
 chk(!(await evalJs(`!!document.querySelector('.rpt-wkrow')`)), '전체 합산에는 주차 머리줄이 없음');
 await click('.rpt-weeks button', '이번 주'); await wait(300);
 chk(J(await names()).includes('염지윤') && !J(await names()).includes('그래니전용'), '이번 주로 돌아오면 이번 주 표(이전 데이터 사람 안 섞임)', await names());
