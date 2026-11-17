@@ -3523,10 +3523,25 @@ function koFmt(n){ // 4900 → "4.9천", 21000 → "2.1만"
 }
 function DealBoard({ brand, onClose, onEdit, canEdit }){
   const [cat,setCat]=useState('');
-  // 광고 성과 좋은 사람에 ★ — 이 PC의 리스트업 창 서버(집행 성과 기록)가 켜져 있을 때만. 꺼져 있으면 표시 없이 조용히 넘어간다(2026-11-17).
+  // 광고 성과 좋은 사람에 ★ — 📈 리포트 탭과 같은 자료(reportGet)에서 사람별로 비용·직접전환을 합산해 직접ROAS가 100% 이상이고 직접전환이 3건 이상이면 (2026-11-17)
   const [perf,setPerf]=useState(null);
-  useEffect(()=>{ let on=true; finderApi('/api/perf?brand='+encodeURIComponent(brand.name)).then(r=>{ if(on&&r&&r.ok&&r.people){ const m={}; Object.keys(r.people).forEach(k=>{ m[String(k).toLowerCase()]=r.people[k]; }); setPerf({avg:r.avg,m}); } }).catch(()=>{}); return ()=>{ on=false; }; },[brand.name]);
-  const goodOf=p=>{ const x=perf&&perf.m[String(p.key).toLowerCase()]; return x&&x.grade==='good'?x:null; };
+  const nk=x=>String(x||'').replace(/s/g,'').replace(/^@/,'').toLowerCase();
+  useEffect(()=>{ let on=true;
+    callApi('reportGet').then(j=>{ if(!on||!j||!j.ok||!j.rows) return;
+      const H={}; (j.header||[]).forEach((h,i)=>{H[h]=i;});
+      const num=(r,k)=>{ const v=r[H[k]]; return v===''||v==null?0:(Number(v)||0); };
+      const m=new Map();
+      j.rows.forEach(r=>{ if(r[H.brand]!==brand.name) return;
+        const nm=nk(r[H.name]), ch=nk(r[H.channel]);
+        [nm,ch&&ch!==nm?ch:''].filter(Boolean).forEach(key=>{ const o=m.get(key)||{cost:0,dc:0,da:0}; o.cost+=num(r,'wCost'); o.dc+=num(r,'wDCount'); o.da+=num(r,'wDAmount'); m.set(key,o); });
+      });
+      setPerf(m);
+    }).catch(()=>{});
+    return ()=>{ on=false; };
+  },[brand.name]);
+  const goodOf=p=>{ if(!perf) return null;
+    for(const k of [nk(p.key),nk(p.name)]){ const o=k&&perf.get(k); if(o&&o.cost>0&&o.dc>=3&&o.da/o.cost>=1) return {roas:o.da/o.cost*100,dc:o.dc,cost:o.cost}; }
+    return null; };
   const keyOf=r=>String(r.username||igHandle(r.link)||r.name||'').toLowerCase();
   const people=useMemo(()=>{
     const map=new Map();
@@ -3561,7 +3576,7 @@ function DealBoard({ brand, onClose, onEdit, canEdit }){
     <div className="modal" style={{width:'min(980px,94vw)',maxHeight:'90vh'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,flexWrap:'wrap'}}>
         <div className="modal-title" style={{margin:0}}>⭐ {brand.name} 성사 모음 <span style={{fontWeight:400,color:'var(--muted)',fontSize:12}}>· {people.length}명</span> <span style={{fontWeight:400,color:'var(--muted)',fontSize:11,marginLeft:8}}>* 성별·연령은 사진·소개글로 추정한 값(바꾸면 확정)</span></div>
-        {perf&&people.some(p=>goodOf(p))&&<span style={{fontSize:12,color:'var(--muted)'}}><span style={{color:'#e0a800',fontSize:14}}>★</span> 광고 성과 좋음</span>}
+        {perf&&people.some(p=>goodOf(p))&&<span style={{fontSize:12,color:'var(--muted)'}}><span style={{color:'#e0a800',fontSize:14}}>★</span> 직접ROAS 100% 이상 (리포트 기준)</span>}
         <span style={{flex:1}}/>
         <button className="btn btn-ghost" style={{fontSize:11}} onClick={onClose}>닫기</button>
       </div>
@@ -3579,7 +3594,7 @@ function DealBoard({ brand, onClose, onEdit, canEdit }){
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
               {g.list.map(p=>{ const gd=goodOf(p); return <div key={p.key} style={{position:'relative',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:10,padding:12}}>
-                {gd&&<span title={'광고 성과 좋음 · 직접ROAS '+Math.round(gd.roas)+'% · 전환 '+gd.dc+'건'} style={{position:'absolute',top:8,right:10,fontSize:16,lineHeight:1,color:'#e0a800'}}>★</span>}
+                {gd&&<span title={'광고 성과 좋음 · 직접ROAS '+Math.round(gd.roas)+'% · 직접전환 '+gd.dc+'건 (리포트 기준)'} style={{position:'absolute',top:8,right:10,fontSize:16,lineHeight:1,color:'#e0a800'}}>★</span>}
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   {p.pic?<img src={p.pic} alt="" style={{width:40,height:40,borderRadius:'50%',objectFit:'cover',flex:'none'}}/>
                     :<div style={{width:40,height:40,borderRadius:'50%',background:'var(--border)',flex:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'var(--muted)'}}>{(p.name||p.key||'?').slice(0,1)}</div>}
