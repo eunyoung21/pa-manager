@@ -104,9 +104,9 @@ const btns = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-btns button'
 
 console.log('\n[알바 화면] 성사 후 상세 창에 ✕ 하차');
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/?staff` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩(알바)');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩(알바)');
 await evalJs(`window.confirm=()=>true;1`);
-await click('.step-tab', '자동화'); await wait(700);
+await click('.step-tab','자동리스트업'); await wait(700);
 await openCh('안보냄'); await waitFor(`document.querySelector('.s2p')`, '상세 창 1');
 let b = await btns();
 chk(b.includes('✕ 하차') && !b.includes('✕ 거절됨으로'), '제품 발송 단계: 하차 버튼(거절 대신)', b);
@@ -126,7 +126,7 @@ chk(J(chips.sort()) === J(['보냄:하차', '안보냄:하차']), '목록에 하
 
 console.log('\n[관리자 대시보드] 제품 보낸 하차만 회수 할 일');
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩(관리자)');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩(관리자)');
 await click('.step-tab', '대시보드'); await wait(900);
 const todo = await evalJs(`[...document.querySelectorAll('.todo-item')].map(x=>x.innerText.replace(/\s+/g,' '))`);
 chk(todo.some((t) => t.includes('보냄') && t.includes('제품 회수')) && !todo.some((t) => t.startsWith('안보냄') && t.includes('제품 회수')), '보냄만 「하차 · 제품 회수」', todo);

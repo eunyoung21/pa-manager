@@ -155,7 +155,7 @@ chk(!todoTxt[1].includes('지지')&&!todoTxt[0].includes('에이치')&&!todoTxt[
 chk(todoTxt[0].includes('디디')&&todoTxt[1].includes('씨씨'),'아직 할 일(디디 계약서·씨씨 답장옴)은 그대로',todoTxt);
 
 console.log('\n[담당자 추가] 👥 담당자 관리에서 추가하면 대시보드에 바로 뜸');
-await click('button','관리 ▾'); await wait(200);
+await click('button','메뉴 ▾'); await wait(200);
 await click('.menu-item','담당자 관리'); await waitFor(`document.querySelector('.modal input.modal-inp')`,'담당자 관리 창');
 await evalJs(`(()=>{const i=document.querySelector('.modal input.modal-inp');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'신입매니저');i.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`); await wait(150);
 await click('.modal button','＋ 추가'); await wait(150);

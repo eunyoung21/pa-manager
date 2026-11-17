@@ -112,9 +112,9 @@ const getInp = (label) => evalJs(`(()=>{const g=[...document.querySelectorAll('.
 
 console.log('\n[알바] 성사 때 모델료 입력');
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/?staff` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩(알바)');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩(알바)');
 await evalJs(`window.confirm=()=>true;1`);
-await click('.step-tab', '자동화'); await wait(700);
+await click('.step-tab','자동리스트업'); await wait(700);
 await click('.fchip', '승인'); await wait(400);
 await openCh('협의씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창');
 chk((await getInp('모델료')) === '', '성사 단계에 모델료 칸(빈칸)');
@@ -126,8 +126,8 @@ await closeP(); await wait(300);
 
 console.log('\n[관리자] 계약서 발송 단계에 모델료 자동');
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩(관리자)');
-await click('.step-tab', '자동화'); await wait(700);
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩(관리자)');
+await click('.step-tab','자동리스트업'); await wait(700);
 await openCh('계약씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창(계약)');
 chk((await getInp('모델료')) === '150,000', '계약서 단계 모델료 칸 = 성사 때 적은 값', await getInp('모델료'));
 

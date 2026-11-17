@@ -114,8 +114,8 @@ const RVof = (ch) => H().reviewRows.find((r) => r.channelName === ch);
 
 console.log('\n[알바] 광고코드 단계에서 게시 링크');
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/?staff` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩');
-await click('.step-tab', '자동화'); await wait(700);
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩');
+await click('.step-tab','자동리스트업'); await wait(700);
 await openCh('코드단계'); await waitFor(`document.querySelector('.s2p')`, '상세 창');
 await setLink('https://www.instagram.com/reel/AAA/'); await wait(1200);
 chk(RVof('코드단계') && RVof('코드단계').postLink === 'https://www.instagram.com/reel/AAA/', '영상검수 행이 생기고 게시 링크 저장', RVof('코드단계'));
@@ -123,8 +123,8 @@ await closeP(); await wait(300);
 
 console.log('\n[관리자] 광고세팅 단계에서 게시 링크');
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩(관리자)');
-await click('.step-tab', '자동화'); await wait(700);
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩(관리자)');
+await click('.step-tab','자동리스트업'); await wait(700);
 await openCh('세팅단계'); await waitFor(`document.querySelector('.s2p')`, '상세 창 2');
 await setLink('https://www.instagram.com/reel/BBB/'); await wait(1200);
 chk(RVof('세팅단계').postLink === 'https://www.instagram.com/reel/BBB/' && RVof('세팅단계').paCode === 'adcode-x', '기존 영상검수 행에 게시 링크(광고코드 그대로)', RVof('세팅단계'));

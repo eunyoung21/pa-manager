@@ -111,9 +111,9 @@ const fillShip = () => evalJs(`(()=>{const set=(lab,v)=>{const g=[...document.qu
 
 console.log('\n[알바] 상세 창 갯수 → 출고 수량');
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/?staff` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩');
 await evalJs(`window.confirm=()=>true;1`);
-await click('.step-tab', '자동화'); await wait(700);
+await click('.step-tab','자동리스트업'); await wait(700);
 await openCh('갯수씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창');
 chk(await evalJs(`document.querySelector('.s2p select[title="갯수"]').value`) === '1', '갯수 기본 1개');
 await setQty('2'); await wait(800);

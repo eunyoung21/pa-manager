@@ -105,8 +105,8 @@ savedData = { paList: ['박민선', '기타'], brands: [
 ], settlements: {} };
 
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩');
-await click('.step-tab', '자동화'); await wait(800);
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩');
+await click('.step-tab','자동리스트업'); await wait(800);
 const chips = await evalJs(`[...document.querySelectorAll('.fchip')].map(b=>b.textContent.trim())`);
 console.log('\n[칩]', chips.join(' | '));
 const order = chips.map((c) => c.replace(/\s*\(\d+\)$/, ''));

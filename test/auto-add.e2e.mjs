@@ -83,8 +83,8 @@ const setRow=(i,name,link)=>evalJs(`(()=>{const tr=document.querySelectorAll('.m
 const submitBtn=()=>evalJs(`(()=>{const b=document.querySelector('.modal .add-submit');return {text:b.textContent,disabled:b.disabled}})()`);
 
 await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`,'앱 로딩');
-await click('.step-tab','자동화'); await wait(500);
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`,'앱 로딩');
+await click('.step-tab','자동리스트업'); await wait(500);
 const before=B().claudeStep2Rows.length;
 
 console.log('\n[팝업] 버튼 누르면 빈 행이 아니라 팝업');
@@ -92,7 +92,7 @@ await click('button','＋ 인플루언서 추가');
 await waitFor(`document.querySelector('.modal .add-row')`,'추가 창');
 chk(B().claudeStep2Rows.length===before,'누르기만 해서는 행이 안 생김',B().claudeStep2Rows.length);
 const title=await evalJs(`document.querySelector('.modal .modal-title').textContent`);
-chk(title.includes('자동화'),'제목이 자동화용',title);
+chk(title.includes('자동리스트업'),'제목이 자동화용',title);
 chk(await evalJs(`!![...document.querySelectorAll('.modal .modal-lbl')].find(x=>x.textContent.includes('검수 상태'))`)===false,'검수 상태 칸 없음');
 
 console.log('\n[제품] 제품이 2개면 골라야 추가됨');

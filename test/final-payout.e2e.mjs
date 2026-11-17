@@ -96,7 +96,7 @@ const clickYN=async(n,label)=>{await findByName(n);return evalJs(`((${ROW(n)}).q
 
 await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
 await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.includes('인플루언서 관리'))`,'앱 로딩');
-await clickText('👥 인플루언서 관리');
+await clickText('인플루언서 관리');
 await waitFor(`document.querySelector('td[data-label="협업성사"]')`,'컨택현황 표');
 console.log('앱 로딩 완료');
 
@@ -125,7 +125,7 @@ sr=await savedRow('신규건');
 chk(sr.finalDone==='Y'&&sr.finalDate===TODAY,'최종완료·완료일 저장 → 수당 대상(금액은 정산 탭에서 확인)',sr);
 
 console.log('\n[4] 정산 탭 — 완료일 달로 집계');
-await clickText('💰 정산');
+await clickText('정산');
 await waitFor(`document.body.innerText.includes('완료 수당')`,'정산 화면');
 await evalJs(`(()=>{const s=document.querySelector('select');s.value=${JSON.stringify(THISYM)};
   s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
@@ -145,7 +145,7 @@ console.log('\n[5] 협업성사를 끄면 최종완료도 풀림');
 // 이 시점엔 진행 중인 건이 없어 '인플루언서 관리' 탭이 '더보기'로 접혀 있다 — 더보기를 열어서 누른다
 await evalJs(`(()=>{const m=[...document.querySelectorAll('.step-tab')].find(b=>b.textContent.includes('더보기'));if(m)m.click();return 1})()`);
 await new Promise(r=>setTimeout(r,300));
-await clickText('👥 인플루언서 관리');
+await clickText('인플루언서 관리');
 await waitFor(`document.querySelector('.srch')&&document.querySelector('thead th')`,'컨택현황 복귀'); // 둘 다 완료라 기본 목록이 비어 있을 수 있음
 await clickYN('신규건','협업성사');
 await new Promise(r=>setTimeout(r,300));

@@ -120,7 +120,7 @@ let lv=await rowLevels(), b=await submitBtn();
 chk(lv[0].startsWith('block|')&&lv[0].includes('박민선'),'1줄: 리스트업 검수대기(박민선) → 🚫',lv);
 const tip1=await evalJs(`document.querySelectorAll('.modal .add-row .add-dup')[1].title`);
 chk(lv[1].startsWith('block|')&&tip1.includes('안민영')&&tip1.includes('권미림'),'2줄: 링크 꼬리 달라도 🚫 · 마우스 올리면 잡은 사람 모두(안민영·권미림)',{lv:lv[1],tip1});
-chk(lv[2].startsWith('block|')&&lv[2].includes('자동화'),'3줄: 자동화 DM 보낸 사람(대소문자·끝 /) → 🚫',lv);
+chk(lv[2].startsWith('block|')&&lv[2].includes('자동리스트업'),'3줄: 자동화 DM 보낸 사람(대소문자·끝 /) → 🚫',lv);
 chk(b.disabled,'전부 막히면 [추가] 잠김',b);
 let n=await evalJs(`(document.querySelector('.modal .dup-notice[data-level="block"]')||{}).innerText||''`);
 chk(n.includes('3명은 이미 담당자가 있어'),'🚫 몇 명이 빠지는지 안내',n);

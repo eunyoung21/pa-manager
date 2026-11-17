@@ -265,7 +265,7 @@ await evalJs(`(()=>{const b=[...document.querySelectorAll('.overlay .modal butto
 await pbtn('닫기'); await wait(200);
 
 console.log('\n[자동화 탭] 같은 상세 창 · 기록은 자동화 목록에');
-await evalJs(`(()=>{const m=[...document.querySelectorAll('.step-tab')].find(e=>e.textContent.includes('자동화'));m.click();return 1})()`); await wait(500);
+await evalJs(`(()=>{const m=[...document.querySelectorAll('.step-tab')].find(e=>e.textContent.includes('자동리스트업'));m.click();return 1})()`); await wait(500);
 heads=await evalJs(`[...document.querySelectorAll('thead th')].map(t=>t.textContent.trim())`);
 chk(!heads.some(x=>HIDE.includes(x))&&heads.includes('답장')&&heads.includes('승인'),'자동화: 성사일·완료수당·메모·개인정보 숨김 · 답장·승인 그대로',heads);
 await openCh('제이'); await wait(300);

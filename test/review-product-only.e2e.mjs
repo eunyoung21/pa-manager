@@ -133,7 +133,7 @@ const settle = await evalJs(`(()=>{const g=[...document.querySelectorAll('.todo-
 chk(settle.includes('유가씨') && !settle.includes('무가씨'), '정산 정보 = 유가씨만', settle);
 
 console.log('\n[관리자 상세 창] 제품만 제공 = 광고세팅만');
-await click('.step-tab', '자동화'); await wait(700);
+await click('.step-tab','자동리스트업'); await wait(700);
 await openCh('무가씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창(무가)');
 let tl = await evalJs(`[...document.querySelectorAll('.s2p-tl-label')].map(x=>x.childNodes[0].textContent)`);
 let bb = await evalJs(`[...document.querySelectorAll('.s2p button')].map(b=>b.textContent.trim())`);

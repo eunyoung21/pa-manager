@@ -106,11 +106,11 @@ const optSelects = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-fg')].
 const pick = (idx, v) => evalJs(`(()=>{const f=[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('협찬 제품'));const s=f.querySelectorAll('select')[${idx}];Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${J(v)});s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
 
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩');
 await click('.brand-tab', '해트케'); await wait(400);
 
 console.log('\n[자동화 · 차렵이불] 색상·사이즈 고르기');
-await click('.step-tab', '자동화'); await wait(600);
+await click('.step-tab','자동리스트업'); await wait(600);
 await click('.fchip', '협업성사'); await wait(400);
 await openCh('사랑'); await waitFor(`document.querySelector('.s2p')`, '상세 창');
 chk(await optSelects() === 3, '제품 + 색상 + 사이즈 선택칸 3개', await optSelects());

@@ -105,7 +105,7 @@ const steps = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-tl-label')]
 const panelText = () => evalJs(`document.querySelector('.s2p .s2p-body').innerText`);
 
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩');
 await click('.brand-tab', '해트케'); await wait(400);
 
 console.log('\n[대시보드] 차렵이불은 계약서 할 일로 안 뜸');

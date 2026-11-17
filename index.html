@@ -705,6 +705,27 @@ tbody tr.sel-on,tbody tr.sel-on:hover{background:var(--mark-soft)!important;}
 .th-b{font-size:13px;}
 .th-ack .th-b{font-size:12px;}
 .th-more{font-size:13px;}
+/* ── 머리 영역 개편 (2026-11-17) ── */
+.header{height:56px;gap:18px;padding:0 20px;}
+.header .logo{font-size:17px;}
+.brand-tabs{gap:4px;}
+.brand-tab.active{background:var(--text);color:#fff;border-color:var(--text);}
+.hdr-right{gap:10px;}
+.hdr-btn{height:36px;padding:0 14px;font-size:14px;background:#fff;border:1px solid #aab0ab;color:var(--text);border-radius:4px;white-space:nowrap;}
+.hdr-btn:hover{border-color:var(--text);}
+.hdr-ink{border-color:var(--text);font-weight:700;}
+.hdr-acct{border-color:transparent;color:var(--muted);}
+.hdr-right>span{font-size:13px!important;}
+.menu-sep{border-top:1px solid var(--border);margin:6px 4px;}
+.menu-cap{font-size:12px;color:var(--muted);padding:6px 12px 2px;}
+a.menu-item{display:block;}
+.notice-bar{background:#fbf6dd;border-bottom:1px solid #ecdf9f;padding:9px 20px;font-size:14px;display:flex;gap:10px;align-items:center;flex-shrink:0;}
+.notice-bar button{margin-left:auto;background:none;border:0;color:var(--muted);font-size:13px;text-decoration:underline;cursor:pointer;}
+.step-tabs{align-items:stretch;padding:0 20px;}
+.step-tab{color:var(--muted)!important;border-width:0 0 3px;border-style:solid;border-color:transparent;}
+.step-tab.active{color:var(--text)!important;}
+.tab-sep{width:1px;background:var(--border);margin:11px 8px;flex-shrink:0;}
+.tab-n{margin-left:7px;background:var(--text);color:#fff;border-radius:10px;padding:0 7px;font-size:12px;line-height:18px;font-weight:700;display:inline-block;}
 @media (min-width:769px){
   .step-tab{padding:11px 16px;}
 }
@@ -1833,7 +1854,7 @@ const productOfRow = (r, brand) => String(r&&r.product||'').trim() || shipProduc
 const TABS = [
   { key:'dashboard', label:'📊 대시보드' },
   { key:'step2',    label:'👥 인플루언서 관리' },   // 옛 STEP1 리스트업 + STEP2 컨택현황을 합친 탭(리스트업은 '🟡 리스팅 목록' 칸)
-  { key:'claudeS2', label:'🤖 자동화', mgr:true, staffOwn:true },
+  { key:'claudeS2', label:'🤖 자동리스트업', mgr:true, staffOwn:true },
   { key:'shipping', label:'📦 출고' },
   { key:'review',   label:'🎬 영상검수' },
   { key:'dm',       label:'💬 DM 템플릿' },
@@ -1843,12 +1864,15 @@ const TABS = [
 ];
 // 스태프 계정에 개별 부여 가능한 탭(계정별 권한 범위). 관리자 전용(계정관리·접속로그)은 제외.
 const STAFF_TAB_OPTS = [
-  {key:'finder',label:'🔎 인플루언서 찾기'},{key:'claudeS2',label:'🤖 자동화'},{key:'shipping',label:'📦 출고'},{key:'review',label:'🎬 영상검수'},
+  {key:'finder',label:'🔎 인플루언서 찾기'},{key:'claudeS2',label:'🤖 자동리스트업'},{key:'shipping',label:'📦 출고'},{key:'review',label:'🎬 영상검수'},
   {key:'dm',label:'💬 DM 템플릿'},{key:'settle',label:'💰 정산'},{key:'step2',label:'👥 인플루언서 관리'},
   {key:'dashboard',label:'📊 대시보드'},
 ];
 // 새 스태프 기본 권한 — 자동화·출고·영상검수·DM템플릿·정산
 const DEFAULT_STAFF_TABS = ['claudeS2','shipping','review','dm','settle'];
+// 탭 이름 앞 이모지는 화면에서만 뺀다(권한 설정 등은 라벨 그대로) · 탭 묶음: 보기 / 진행 / 도구
+const tabText = l => String(l||'').replace(/^[^\s가-힣A-Za-z0-9]+\s*/,'');
+const TAB_GROUP = {dashboard:0,step2:1,claudeS2:1,shipping:1,review:1,dm:2,report:2,settle:2,finder:2};
 const parseTabs = v => Array.isArray(v) ? v : String(v||'').split(',').map(s=>s.trim()).filter(Boolean);
 
 // Claude(인플루언서 발굴 봇)가 그래니살라용으로 발굴한 50명 — '리스트업(Claude)' 탭의 시드 데이터.
@@ -3586,7 +3610,7 @@ function AddStep1Modal({ onConfirm, onCancel, brand, mode }) {
   const inp={width:'100%',fontSize:12,padding:'5px 7px'};
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()}>
     <div className="modal" style={{width:980,maxWidth:'calc(100vw - 24px)'}}>
-      <div className="modal-title">{AUTO?'🤖 인플루언서 추가 (자동화) — 여러 명 한 번에':'📋 인플루언서 추가 (STEP1 리스트업) — 여러 명 한 번에'}</div>
+      <div className="modal-title">{AUTO?'🤖 인플루언서 추가 (자동리스트업) — 여러 명 한 번에':'📋 인플루언서 추가 (STEP1 리스트업) — 여러 명 한 번에'}</div>
       <div className="modal-grid" style={{gridTemplateColumns:'1fr 1fr 1fr'}}>
         <div><div className="modal-lbl">등록일</div><input className="modal-inp add-common" value={c.date} onChange={uc('date')} /></div>
         <div><div className="modal-lbl">담당 PA</div>
@@ -5288,7 +5312,7 @@ const HOWTO=[
   ['👥 인플루언서 관리 · 🟡 리스팅 목록','찾은·직접 추가한 사람이 검수대기로 쌓여요. 관리자가 승인하면 「진행 중」으로 넘어가 DM 대상이 돼요.'],
   ['👥 인플루언서 관리 · 진행 중','DM 보내면 DM발송 Y. 채널명을 누르면 오른쪽 상세 창에서 단계를 진행해요: DM → 계약서 → 제품 발송 → 광고코드·입금정보 → 광고세팅·입금.'],
   ['🚫 거절','DM 후 7일 동안 답장이 없으면 자동으로 거절로 옮겨져요. 잘못 옮겨졌으면 상세 창에서 ↩ 복구.'],
-  ['🤖 자동화','자동 DM 대상 목록. 답장 오면 답장 Y, 관리자가 승인 Y(진행) / N(거절).'],
+  ['🤖 자동리스트업','자동 DM 대상 목록. 답장 오면 답장 Y, 관리자가 승인 Y(진행) / N(거절).'],
   ['📦 출고 · 🎬 영상검수','상세 창에서 제품 발송을 누르면 출고에 자동으로 생겨요. 영상검수에서 광고코드·계약서·라이브·정산을 확인해요.'],
   ['📄 계약서 생성','모델 이름·모델료·날짜를 넣으면 편집 잠금 PDF가 만들어지고 바로 메일로 보낼 수 있어요.'],
   ['기타','행 삭제는 표 맨 오른쪽 작은 ×. 검색은 날짜·칸 필터와 상관없이 전체에서 찾아요.'],
@@ -7350,7 +7374,8 @@ function AppMain({ authInfo, onLogout }) {
   }
   const [modal,       setModal]       = useState(null);
   const [sheetModal,  setSheetModal]  = useState(false);
-  const [menuOpen,    setMenuOpen]    = useState(false); // ⚙️ 관리 드롭다운
+  const [menuOpen,    setMenuOpen]    = useState(false); // 메뉴 드롭다운
+  const [acctOpen,    setAcctOpen]    = useState(false); // 계정 드롭다운
   const [addBrandOpen,setAddBrandOpen]= useState(false); // ＋ 브랜드 추가 모달
   const [ctMenuOpen,  setCtMenuOpen]  = useState(false); // 계약서 양식 ▾ 메뉴
   const [ctGenOpen,   setCtGenOpen]   = useState(false); // 계약서 생성 모달
@@ -8461,10 +8486,6 @@ function AppMain({ authInfo, onLogout }) {
   }
 
   return <>
-    <div className={`mode-banner ${isStaff?'staff':'manager'}`}>
-      {isStaff?`👷 프리랜서 모드 (${authInfo?.username}) — 리스트업·컨택현황·출고 수정 + 내 정산 조회`:`🔑 관리자 모드 (${authInfo?.username}) — 정산 포함 전체 기능`}
-    </div>
-
     <div className="header">
       <span className="logo">인플루언서 관리</span>
       <div className="brand-tabs">
@@ -8474,7 +8495,7 @@ function AppMain({ authInfo, onLogout }) {
       {addBrandOpen&&<BrandAddModal existingNames={brands.map(b=>b.name)} onClose={()=>setAddBrandOpen(false)}
         onAdd={name=>{ const id=makeId(); setBrands(prev=>[...prev,{id,name,step1Rows:[],step2Rows:[],shippingRows:[],reviewRows:[],privacyRows:[],claudeStep1Rows:[],claudeStep2Rows:[]}]); setBId(id); setAddBrandOpen(false); }}/>}
       <div className="hdr-right">
-        <button className="contract-link" style={{cursor:'pointer'}} onClick={()=>setDealOpen(true)} title="협업 성사된 사람들을 카테고리별로 모아 보기">⭐ 성사 모음</button>
+        <button className="btn hdr-btn hdr-ink" onClick={()=>setDealOpen(true)} title="협업 성사된 사람들을 카테고리별로 모아 보기">성사 모음</button>
         {dealOpen&&brand&&<DealBoard brand={brand} canEdit={true} onClose={()=>setDealOpen(false)}
           onEdit={(key,patch)=>updateBrand(bId,b=>{
             const hit=r=>String(r.username||igHandle(r.link)||r.name||'').toLowerCase()===key&&(r.dealDone==='Y'||r.finalDone==='Y');
@@ -8484,17 +8505,19 @@ function AppMain({ authInfo, onLogout }) {
         {ctGenOpen&&<ContractGenModal brandId={bId} brandName={brand?.name} onClose={()=>setCtGenOpen(false)}
           template={brand?.contractTemplate} canEdit={isManager}
           onUploadTemplate={uploadContractTemplate} onRemoveTemplate={removeContractTemplate}/>}
-        {/* 자주 쓰는 것만 노출 */}
-        {BRAND_DRIVE[bId]&&<a href={BRAND_DRIVE[bId]} target="_blank" rel="noopener" className="btn btn-ghost" style={{fontSize:11,textDecoration:'none'}}>📁 드라이브</a>}
-        {/* 시트 링크·중복 제거만 ⚙️ 관리 메뉴로 정리 */}
-        {isManager&&<div style={{position:'relative'}}>
-          <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setMenuOpen(o=>!o)} title="관리 메뉴">⚙️ 관리 ▾</button>
+        {(BRAND_DRIVE[bId]||isManager)&&<div style={{position:'relative'}}>
+          <button className="btn hdr-btn" onClick={()=>setMenuOpen(o=>!o)} title="메뉴">메뉴 ▾</button>
           {menuOpen&&<>
             <div onClick={()=>setMenuOpen(false)} style={{position:'fixed',inset:0,zIndex:40}}/>
             <div className="menu-pop">
-              <button className="menu-item" onClick={()=>{setMenuOpen(false);setModal('paManage');}}>👥 담당자 관리</button>
-              <button className="menu-item" onClick={()=>{setMenuOpen(false);setSheetModal(true);}}>🔗 시트 링크 설정</button>
-              <button className="menu-item" onClick={()=>{setMenuOpen(false);deduplicateData();}}>🧹 중복 데이터 제거</button>
+              {BRAND_DRIVE[bId]&&<a href={BRAND_DRIVE[bId]} target="_blank" rel="noopener" className="menu-item" style={{textDecoration:'none'}} onClick={()=>setMenuOpen(false)}>드라이브 열기</a>}
+              {isManager&&<>
+                {BRAND_DRIVE[bId]&&<div className="menu-sep"/>}
+                <div className="menu-cap">관리자 전용</div>
+                <button className="menu-item" onClick={()=>{setMenuOpen(false);setModal('paManage');}}>담당자 관리</button>
+                <button className="menu-item" onClick={()=>{setMenuOpen(false);setSheetModal(true);}}>시트 링크 설정</button>
+                <button className="menu-item" onClick={()=>{setMenuOpen(false);deduplicateData();}}>중복 데이터 제거</button>
+              </>}
             </div>
           </>}
         </div>}
@@ -8505,31 +8528,41 @@ function AppMain({ authInfo, onLogout }) {
           : <span title="변경하면 자동으로 저장돼요" style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,whiteSpace:'nowrap',color:saveState==='saved'?'#15803d':'var(--muted)'}}>
               {saveState==='saving'?<><span style={{width:6,height:6,borderRadius:'50%',background:'var(--muted)'}}/>저장 중…</>:<>✓ 저장됨</>}
             </span>}
-        {msg&&<span style={{fontSize:11,color:'var(--muted)',maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{msg}</span>}
-        <button className="btn btn-ghost" style={{fontSize:11,color:'var(--red)'}} onClick={onLogout}>로그아웃</button>
+        <div style={{position:'relative'}}>
+          <button className="btn hdr-btn hdr-acct" onClick={()=>setAcctOpen(o=>!o)} title="계정">{authInfo?.username} · {isStaff?'프리랜서':'관리자'} ▾</button>
+          {acctOpen&&<>
+            <div onClick={()=>setAcctOpen(false)} style={{position:'fixed',inset:0,zIndex:40}}/>
+            <div className="menu-pop">
+              <button className="menu-item" onClick={()=>{setAcctOpen(false);onLogout();}}>로그아웃</button>
+            </div>
+          </>}
+        </div>
       </div>
     </div>
 
+    {msg&&<div className="notice-bar"><b>알림</b><span>{msg}</span><button onClick={()=>setMsg('')}>닫기</button></div>}
+
     <div className="step-tabs">
-      {primaryTabs.map(t=>(
-        <button key={t.key} className={`step-tab ${t.mgr?'settle-tab':''} ${t.guide?'guide-tab':''} ${tab===t.key?'active':''}`}
+      {primaryTabs.map((t,i)=>(<React.Fragment key={t.key}>
+        {i>0&&TAB_GROUP[t.key]!==TAB_GROUP[primaryTabs[i-1].key]&&<span className="tab-sep"/>}
+        <button className={`step-tab ${tab===t.key?'active':''}`}
           onClick={()=>setTab(t.key)}>
-          {t.label}
+          {tabText(t.label)}
           {t.key==='step2'&&brand.step1Rows.filter(r=>r.reviewStatus==='검수대기'&&r.name).length>0&&(
-            <span style={{marginLeft:6,background:'var(--red)',borderRadius:10,padding:'1px 6px',fontSize:10,color:'#fff'}}>
+            <span className="tab-n">
               {brand.step1Rows.filter(r=>r.reviewStatus==='검수대기'&&r.name).length}
             </span>
           )}
-        </button>
+        </button></React.Fragment>
       ))}
       {moreTabs.length>0&&<div style={{position:'relative',display:'inline-block'}}>
         <button className={`step-tab ${activeMore?'active':''}`} onClick={()=>setMoreOpen(o=>!o)} title="그 외 메뉴">
-          ⋯ 더보기{activeMore?` · ${activeMore.label}`:''} ▾
+          더보기{activeMore?` · ${tabText(activeMore.label)}`:''} ▾
         </button>
         {moreOpen&&<>
           <div onClick={()=>setMoreOpen(false)} style={{position:'fixed',inset:0,zIndex:40}}/>
           <div className="menu-pop" style={{zIndex:41}}>
-            {moreTabs.map(t=><button key={t.key} className="menu-item" onClick={()=>{setTab(t.key);setMoreOpen(false);}}>{t.label}</button>)}
+            {moreTabs.map(t=><button key={t.key} className="menu-item" onClick={()=>{setTab(t.key);setMoreOpen(false);}}>{tabText(t.label)}</button>)}
           </div>
         </>}
       </div>}
@@ -8654,7 +8687,7 @@ function AppMain({ authInfo, onLogout }) {
     />}
 
     {modal==='paManage'&&<PaManageModal paList={paList} setPaList={setPaList} onClose={()=>setModal(null)}/>}
-    {modal==='addAuto'&&<AddStep1Modal mode="auto" brand={brand} onConfirm={list=>{addClaudeS2Rows(list);setModal(null);setMsg('🤖 자동화 '+list.length+'명 추가');}} onCancel={()=>setModal(null)}/>}
+    {modal==='addAuto'&&<AddStep1Modal mode="auto" brand={brand} onConfirm={list=>{addClaudeS2Rows(list);setModal(null);setMsg('🤖 자동리스트업 '+list.length+'명 추가');}} onCancel={()=>setModal(null)}/>}
     {modal==='addStep1'&&<AddStep1Modal brand={brand} onConfirm={list=>{const ok=list.filter(r=>addStep1Row(r)!==false).length;setModal(null);setMsg(`📋 리스트업 ${ok}명 추가${list.length>ok?` · 🚫 ${list.length-ok}명 제외(담당자 있음)`:''}`);}} onCancel={()=>setModal(null)}/>}
     {modal==='pasteStep1'&&<PasteImportModal kind="step1" brand={brand} onConfirm={rows=>{const {added,skipped,blocked}=addStep1RowsBulk(rows);setModal(null);setMsg(`📋 ${added}명 추가${skipped>0?` · 중복 ${skipped}명 건너뜀`:''}`+(blocked.length?` · 🚫 담당자 있음 ${blocked.length}명 제외`:''));if(blocked.length)alert('🚫 이미 담당자가 있어 추가하지 않은 인플루언서 '+blocked.length+'명\n같은 인플루언서는 먼저 리스트업한 사람이 담당이에요.\n\n'+blocked.join('\n\n'));}} onCancel={()=>setModal(null)}/>}
     {modal==='pasteShip'&&<PasteImportModal kind="ship" onConfirm={rows=>{const {added,skipped}=addShipRowsBulk(rows);setModal(null);setMsg(`📋 출고 ${added}건 추가${skipped>0?` · 중복 ${skipped}건 건너뜀`:''}`);}} onCancel={()=>setModal(null)}/>}

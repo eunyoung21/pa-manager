@@ -103,7 +103,7 @@ const settleBox = async () => (await evalJs(`((([...document.querySelectorAll('.
 
 console.log('\n[관리자] 관리자 할 일에 정산 대기');
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩');
 await evalJs(`window.confirm=()=>true;1`);
 await click('.step-tab', '대시보드'); await wait(900);
 let t = await settleBox();
@@ -120,7 +120,7 @@ chk(!t.includes('정산할사람'), '처리하면 목록에서 사라짐', t);
 console.log('\n[더 보기 → 팝업 전체]');
 for (let k = 0; k < 7; k++) savedData.brands[0].claudeStep2Rows.push(S2('m' + k, '대기' + k, 'wait_' + k, { ...fin, rate: '30,000' }));
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩 2');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩 2');
 await evalJs(`window.confirm=()=>true;1`);
 await click('.step-tab', '대시보드'); await wait(900);
 await evalJs(`(()=>{const g=[...document.querySelectorAll('.todo-box')].find(x=>x.innerText.includes('정산 정보'));[...g.querySelectorAll('.todo-item')].find(x=>x.innerText.includes('더 보기')).click();return 1})()`); await wait(500);
@@ -135,7 +135,7 @@ console.log('\n[알바] 버튼 없음');
 savedData.brands[0].claudeStep2Rows.find((r) => r.id === 'c1').infSettled = '';
 savedData.brands[0].claudeStep2Rows.find((r) => r.id === 'c1').stage = 'adset';
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/?staff` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동화'))`, '앱 로딩(알바)');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('자동리스트업'))`, '앱 로딩(알바)');
 const tabs = await evalJs(`[...document.querySelectorAll('.step-tab')].map(b=>b.textContent)`);
 if (tabs.some((x) => x.includes('대시보드'))) {
   await click('.step-tab', '대시보드'); await wait(900);
