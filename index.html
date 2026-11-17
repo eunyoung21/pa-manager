@@ -4055,8 +4055,8 @@ const activePas=paList=>(paList||[]).filter(p=>p&&p!=='기타');
 // 담당자 탭 — 준섭 앱의 '제품 탭' 자리
 function PaTabs({infs,paFocus,setPaFocus,paList}){
   const cnt={}; infs.forEach(i=>{const k=i.pa||'미지정'; cnt[k]=(cnt[k]||0)+1;});
-  // 담당자 관리에서 새로 추가한 사람도 바로 보이게 — 등록된 담당자('기타' 제외)는 0건이어도 표시
-  const names=[...(paList||[]).filter(p=>cnt[p]||activePas(paList).includes(p)), ...Object.keys(cnt).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
+  // 소통 중인 사람이 0명인 담당자는 숨긴다(2026-11-17 사용자) — 1명 이상 생기면 저절로 나타남. 지금 골라 둔 담당자만 0명이어도 남겨 빠져나올 수 있게
+  const names=[...(paList||[]).filter(p=>cnt[p]||paFocus===p), ...Object.keys(cnt).filter(k=>!(paList||[]).includes(k)).sort((a,b)=>a===AUTO_PA?1:b===AUTO_PA?-1:0)];
   return <div className="product-tabs">
     <div className={'ptab ptab-all'+(!paFocus?' active':'')} onClick={()=>setPaFocus(null)}>전체 ({infs.length})</div>
     {names.map(p=>{const on=paFocus===p, c=p===AUTO_PA||p==='미지정'?'#888':paHex(p);
