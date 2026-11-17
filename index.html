@@ -727,6 +727,39 @@ a.menu-item{display:block;}
 .tab-sep{width:1px;background:var(--border);margin:11px 8px;flex-shrink:0;}
 .tab-n{margin-left:7px;background:var(--text);color:#fff;border-radius:10px;padding:0 7px;font-size:12px;line-height:18px;font-weight:700;display:inline-block;}
 @media (max-width:768px){.header{height:auto;min-height:56px;padding:8px 12px;gap:8px;flex-wrap:wrap}.step-tabs{padding:0 8px}.notice-bar{padding:9px 12px}.hdr-btn{height:34px;padding:0 10px;font-size:13px}.hdr-acct{max-width:170px;overflow:hidden;text-overflow:ellipsis}}
+/* ── 리스트업 표 정리 (2026-11-17) ── */
+.tb2{flex-direction:column;align-items:stretch;gap:10px;padding:12px 20px;}
+.tb2 .tb-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.tb2 .fchip{font-size:14px;padding:7px 14px;border-radius:4px;}
+.tb2 .btn-primary{height:40px;padding:0 18px!important;font-size:14px!important;border:1px solid var(--text);}
+.tb2 .srch{height:38px;font-size:14px;width:240px;}
+.tb2 .cnt{font-size:14px;}
+.cal-toggle{height:38px;font-size:13px!important;border:1px solid #aab0ab;background:#fff;}
+.st-dot{display:inline-flex;align-items:center;gap:7px;font-weight:700;white-space:nowrap;}
+.st-dot i{width:9px;height:9px;border-radius:50%;display:inline-block;}
+.lk-out{color:var(--text);font-size:18px;text-decoration:none;}
+.auto-t .row-del-btn{opacity:1;color:var(--muted);font-size:18px;}
+.auto-t .cell-val.empty>span{opacity:0!important;}
+.auto-t .ch-link{font-weight:700;font-size:15px;border-bottom:0;}
+.auto-t .memo-line{font-size:13px;margin-top:3px;max-width:none;}
+.auto-t td{vertical-align:middle;}
+.auto-t th.num,.auto-t td.num{text-align:right;}
+.hdr-right>span[title^="변경하면"]{min-width:64px;}
+@media (min-width:769px){
+  .auto-t{table-layout:fixed;width:100%;}
+  .auto-t th,.auto-t td{overflow:hidden;}
+  .auto-t th.del-col,.auto-t td.del-col{width:40px;}
+  .auto-t th.del-end,.auto-t td.del-end{width:36px;}
+}
+/* ── 출고 표 정리 (2026-11-17) ── */
+.ship-t td[data-label="요청자"],.ship-t td[data-label="채널명"],.ship-t td[data-label="수령자명"],.ship-t td[data-label="연락처"],.ship-t td[data-label="상품명"],.ship-t td[data-label="처리 상태"],.ship-t td[data-label="출고일자"],.ship-t td[data-label="출고요청일"],.ship-t td[data-label="라이브"]{white-space:nowrap;}
+.ship-t td[data-label="수령자명"] .cell-val,.ship-t td[data-label="연락처"] .cell-val{white-space:nowrap;word-break:keep-all;}
+.ship-t td[data-label="배송지 주소"]{min-width:260px;max-width:340px;}
+.ship-t td[data-label="배송지 주소"] .cell-val{white-space:normal;line-height:1.45;}
+.ship-t td[data-label="채널명"] .ch-link{font-weight:700;border-bottom:0;}
+.ship-t td{vertical-align:middle;}
+.ship-t .cell-val.empty>span{opacity:0!important;}
+.ship-t .row-del-btn{opacity:1;color:var(--muted);font-size:18px;}
 @media (min-width:769px){
   .step-tab{padding:11px 16px;}
 }
@@ -1703,12 +1736,12 @@ const renamePA = v => (v && PA_RENAME[v]) ? PA_RENAME[v] : v;
 // 자동리스트업 표의 '진행 상태' — 값은 안 바꾸고(정산·다른 화면이 contactStatus 를 쓴다) 답장·승인 등 실제 기록에서 읽어 보여준다 (2026-11-17)
 function autoStatusOf(r){
   const m=(label,bg,fg,tip)=>({label,bg,fg,tip:tip||''});
-  if(r.finalDone==='Y') return m('완료','var(--surface3)','var(--muted)');
-  if(r.dealDone==='Y') return m('협업 성사','#dcfce7','#15803d');
-  if(r.approved==='Y') return m('승인','#dcfce7','#15803d','승인 '+(r.approveDate||''));
-  if(r.replied==='Y') return m('답장 옴','#dbeafe','#1d4ed8','답장일 '+(r.replyDate||'')+' · 대시보드에서 승인');
-  if(r.dmSent==='Y') return m('DM 발송','var(--surface3)','var(--muted)');
-  return m('컨택 전','var(--surface3)','var(--muted)');
+  if(r.finalDone==='Y') return m('완료','var(--surface3)','#1b2230');
+  if(r.dealDone==='Y') return m('협업 성사','#dcfce7','#1f7a45');
+  if(r.approved==='Y') return m('승인','#dcfce7','#1f7a45','승인 '+(r.approveDate||''));
+  if(r.replied==='Y') return m('답장 옴','#dbeafe','#2c5aa0','답장일 '+(r.replyDate||'')+' · 대시보드에서 승인');
+  if(r.dmSent==='Y') return m('DM 발송','var(--surface3)','#66707f');
+  return m('컨택 전','var(--surface3)','#66707f');
 }
 const CONTACT_STATUS = ['컨택 전','진행중','컨택 완료','계약서 작성','거절'];
 // 진행상태 표기 통일(공백·변형 흡수): 불발→거절, 컨택중/진행 중→진행중, 컨택전/컨택완료/계약서작성 정규화
@@ -4576,6 +4609,8 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
+  const [calOpen,setCalOpen]=useState(()=>{ try{ return localStorage.getItem('pa_cal_open')!=='0'; }catch{ return true; } });   // 오른쪽 달력 패널 펴짐 여부(기억)
+  const toggleCal=()=>setCalOpen(v=>{ try{ localStorage.setItem('pa_cal_open',v?'0':'1'); }catch{} return !v; });
   const [sortDir,setSortDir]=useState('asc');   // 날짜 정렬: 'asc'=오래된순(기본), 'desc'=최신순
   const [colF,setColF]=useState({}); const [showColF,setShowColF]=useState(false);
   const [prod,setProd]=useState('all');   // 제품 탭(전체 / 제품명 / 미지정) — 한 브랜드 안에 협찬 제품이 여러 개일 때
@@ -4651,8 +4686,8 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
       onClick={()=>{const n=(window.prompt('추가할 제품 이름')||'').trim(); if(n){onAddProduct(n);setProd(n);}}}>＋ 제품 추가</button>}
   </div>:null;
   const chips=(isClaude
-        ? [{k:'all',l:`리스트업 (${cnt.all})`,c:''},{k:'apv2',l:`✅ 승인 (${cnt.apv2})`,c:'f-ap'},{k:'deal',l:`🤝 협업성사 (${cnt.deal})`,c:'f-ap'},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}]
-        : [...(listing?[{k:'lst',l:`🟡 리스팅 목록 (${listingCount||0})`,c:''}]:[]),{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'deal',l:`🤝 협업성사 (${cnt.deal})`,c:'f-ap'},{k:'fin',l:`🏁 완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`🚫 거절 (${cnt.rej})`,c:''}])
+        ? [{k:'all',l:`리스트업 (${cnt.all})`,c:''},{k:'apv2',l:`승인 (${cnt.apv2})`,c:'f-ap'},{k:'deal',l:`협업성사 (${cnt.deal})`,c:'f-ap'},{k:'fin',l:`완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`거절 (${cnt.rej})`,c:''}]
+        : [...(listing?[{k:'lst',l:`리스팅 목록 (${listingCount||0})`,c:''}]:[]),{k:'all',l:`진행 중 (${cnt.all})`,c:''},{k:'deal',l:`협업성사 (${cnt.deal})`,c:'f-ap'},{k:'fin',l:`완료 (${cnt.fin})`,c:'f-deal'},{k:'rej',l:`거절 (${cnt.rej})`,c:''}])
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>);
   // 🟡 리스팅 목록 = 옛 STEP1 리스트업 화면 그대로. 여기서 승인하면 '진행 중'(컨택 전)으로 넘어와 DM을 보낸다.
   if(listing&&filter==='lst') return <div className="roomy" style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
@@ -4664,16 +4699,19 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
   return <div className="view-wrap roomy-wrap">
     <div className="view-main roomy">
     {prodTabs}
-    <div className="toolbar">
-      {chips}
-      <div className="sep"/>
-      <div className="search-wrap">
-        <input className="srch" placeholder="채널명, PA, 메모…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
-        {search&&<button className="srch-x" onClick={()=>setSearch('')}>×</button>}
+    <div className="toolbar tb2">
+      <div className="tb-row">{chips}</div>
+      <div className="tb-row">
+        {actions}
+        <div className="sep"/>
+        <div className="search-wrap">
+          <input className="srch" placeholder="채널명, PA, 메모…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
+          {search&&<button className="srch-x" onClick={()=>setSearch('')}>×</button>}
+        </div>
+        <span className="cnt">{shown.length}명</span>
+        <button className="btn btn-ghost cal-toggle" onClick={()=>toggleCal()} title="오른쪽 달력 패널 접기/펴기">달력 {calOpen?'접기 ▸':'펴기 ◂'}</button>
       </div>
-      <span className="cnt">{shown.length}명</span>
     </div>
-    {actions&&<div style={{padding:'6px 0 8px',display:'flex',gap:6,flexWrap:'wrap'}}>{actions}</div>}
     {(mode==='archive'||mode==='reject')&&<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',padding:'7px 12px',margin:'0 0 2px',background:'var(--surface2)',borderTop:'1px solid var(--border)',borderBottom:'1px solid var(--border)',fontSize:12,color:'var(--muted)'}}>
       {mode==='archive'
         ? <><span>🗑️ <b style={{color:'var(--orange)'}}>사본 폐기</b> — 정산 30일 뒤 <b>신분증사본·통장사본·주민등록번호</b>가 자동 폐기된 인플루언서 모음</span>
@@ -4685,8 +4723,19 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
     </div>}
     <BulkBar sel={sel} onDeleteMany={onDeleteMany} unit="명"/>
     <div className="table-wrap">
-      <table className="card-table">
-        <thead><tr>
+      <table className={'card-table'+(isClaude?' auto-t':'')}>
+        <thead>{isClaude?<tr>
+          <th className="del-col"><SelAll sel={sel}/></th>
+          <th>채널명</th>
+          <th style={{width:130}}>진행 상태</th>
+          <th style={{width:100}}>담당 PA</th>
+          <th className="num" style={{width:90}}>팔로워</th>
+          <th style={{width:100,cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
+          <th style={{width:100}}>완료일</th>
+          <th className="num" style={{width:90}}>단가</th>
+          <th style={{width:60}}>링크</th>
+          <th className="del-end"/>
+        </tr>:<tr>
           <th className="del-col"><SelAll sel={sel}/></th>
           <th style={{width:80,cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
           <th style={{width:'1%',whiteSpace:'nowrap'}}>채널명</th>
@@ -4700,7 +4749,7 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
           <th style={{width:90}}>단가</th>
           <th style={{width:50}}>링크</th>
           <th className="del-end"/>
-        </tr>
+        </tr>}
         {showColF&&<tr className="colf-row">
           {[null,'date','name','followers','pa',...(isClaude?['contactStatus']:[]),'dmSent',...(isClaude?['replied','approved']:[]),'dealDone','finalDone','finalDate','rate','link',null].map((f,i)=>(
             <th key={i} style={{padding:'2px 4px'}}>{f&&<input className="colf-inp" value={colF[f]||''} onChange={e=>setCol(f,e.target.value)} placeholder="필터"/>}</th>
@@ -4720,7 +4769,7 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
       </table>
     </div>
     </div>
-    <CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>
+    {calOpen&&<CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>}
     {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSetPostLink={onSetPostLink} onSettle={onSettle} onShip={onShip} onUnship={onUnship} onSaveProducts={onSaveProducts} onSaveSeal={onSaveSeal} onUploadContract={onUploadContract}/>}
   </div>;
 }
@@ -5205,6 +5254,27 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
   const isRej=H.current.isRej;         // 렌더 중에만 쓰는 순수 판정(핸들러는 클릭 시점에 H.current 에서 읽는다)
   const pay=calcPay(r);
   const paStyle=paColor(sanitizePA(r.pa));
+  if(isClaude){ const ek=endKind(r); const k=autoStatusOf(r);
+    return <tr className={selOn?'sel-on':''}>
+      <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
+        <input type="checkbox" className="sel-box" checked={!!selOn} onChange={()=>H.current.selToggle(r.id)} title="선택"/></span></td>
+      <td data-label="채널명" className="auto-ch"><span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>{r.product?<span className="prod-badge">{r.product}</span>:null}
+        {memoLine(r.memo)&&<div className="memo-line" title={r.memo}>{memoLine(r.memo)}</div>}</td>
+      <td data-label="진행 상태">{ek
+        ?<span className="end-chip" title={r.rejectDate?'종료 '+r.rejectDate:''} style={{background:END_KINDS[ek]+'22',color:END_KINDS[ek]}}>{ek}</span>
+        :<span className="st-dot" title={k.tip} style={{color:k.fg}}><i style={{background:k.fg}}/>{k.label}</span>}</td>
+      <td data-label="담당 PA" style={{whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
+        style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:12}:undefined}/></td>
+      <td data-label="팔로워" className="td-dim num"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
+      <td data-label="날짜" className="td-dim"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
+      <td data-label="완료일" className="td-dim"><Cell value={r.finalDate} onChange={v=>H.current.up(r.id,'finalDate',v)} type="date" style={{width:85}} placeholder={r.finalDone==='Y'?'날짜 입력':'—'}/></td>
+      <td data-label="단가" className="num"><Cell value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80}}/></td>
+      <td data-label="링크" style={{textAlign:'center'}}>
+        {r.link?<a href={r.link} target="_blank" rel="noopener" className="lk-out">↗</a>
+        :<Cell value={r.link} onChange={v=>H.current.up(r.id,'link',v)} placeholder="URL" style={{width:50}}/>}
+      </td>
+      <td className="del-end"><RowDelBtn name={r.name} onDelete={()=>H.current.onDelete(r.id)}/></td>
+    </tr>; }
   return <tr className={selOn?'sel-on':''}>
               <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
                 <input type="checkbox" className="sel-box" checked={!!selOn} onChange={()=>H.current.selToggle(r.id)} title="선택"/>
@@ -5440,15 +5510,15 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
         .map(({k,l})=><button key={k} className={`prod-tab ${prodF===k?'active':''}`} onClick={()=>setProdF(k)}>{l}</button>)}
     </div>}
     <div className="toolbar">
-      {[{k:'all',l:`전체 (${cnt.all})`,c:''},{k:'done',l:`완료 (${cnt.done})`,c:'f-done'},{k:'pend',l:`처리중 (${cnt.pend})`,c:'f-wt'}]
+      {[{k:'pend',l:`처리중 (${cnt.pend})`,c:'f-wt'},{k:'done',l:`완료 (${cnt.done})`,c:'f-done'},{k:'all',l:`전체 (${cnt.all})`,c:''}]
         .map(({k,l,c})=><button key={k} className={`fchip ${c} ${filter===k?'active':''}`} onClick={()=>setFilter(k)}>{l}</button>)}
       <select className={`fsel ${reqF?'active':''}`} value={reqF} onChange={e=>setReqF(e.target.value)} title="요청자 필터">
         <option value="">요청자 전체</option>
         {reqOpts.map(p=><option key={p} value={p}>{p}</option>)}
       </select>
-      <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="엑셀처럼 열마다 필터를 겁니다">🔽 열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
+      <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="엑셀처럼 열마다 필터를 겁니다">열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})} title="모든 열 필터 지우기">✕ 필터 초기화</button>}
-      <button className="fchip" onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">📋 붙여넣기로 추가</button>
+      <button className="fchip" onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">붙여넣기로 추가</button>
       <div className="sep"/>
       <div className="search-wrap">
         <input className="srch" placeholder="요청자, 수령자, 상품명…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Escape'&&setSearch('')}/>
@@ -5458,7 +5528,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
     </div>
     <BulkBar sel={sel} onDeleteMany={onDeleteMany} unit="건"/>
     <div className="table-wrap">
-      <table className="card-table">
+      <table className="card-table ship-t">
         <thead><tr>
           <th className="del-col"><SelAll sel={sel}/></th>
           <th style={{width:85}}>출고요청일</th>
@@ -5501,13 +5571,13 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
             <td data-label="배송지 주소"><Cell value={r.address} onChange={v=>up(r.id,'address',v)}/></td>
             <td data-label="상품명" style={{whiteSpace:'nowrap',fontWeight:600}}>{prodOfShip(r)}{optOfShip(r)?<span style={{fontWeight:400,color:'var(--muted)'}}> · {optOfShip(r)}</span>:null}{shipQty(prodOfShip(r),String(r.qty||'').trim()||'1')}</td>
             <td data-label="비고"><Cell value={r.notes} onChange={v=>up(r.id,'notes',v)}/></td>
-            <td data-label="처리 상태"><Cell value={r.status} onChange={v=>up(r.id,'status',v)} type="select" options={['처리중','✅ 완료']}/></td>
-            <td data-label="출고일자"><Cell value={r.shipDate||''} onChange={v=>up(r.id,'shipDate',v)} type="date" style={{width:80}} placeholder="출고일"/></td>
+            <td data-label="처리 상태"><Cell value={r.status||'처리중'} onChange={v=>up(r.id,'status',v)} type="select" options={['처리중','✅ 완료']} fmt={x=>'● '+String(x).replace('✅ ','')} style={{fontWeight:700,whiteSpace:'nowrap',color:String(r.status||'').includes('완료')?'#1f7a45':'#2c5aa0'}}/></td>
+            <td data-label="출고일자"><Cell value={r.shipDate||''} onChange={v=>up(r.id,'shipDate',v)} type="date" style={{width:80}} placeholder="출고일" fmt={x=>/^\d{1,2}\/\d{1,2}$/.test(String(x))?((String(r.requestDate||'').slice(0,2)||'26')+'.'+String(x).split('/').map(z=>z.padStart(2,'0')).join('.')):x}/></td>
             <td data-label="라이브" style={{textAlign:'center'}}>
               {(()=>{const ch=r.channelName||chanOf(r.recipient);const lv=liveOf(ch,r.recipient);
-                if(lv)return <span style={{fontSize:10,color:'var(--green)',fontWeight:700,whiteSpace:'nowrap'}}>🔴 라이브{lv.liveDate?' '+lv.liveDate:''}</span>;
+                if(lv)return <span style={{fontSize:13,color:'var(--ok)',fontWeight:700,whiteSpace:'nowrap'}}>라이브{lv.liveDate?' '+lv.liveDate:''}</span>;
                 const exp=addDaysToDate(r.shipDate||r.requestDate,7);
-                return <span style={{fontSize:10,color:'var(--dim)',whiteSpace:'nowrap'}}>{exp?'⏳ 예상 '+exp:'⏳ 영상 대기'}</span>;
+                return <span style={{fontSize:13,color:'var(--muted)',whiteSpace:'nowrap'}}>{exp?'예상 '+exp:'영상 대기'}</span>;
               })()}
             </td>
             <td className="del-end"><RowDelBtn name={r.recipient||r.channelName} onDelete={()=>onDelete(r.id)}/></td>

@@ -118,12 +118,12 @@ await openCh('갯수씨'); await waitFor(`document.querySelector('.s2p')`, '상�
 chk(await evalJs(`document.querySelector('.s2p select[title="갯수"]').value`) === '1', '갯수 기본 1개');
 await setQty('2'); await wait(800);
 chk(C('q1').qty === '2', '갯수 저장', C('q1').qty);
-await fillShip(); await click('.s2p button', '완료 →'); await wait(1200);
+await fillShip(); await click('.s2p button', '완료'); await wait(1200);
 const sh = H().shippingRows.find((r) => r.channelName === '갯수씨');
 chk(sh && sh.qty === '2', '출고 탭 수량 = 2', sh);
 await closeP(); await wait(300);
 await openCh('기본씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창 2');
-await fillShip(); await click('.s2p button', '완료 →'); await wait(1200);
+await fillShip(); await click('.s2p button', '완료'); await wait(1200);
 const sh2 = H().shippingRows.find((r) => r.channelName === '기본씨');
 chk(sh2 && sh2.qty === '1', '갯수 안 고르면 수량 1', sh2 && sh2.qty);
 

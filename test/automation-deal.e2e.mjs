@@ -110,7 +110,7 @@ await click('.step-tab','자동리스트업'); await wait(800);
 const chips = await evalJs(`[...document.querySelectorAll('.fchip')].map(b=>b.textContent.trim())`);
 console.log('\n[칩]', chips.join(' | '));
 const order = chips.map((c) => c.replace(/\s*\(\d+\)$/, ''));
-chk(order.indexOf('✅ 승인') >= 0 && order.indexOf('🤝 협업성사') === order.indexOf('✅ 승인') + 1 && order.indexOf('🏁 완료') === order.indexOf('🤝 협업성사') + 1, '승인 → 협업성사 → 완료 순서', order);
+chk(order.indexOf('승인') >= 0 && order.indexOf('협업성사') === order.indexOf('승인') + 1 && order.indexOf('완료') === order.indexOf('협업성사') + 1, '승인 → 협업성사 → 완료 순서', order);
 const names = async (chip) => { await click('.fchip', chip); await wait(500); return evalJs(`[...document.querySelectorAll('tbody tr')].map(t=>t.innerText).join('|')`); };
 const has = (txt, ...ns) => ns.every((n) => txt.includes(n));
 const not = (txt, ...ns) => ns.every((n) => !txt.includes(n));
@@ -118,7 +118,7 @@ let x = await names('리스트업'); chk(has(x, '리스트업만') && not(x, '�
 x = await names('승인'); chk(has(x, '승인됨') && not(x, '승인후성사', '성사만', '완료됨', '리스트업만'), '승인: 승인했고 성사 전만(성사되면 빠짐)');
 x = await names('협업성사'); chk(has(x, '승인후성사', '성사만') && not(x, '승인됨', '완료됨', '리스트업만'), '협업성사: 성사·완료 전');
 x = await names('완료'); chk(has(x, '완료됨') && not(x, '승인후성사', '승인됨'), '완료');
-chk(chips.some((c) => c.startsWith('🤝 협업성사 (2)')) && chips.some((c) => c.startsWith('✅ 승인 (1)')) && chips.some((c) => c.startsWith('리스트업 (1)')), '숫자: 리스트업 1 · 승인 1 · 협업성사 2', chips);
+chk(chips.some((c) => c.startsWith('협업성사 (2)')) && chips.some((c) => c.startsWith('승인 (1)')) && chips.some((c) => c.startsWith('리스트업 (1)')), '숫자: 리스트업 1 · 승인 1 · 협업성사 2', chips);
 
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close(); finder.close();
