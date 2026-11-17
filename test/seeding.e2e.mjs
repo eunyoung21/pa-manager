@@ -95,7 +95,7 @@ savedData = { paList: ['박민선', '기타'], brands: [
     step2Rows: [S2('m1', '무가기본', 'free_default', { ...base }), S2('m2', '유가로바꿈', 'paid_over', { ...base }), S2('m3', '옛제품만', 'legacy_po', { ...base, productOnly: 'Y' })] },
 ], settlements: {} };
 const B2 = () => savedData.brands.find((b) => b.id === 'hatke');
-const steps = () => evalJs(`[...document.querySelectorAll('.s2p-tl-label')].map(x=>x.textContent.trim())`);
+const steps = () => evalJs(`[...document.querySelectorAll('.s2p-bar .s2p-dot')].map(d=>d.title.split(' · ')[0].split(' — ')[0])`);
 const sel = () => evalJs(`(()=>{const f=[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('시딩 방식'));return f.querySelector('select').value})()`);
 const pickSeed = (v) => evalJs(`(()=>{const f=[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('시딩 방식'));const s=f.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${J(v)});s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });

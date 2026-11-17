@@ -101,7 +101,7 @@ savedData = { paList: ['박민선', '기타'], brands: [
 const srch = (v) => evalJs(`(()=>{const el=document.querySelector('.srch');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,${J(v)});el.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);
 const openCh = async (n) => { await srch(n); await wait(400); return evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent===${J(n)});if(!s)throw new Error('채널명 없음 '+${J(n)});s.click();return 1})()`); };
 const closeP = () => evalJs(`(()=>{const b=[...document.querySelectorAll('.s2p button')].find(x=>x.textContent.includes('닫기'));b&&b.click();return 1})()`);
-const steps = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-tl-label')].map(x=>x.childNodes[0].textContent+(x.classList.contains('current')?'*':''))`);
+const steps = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-bar .s2p-dot')].map(d=>d.title.split(' · ')[0].split(' — ')[0]+(d.classList.contains('current')?'*':''))`);
 const panelText = () => evalJs(`document.querySelector('.s2p .s2p-body').innerText`);
 
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });

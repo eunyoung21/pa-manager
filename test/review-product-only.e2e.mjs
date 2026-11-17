@@ -135,7 +135,7 @@ chk(settle.includes('유가씨') && !settle.includes('무가씨'), '정산 정�
 console.log('\n[관리자 상세 창] 제품만 제공 = 광고세팅만');
 await click('.step-tab','자동리스트업'); await wait(700);
 await openCh('무가씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창(무가)');
-let tl = await evalJs(`[...document.querySelectorAll('.s2p-tl-label')].map(x=>x.childNodes[0].textContent)`);
+let tl = await evalJs(`[...document.querySelectorAll('.s2p-bar .s2p-dot')].map(d=>d.title.split(' · ')[0].split(' — ')[0])`);
 let bb = await evalJs(`[...document.querySelectorAll('.s2p button')].map(b=>b.textContent.trim())`);
 chk(tl.includes('광고세팅') && tl.includes('광고 코드 수집') && !tl.some((x) => x.includes('입금')), '단계 이름에 입금 없음', tl);
 chk(bb.includes('✓ 광고세팅 완료') && !bb.some((x) => x.includes('입금')), '버튼 = ✓ 광고세팅 완료(입금 버튼 없음)', bb);

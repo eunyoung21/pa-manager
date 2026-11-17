@@ -91,7 +91,7 @@ const row=n=>B().step2Rows.find(r=>r.name===n)||{};
 const saved=async n=>{await wait(1600);return row(n);};
 const openCh=n=>evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent===${J(n)});if(!s)throw new Error('채널명 없음 '+${J(n)});s.click();return 1})()`);
 const panel=()=>evalJs(`(document.querySelector('.s2p')||{}).innerText||''`);
-const curStage=()=>evalJs(`(()=>{const d=document.querySelector('.s2p .s2p-dot.current');return d?d.parentElement.querySelector('.s2p-tl-label').childNodes[0].textContent:''})()`);
+const curStage=()=>evalJs(`(()=>{const d=document.querySelector('.s2p .s2p-dot.current');return d?d.title.split(' · ')[0].split(' — ')[0]:''})()`);
 const fill=(label,v)=>evalJs(`(()=>{const f=[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith(${J(label)}));const el=f.querySelector('input,textarea');
   const proto=el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${J(v)});el.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);
 const pbtn=txt=>click('.s2p button',txt);
@@ -197,7 +197,7 @@ await pbtn('닫기'); await wait(200);
 
 console.log('\n[되돌리기] 진행 단계에서 지난 단계를 누르면 그 단계로');
 await evalJs(`(window.__cf=[],window.confirm=m=>{window.__cf.push(m);return true},1)`);
-const stepClick=name=>evalJs(`(()=>{const it=[...document.querySelectorAll('.s2p .s2p-tl-item')].find(x=>x.querySelector('.s2p-tl-label').childNodes[0].textContent===${J(name)});it.click();return 1})()`);
+const stepClick=name=>evalJs(`(()=>{const it=[...document.querySelectorAll('.s2p .s2p-bar .s2p-dot')].find(d=>d.title.split(' · ')[0].split(' — ')[0]===${J(name)});it.click();return 1})()`);
 // 에이 는 정산까지 끝나 '완료' 필터에만 있을 수 있어 검색으로 연다
 await evalJs(`(()=>{const i=document.querySelector('.srch');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'에이');i.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`); await wait(500);
 await openCh('에이'); await wait(300);

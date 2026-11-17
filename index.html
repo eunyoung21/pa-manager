@@ -347,6 +347,17 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 .s2p-ig:hover{text-decoration:underline;}
 .s2p-body{padding:18px 20px 40px;}
 .s2p-sec{font-size:12px;font-weight:700;color:var(--muted);margin:4px 0 10px;}
+.s2p-tl2{margin-bottom:16px;}
+.s2p-bar{display:flex;align-items:center;}
+.s2p-bar .s2p-dot{border:0;padding:0;font-family:inherit;cursor:default;}
+.s2p-bar .s2p-dot.pending{border:1px solid var(--border);}
+.s2p-bar .s2p-dot.back{cursor:pointer;}
+.s2p-bar .s2p-dot.back:hover{box-shadow:0 0 0 3px var(--surface3);}
+.s2p-seg{flex:1;height:2px;background:var(--border);min-width:8px;}
+.s2p-seg.on{background:var(--green);}
+.s2p-now{margin-top:8px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+.s2p-now b{font-size:14px;font-weight:700;}
+.s2p-now span{font-size:12px;color:var(--muted);}
 .s2p-tl{margin-bottom:20px;}
 .s2p-tl-item{display:flex;align-items:center;gap:10px;border-radius:6px;}
 .s2p-tl-item.back{cursor:pointer;}
@@ -5145,18 +5156,18 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
       </div>
       <div className="s2p-body">
         <div className="s2p-sec">진행 단계 <span style={{fontWeight:400}}>· 잘못 눌렀으면 지난 단계를 눌러 되돌리기</span></div>
-        <div className="s2p-tl">
-          {S2_STAGES.map((name0,i)=>{
-            if(nc&&i===3) return null;
-            const name=nc&&i===4?'광고 코드 수집':nc&&i===5?'광고세팅':name0;   // 제품만 제공 — 입금 단어 뺌
-            const dc=cur>i||st==='done'?'done':cur===i?'current':'pending';
-            return <React.Fragment key={i}>
-              <div className={'s2p-tl-item'+(dc==='done'&&st!=='rejected'?' back':'')} title={dc==='done'&&st!=='rejected'?'눌러서 이 단계로 되돌리기':''} onClick={()=>dc==='done'&&goBack(i)}><div className={'s2p-dot '+dc}>{dc==='done'?'✓':i+1}</div>
-                <div className={'s2p-tl-label '+dc}>{name}{dates[i]&&i<=cur?<span className="s2p-date">{dates[i]}</span>:null}</div></div>
-              {i<S2_STAGES.length-1&&<div className="s2p-line"/>}
-            </React.Fragment>;})}
-          {st==='rejected'&&<div className="s2p-tl-item"><div className="s2p-dot" style={{background:'var(--red)',color:'#fff'}}>✕</div><div className="s2p-tl-label" style={{color:'var(--red)'}}>거절됨</div></div>}
-        </div>
+        {(()=>{ const steps=S2_STAGES.map((n,i)=>({i,name:nc&&i===4?'광고 코드 수집':nc&&i===5?'광고세팅':n})).filter(x=>!(nc&&x.i===3));   // 제품만 제공 — 계약서 칸·입금 단어 뺌
+          const stat=i=>cur>i||st==='done'?'done':cur===i?'current':'pending';
+          const k=steps.findIndex(x=>x.i===cur), now=k>=0?steps[k]:null;
+          return <div className="s2p-tl2">
+            <div className="s2p-bar">{steps.map((x,n)=>{ const dc=stat(x.i), canBack=dc==='done'&&st!=='rejected';
+              return <React.Fragment key={x.i}>
+                <button type="button" className={'s2p-dot '+dc+(canBack?' back':'')} title={x.name+(dates[x.i]&&x.i<=cur?' · '+dates[x.i]:'')+(canBack?' — 눌러서 이 단계로 되돌리기':'')} onClick={()=>canBack&&goBack(x.i)}>{dc==='done'?'✓':n+1}</button>
+                {n<steps.length-1&&<span className={'s2p-seg'+(stat(x.i)==='done'?' on':'')}/>}
+              </React.Fragment>;})}</div>
+            {st==='rejected'?<div className="s2p-now" style={{color:'var(--red)'}}>거절됨</div>
+              :<div className="s2p-now"><b>{now?now.name:'모든 단계 완료'}</b>{now&&<span>{k+1} / {steps.length} 단계{dates[now.i]?' · '+dates[now.i]:''}</span>}</div>}
+          </div>; })()}
         <div className="s2p-sec">기본 정보</div>
         {fldS('이름 (별칭)','name','채널명')}
         <div className="s2p-fg"><label>협찬 제품</label>
