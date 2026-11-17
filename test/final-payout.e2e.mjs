@@ -142,6 +142,9 @@ chk(/안민영/.test(julyTxt),'7월 정산에 안민영(옛 성사건) 유지');
 chk(/22,000원/.test(julyTxt),'7월 DM 2천 + 완료 2만',julyTxt.match(/[\d,]+원/g)?.slice(0,8));
 
 console.log('\n[5] 협업성사를 끄면 최종완료도 풀림');
+// 이 시점엔 진행 중인 건이 없어 '인플루언서 관리' 탭이 '더보기'로 접혀 있다 — 더보기를 열어서 누른다
+await evalJs(`(()=>{const m=[...document.querySelectorAll('.step-tab')].find(b=>b.textContent.includes('더보기'));if(m)m.click();return 1})()`);
+await new Promise(r=>setTimeout(r,300));
 await clickText('👥 인플루언서 관리');
 await waitFor(`document.querySelector('.srch')&&document.querySelector('thead th')`,'컨택현황 복귀'); // 둘 다 완료라 기본 목록이 비어 있을 수 있음
 await clickYN('신규건','협업성사');

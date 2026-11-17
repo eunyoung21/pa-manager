@@ -8431,7 +8431,11 @@ function AppMain({ authInfo, onLogout }) {
     if(visibleTabs.length && !visibleTabs.some(t=>t.key===tab)) setTab(visibleTabs[0].key);
   },[authInfo]);
   // 자주 쓰는 핵심 탭만 노출, 나머지(Claude·DM·가이드·계정·로그)는 '⋯ 더보기'로 접어 어지러움 감소.
-  const PRIMARY_TABS=new Set(['dashboard','step2','finder','shipping','review','dm','report','settle','claudeS2']);
+  // 인플루언서 관리(직접 리스트업) 탭 — 진행 중인 건이 어느 브랜드에도 없으면 '더보기'로 접는다. 건이 생기면 다시 탭으로 나온다.
+  // (데이터·정산·화면 이동은 그대로 — 탭 줄에서만 빠진다. 지금 그 탭을 보고 있으면 접지 않는다.)
+  const manualActive=allowedBrands.some(b=>(b.step1Rows||[]).some(r=>r.name&&r.reviewStatus!=='반려'&&r.reviewStatus!=='승인')
+    ||(b.step2Rows||[]).some(r=>r.name&&r.finalDone!=='Y'&&r.infSettled!=='Y'&&normStatus(r.contactStatus)!=='거절'));
+  const PRIMARY_TABS=new Set(['dashboard',...(manualActive||tab==='step2'?['step2']:[]),'finder','shipping','review','dm','report','settle','claudeS2']);
   const primaryTabs=visibleTabs.filter(t=>PRIMARY_TABS.has(t.key));
   const moreTabs=visibleTabs.filter(t=>!PRIMARY_TABS.has(t.key));
   const activeMore=moreTabs.find(t=>t.key===tab);
