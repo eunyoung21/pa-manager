@@ -814,8 +814,13 @@ a.menu-item{display:block;}
 .rpt-kpis2 .k b{font-size:24px;font-weight:700;}
 .rpt-kpis2 .k.main b{font-size:40px;line-height:1.1;}
 .rpt-kpis2 .cmp{font-size:14px;font-weight:700;margin-top:4px;color:var(--muted);}
-.rpt-kpis2 .good,.rpt-roas.good{color:var(--ok);}
-.rpt-kpis2 .bad,.rpt-roas.bad{color:var(--red);}
+.roas-danger{color:#ef4444;font-weight:700;}
+.roas-warn{color:#f59e0b;}
+.roas-good{color:#22c55e;font-weight:700;}
+.roas-na{color:#8a93a0;}
+.rpt-roas.roas-warn{font-weight:400;}
+.rpt-kpis2 .cmp.good{color:var(--ok);}
+.rpt-kpis2 .cmp.bad{color:var(--red);}
 .rpt-tbar{display:flex;margin:0 0 10px;}
 .rpt-tbar .btn{height:36px;border:1px solid #aab0ab;background:#fff;font-size:14px;}
 .rpt-table th,.rpt-table td{padding:13px 14px;font-size:14px;}
@@ -825,7 +830,7 @@ a.menu-item{display:block;}
 .rpt-nm .rpt-link:hover{text-decoration:underline;}
 .rpt-ch2{font-size:13px;color:var(--muted);margin-top:3px;}
 .rpt-roas{font-weight:700;font-size:16px;display:block;}
-.rpt-roas.mute,.mute{color:#8a93a0;}
+.mute{color:#8a93a0;}
 .rpt-fsub{display:block;font-size:12px;color:#8a93a0;font-weight:400;}
 .rpt-live{display:inline-flex;align-items:center;gap:7px;font-weight:700;}
 .rpt-live i{width:9px;height:9px;border-radius:50%;display:inline-block;}
@@ -7216,6 +7221,8 @@ function SheetLinkModal({ brand, onSave, onClose }) {
 
 /* 「어떤 유형이 잘 되나 → 이런 사람으로 확장」 — 수집이 누적 데이터로 계산해 _report 메타(insights)에 싣는다. 읽기 전용. */
 const RPT_IL={grow:'확장',cut:'축소',note:'참고'};
+// 액션툴 ROAS 색 규칙(기본 기준 100·150): 100 미만 빨강 · 150 미만 노랑 · 그 이상 초록 · 값 없음 회색
+const roasCls=v=>(!v||v<=0)?'roas-na':v<100?'roas-danger':v<150?'roas-warn':'roas-good';
 function rptInsCur(ins,weekKey){
   // 어느 주를 볼지는 리포트 위쪽 주차 라벨이 정한다(weekKey). 없거나 그 주 계산이 없으면 가장 최근 주.
   const weeks=(ins&&ins.weeks)||[];
@@ -7350,16 +7357,15 @@ function ReportView({brand}) {
   // 열 순서: 직접ROAS → 직접전환 → 직접전환값 → 비용 → (세팅일/집행주) → [매체 신고값 보기 때만] 매출·전환·CPA·ROAS·담기당비용·직접CPA
   const MetricHead=({tail})=><>{th('dRoas','직접ROAS')}{th('dc','직접전환')}{th('da','직접전환값')}{th('cost','비용')}{tail}
     {showMedia&&<>{th('rev','매출')}{th('conv','전환')}{th('cpa','CPA')}{th('roas','ROAS')}{th('atcCost','담기당비용')}{th('dCpa','직접CPA')}</>}</>;
-  // 전환이 5건 미만이면 직접ROAS는 판단하지 않는다(회색) — 0%·소수 전환이 전부 빨갛게 보이던 문제
-  const RoasCell=({r})=>{ const few=!(r.dc>=5); const v=r.dRoas;
-    if(few) return <td><span className="rpt-roas mute">{v==null||!r.dc?'–':pct(v)}</span><span className="rpt-fsub">{'전환 '+(r.dc||0)+'건 · '+(r.dc?'표본 적음':'판단 보류')}</span></td>;
-    return <td><span className={'rpt-roas'+(v!=null&&v<100?' bad':v!=null&&v>=120?' good':'')}>{pct(v)}</span></td>; };
+  // 색은 액션툴과 같게(roasCls). 전환이 5건 미만이면 숫자 아래에 «표본 적음»만 작게 붙인다.
+  const RoasCell=({r})=>{ const v=r.dRoas; const few=!(r.dc>=5);
+    return <td><span className={'rpt-roas '+roasCls(v)}>{v==null||!(v>0)?'–':pct(v)}</span>{few&&<span className="rpt-fsub">{'전환 '+(r.dc||0)+'건 · '+(r.dc?'표본 적음':'판단 보류')}</span>}</td>; };
   const MetricCells=({r,tail})=><><RoasCell r={r}/><td>{won(r.dc)}</td><td>{won(r.da)}</td><td>{won(r.cost)}</td>{tail}
     {showMedia&&<><td>{won(r.rev)}</td><td>{won(r.conv)}</td><td>{won(r.cpa)}</td><td>{pct(r.roas)}</td><td>{won(r.atcCost)}</td><td>{won(r.dCpa)}</td></>}</>;
   // 맨 위 요약: 직접ROAS를 가장 크게, 그 구간 누적 평균(제안의 «직접ROAS NN%»)과 비교
   const Kpis=({a,n,label,avg})=>{ const v=a.dRoas; const cmp=(v!=null&&avg!=null)?(v>=avg+3?{c:'good',t:'▲ 평균 '+avg+'%보다 높아요'}:v<=avg-3?{c:'bad',t:'▼ 평균 '+avg+'%보다 낮아요'}:{c:'',t:'평균 '+avg+'%와 비슷해요'}):null;
     return <div className="rpt-kpis2">
-      <div className="k main"><small>직접 ROAS</small><b className={cmp?cmp.c:''}>{pct(v)}</b>{cmp&&<div className={'cmp '+cmp.c}>{cmp.t}</div>}</div>
+      <div className="k main"><small>직접 ROAS</small><b className={roasCls(v)}>{pct(v)}</b>{cmp&&<div className={'cmp '+cmp.c}>{cmp.t}</div>}</div>
       <div className="k"><small>비용</small><b>{won(a.cost)}</b></div>
       <div className="k"><small>직접 전환</small><b>{won(a.dc)}건</b></div>
       <div className="k"><small>직접 CPA</small><b>{won(a.dCpa)}</b></div>
@@ -7458,7 +7464,7 @@ function ReportView({brand}) {
                 {[selW].filter(Boolean).map(w=><React.Fragment key={w.end}>
                   <tr className="rpt-wkrow"><td colSpan={7+(hasProd?1:0)+(showMedia?6:0)} style={{textAlign:'left'}}>
                     <b>{md(w.start)} ~ {md(w.end)}</b>
-                    <span className="rpt-wksum">{w.n}명 · 비용 {won(w.cost)} · 직접ROAS <span style={{color:w.dRoas!=null&&w.dRoas<100?'var(--red)':undefined,fontWeight:600}}>{pct(w.dRoas)}</span> · 직접전환 {won(w.dc)}</span>
+                    <span className="rpt-wksum">{w.n}명 · 비용 {won(w.cost)} · 직접ROAS <span className={roasCls(w.dRoas)}>{pct(w.dRoas)}</span> · 직접전환 {won(w.dc)}</span>
                   </td></tr>
                   {sortRows(w.people).map((r,i)=>{const x=hWho(r);return <tr key={i}><NameCell name={r.name} channel={x.channel} url={x.postUrl}/><ProdCell p={x.product}/><LiveCell on={x.on}/><MetricCells r={r}/></tr>;})}
                 </React.Fragment>)}
