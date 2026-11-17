@@ -748,6 +748,7 @@ a.menu-item{display:block;}
 .auto-t td{vertical-align:middle;}
 .auto-t th.num,.auto-t td.num{text-align:right;}
 .auto-t th{white-space:nowrap;}
+.auto-t tbody tr:hover td{background:#faf6e4;}
 .hdr-right>span[title^="변경하면"]{min-width:64px;}
 @media (min-width:769px){
   .auto-t{table-layout:fixed;width:100%;}
@@ -4730,28 +4731,28 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
       <table className="card-table auto-t">
         <thead>{isClaude?<tr>
           <th className="del-col"><SelAll sel={sel}/></th>
-          <th>채널명</th>
-          <th style={{width:130}}>진행 상태</th>
-          <th style={{width:70,textAlign:'center'}}>답장</th>
-          <th style={{width:100}}>담당 PA</th>
-          <th className="num" style={{width:90}}>팔로워</th>
-          <th style={{width:100,cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
-          <th style={{width:100}}>완료일</th>
-          <th className="num" style={{width:90}}>단가</th>
-          <th style={{width:60}}>링크</th>
+          <th style={{width:'24%'}}>채널명</th>
+          <th style={{width:'13%'}}>진행 상태</th>
+          <th style={{width:'6%',textAlign:'center'}}>답장</th>
+          <th style={{width:'10%'}}>담당 PA</th>
+          <th className="num" style={{width:'9%'}}>팔로워</th>
+          <th style={{width:'10%',cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
+          <th style={{width:'10%'}}>완료일</th>
+          <th className="num" style={{width:'8%'}}>단가</th>
+          <th style={{width:'5%'}}>링크</th>
           <th className="del-end"/>
         </tr>:<tr>
           <th className="del-col"><SelAll sel={sel}/></th>
-          <th>채널명</th>
-          <th style={{width:100}}>담당 PA</th>
-          <th className="num" style={{width:90}}>팔로워</th>
-          <th style={{width:100,cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
-          <th style={{width:80}}>DM발송</th>
-          <th style={{width:80}}>협업성사</th>
-          <th style={{width:80}}>최종완료</th>
-          <th style={{width:100}}>완료일</th>
-          <th className="num" style={{width:90}}>단가</th>
-          <th style={{width:60}}>링크</th>
+          <th style={{width:'20%'}}>채널명</th>
+          <th style={{width:'10%'}}>담당 PA</th>
+          <th className="num" style={{width:'8%'}}>팔로워</th>
+          <th style={{width:'9%',cursor:'pointer',userSelect:'none'}} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="클릭하여 날짜 정렬 전환 (최신순 ↔ 오래된순)">날짜 {sortDir==='desc'?'↓':'↑'}</th>
+          <th style={{width:'7%'}}>DM발송</th>
+          <th style={{width:'7%'}}>협업성사</th>
+          <th style={{width:'7%'}}>최종완료</th>
+          <th style={{width:'9%'}}>완료일</th>
+          <th className="num" style={{width:'8%'}}>단가</th>
+          <th style={{width:'5%'}}>링크</th>
           <th className="del-end"/>
         </tr>}
         {showColF&&<tr className="colf-row">
