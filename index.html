@@ -8350,10 +8350,6 @@ function AppMain({ authInfo, onLogout }) {
       {addBrandOpen&&<BrandAddModal existingNames={brands.map(b=>b.name)} onClose={()=>setAddBrandOpen(false)}
         onAdd={name=>{ const id=makeId(); setBrands(prev=>[...prev,{id,name,step1Rows:[],step2Rows:[],shippingRows:[],reviewRows:[],privacyRows:[],claudeStep1Rows:[],claudeStep2Rows:[]}]); setBId(id); setAddBrandOpen(false); }}/>}
       <div className="hdr-right">
-        <button className="btn btn-ghost" style={{fontSize:11}} onClick={()=>setHowOpen(true)} title="프로그램 사용법">📖 사용법</button>
-        {howOpen&&<HowToModal onClose={()=>setHowOpen(false)}/>}
-        {/* 계약서 생성 — 모델 정보 입력 후 잠금 PDF 다운로드 (브랜드별 광고주 자동) */}
-        <button className="contract-link" style={{cursor:'pointer'}} onClick={()=>setCtGenOpen(true)} title="모델명·모델료·계약일자 입력 후 계약서 PDF 생성">📄 계약서 생성</button>
         <button className="contract-link" style={{cursor:'pointer'}} onClick={()=>setDealOpen(true)} title="협업 성사된 사람들을 카테고리별로 모아 보기">⭐ 성사 모음</button>
         {dealOpen&&brand&&<DealBoard brand={brand} canEdit={true} onClose={()=>setDealOpen(false)}
           onEdit={(key,patch)=>updateBrand(bId,b=>{
