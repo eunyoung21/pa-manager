@@ -726,6 +726,7 @@ a.menu-item{display:block;}
 .step-tab.active{color:var(--text)!important;}
 .tab-sep{width:1px;background:var(--border);margin:11px 8px;flex-shrink:0;}
 .tab-n{margin-left:7px;background:var(--text);color:#fff;border-radius:10px;padding:0 7px;font-size:12px;line-height:18px;font-weight:700;display:inline-block;}
+@media (max-width:768px){.header{height:auto;min-height:56px;padding:8px 12px;gap:8px;flex-wrap:wrap}.step-tabs{padding:0 8px}.notice-bar{padding:9px 12px}.hdr-btn{height:34px;padding:0 10px;font-size:13px}.hdr-acct{max-width:170px;overflow:hidden;text-overflow:ellipsis}}
 @media (min-width:769px){
   .step-tab{padding:11px 16px;}
 }
@@ -4047,6 +4048,9 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const act=useInfActions(A);
   const infs=paFocus?infsAll.filter(i=>(i.pa||'미지정')===paFocus):infsAll;
   const active=infs.filter(i=>i.status==='active');
+  // ✅ 승인 대기(자동리스트업, 2026-11-17) — 답장은 왔는데 관리자가 아직 승인 안 한 자동 건. 담당자가 아직 없는 건도 포함(위 infs 는 담당자 없는 자동 건을 뺀다).
+  const approvalWait=useMemo(()=>buildInfluencers(brand,paList).filter(i=>i.src==='auto'&&i.status==='active'&&i.contact&&i.contact.replied==='Y'&&i.contact.approved!=='Y'&&i.contact.dealDone!=='Y'&&i.contact.finalDone!=='Y'
+    &&(dashProds.length<=1||dashProd==='all'||(dashProd==='__none__'?!infProd(i):infProd(i)===dashProd))&&(!paFocus||(i.pa||'미지정')===paFocus)),[brand,paList,dashProd,dashProds,paFocus]);
   // 하차했는데 제품을 이미 보낸 사람 → 관리자 할 일(회수 확인)
   const dropShip=infs.filter(i=>i.status==='rejected'&&i.endReason==='하차'&&i.shipped&&i.contact&&i.contact.returnChecked!=='Y');
   const byStage=id=>active.filter(i=>i.stage===id);
@@ -4138,7 +4142,22 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       </div>
       {lm&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}><b style={{color:'var(--text)'}}>{lm.who}</b> {lm.text}</div>}
     </div>; };
-  const bossTodo=(bossItems.length||dropShip.length||reqItems.length)?[
+  const apvItem=i=>{ const c=i.contact; const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
+    return <div key={i.id} className="todo-item" onClick={()=>openInf(i)}>
+      <span style={{minWidth:0,flex:1}}><span className="todo-name" style={{display:'block'}}>{i.name}</span>
+        {memoLine(c.memo)&&<div className="memo-line" title={c.memo}>{memoLine(c.memo)}</div>}</span>
+      <div className="todo-right">
+        {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
+        {isStaff?<span className="todo-stage" style={{background:'var(--surface3)',color:'var(--muted)'}}>승인 대기</span>:<>
+          <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title="승인 — 매니저가 소통 진행" onClick={e=>{e.stopPropagation(); act.up(i,{approved:'Y',approveDate:c.approveDate||today(),replied:'Y',...(c.replyDate?{}:{replyDate:today()})});}}>✓ 승인</button>
+          <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title="승인 안 함 → 거절(보관)" onClick={e=>{e.stopPropagation(); if(confirm(`${i.name} — 거절 처리할까요?`)) act.up(i,{approved:'',approveDate:'',contactStatus:'거절',endReason:autoEndReason(c),rejectDate:c.rejectDate||today()});}}>거절</button></>}
+      </div>
+    </div>; };
+  const bossTodo=(bossItems.length||dropShip.length||reqItems.length||approvalWait.length)?[
+    ...(approvalWait.length?[<div key="apv" className="todo-group">
+      <div className="todo-group-h" style={{color:'#2c5aa0'}}>✅ 답장 옴 · 승인 대기 <span>{approvalWait.length}</span><span className="todo-group-sub">자동리스트업</span></div>
+      {approvalWait.slice(0,MAX).map(apvItem)}{moreRow(approvalWait.length,()=>setPop({kind:'apv'}))}
+    </div>]:[]),
     ...(reqItems.length?[<div key="rvq" className="todo-group">
       <div className="todo-group-h" style={{color:'#f59e0b'}}>🙋 검토 요청 <span>{reqItems.length}</span></div>
       {reqItems.slice(0,MAX).map(rvItem)}{moreRow(reqItems.length,()=>setPop({kind:'rv'}))}
@@ -4193,13 +4212,13 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       {l.length?(q?l:l.slice(0,MAX)).map(item):<div className="todo-none" style={{paddingLeft:16}}>{q?"'"+talkQ[p]+"' 없음":'할 일 없음 ✓'}</div>}{!q&&moreRow(l.length,()=>setPop({kind:'pa',pa:p}))}
     </div>;});
 
-  const popList=!pop?[]:pop.kind==='ans'?ansItems:pop.kind==='rv'?reqItems:pop.kind==='settle'?settleItems:pop.kind==='boss'?bossItems:((groups[pop.pa]||[]).slice().sort((a,b)=>b.stage-a.stage));
-  const popTitle=!pop?'':pop.kind==='ans'?'💬 관리자 답변':pop.kind==='rv'?'🙋 검토 요청':pop.kind==='settle'?'💰 정산 대기':pop.kind==='boss'?'🔴 관리자 할 일':'🟡 '+pop.pa+' 할 일';
+  const popList=!pop?[]:pop.kind==='ans'?ansItems:pop.kind==='rv'?reqItems:pop.kind==='apv'?approvalWait:pop.kind==='settle'?settleItems:pop.kind==='boss'?bossItems:((groups[pop.pa]||[]).slice().sort((a,b)=>b.stage-a.stage));
+  const popTitle=!pop?'':pop.kind==='ans'?'💬 관리자 답변':pop.kind==='rv'?'🙋 검토 요청':pop.kind==='apv'?'✅ 승인 대기':pop.kind==='settle'?'💰 정산 대기':pop.kind==='boss'?'🔴 관리자 할 일':'🟡 '+pop.pa+' 할 일';
   const popUp=pop&&<div className="overlay" onClick={e=>e.target===e.currentTarget&&setPop(null)}>
     <div className="modal" style={{maxWidth:620}}>
       <div className="modal-title">{popTitle} <span style={{fontWeight:400,color:'var(--muted)'}}>{popList.length}명</span></div>
       <div style={{maxHeight:'65vh',overflowY:'auto'}}>
-        {popList.length?popList.map(pop.kind==='ans'?ansRow:pop.kind==='rv'?rvItem:pop.kind==='settle'?settleItem:item):<div className="todo-none">할 일 없음 ✓</div>}
+        {popList.length?popList.map(pop.kind==='ans'?ansRow:pop.kind==='rv'?rvItem:pop.kind==='apv'?apvItem:pop.kind==='settle'?settleItem:item):<div className="todo-none">할 일 없음 ✓</div>}
       </div>
       <div className="modal-foot"><button className="btn btn-ghost" onClick={()=>setPop(null)}>닫기</button></div>
     </div>
@@ -4246,7 +4265,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       {dupTalk.length>0&&!paFocus&&<div className="talk-dup">⚠️ 두 명 이상이 동시에 연락 중: {dupTalk.slice(0,8).map(d=>d.name+' ('+d.pas.join(', ')+')').join(' · ')}{dupTalk.length>8?` 외 ${dupTalk.length-8}명`:''}</div>}
       <div className="todo-grid">
         <div className="todo-box">
-          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length+dropShip.length+reqItems.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length+dropShip.length+reqItems.length})</span>}</h3>
+          <h3><span style={{color:'#e74c3c'}}>🔴</span> 관리자 할 일 {bossItems.length+dropShip.length+reqItems.length+approvalWait.length>0&&<span style={{fontWeight:400,color:'var(--muted)'}}>({bossItems.length+dropShip.length+reqItems.length+approvalWait.length})</span>}</h3>
           {bossTodo.length?bossTodo:empty}
         </div>
         <div className="todo-box">
@@ -4664,11 +4683,11 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
           <th style={{width:80}}>팔로워</th>
           <th style={{width:75}}>담당 PA</th>
           {isClaude&&<th style={{width:90}}>진행 상태</th>}
-          <th style={{width:65}}>DM발송</th>
+          {!isClaude&&<th style={{width:65}}>DM발송</th>}
           {isClaude&&<th style={{width:60}}>답장</th>}
           {isClaude&&<th style={{width:70}}>승인</th>}
-          <th style={{width:65}}>협업성사</th>
-          <th style={{width:70}}>최종완료</th>
+          {!isClaude&&<th style={{width:65}}>협업성사</th>}
+          {!isClaude&&<th style={{width:70}}>최종완료</th>}
           <th style={{width:85}}>완료일</th>
           <th style={{width:90}}>단가</th>
           <th style={{width:50}}>링크</th>
@@ -5193,7 +5212,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
               {isClaude&&endKind(r)&&<td data-label="진행 상태" style={{textAlign:'center'}}><span className="end-chip" title={r.rejectDate?'종료 '+r.rejectDate:''} style={{background:END_KINDS[endKind(r)]+'22',color:END_KINDS[endKind(r)]}}>{endKind(r)}</span></td>}
               {isClaude&&!endKind(r)&&<td data-label="진행 상태" style={{textAlign:'center'}}><Cell value={normStatus(r.contactStatus)} onChange={v=>H.current.setStatus(r,v)} type="select" options={CONTACT_STATUS}
                 style={r.contactStatus?{...csColor(r.contactStatus),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11,whiteSpace:'nowrap'}:undefined}/></td>}
-              <td data-label="DM발송" style={{textAlign:'center'}}><YN value={r.dmSent} onChange={v=>H.current.setDm(r,v)}/></td>
+              {!isClaude&&<td data-label="DM발송" style={{textAlign:'center'}}><YN value={r.dmSent} onChange={v=>H.current.setDm(r,v)}/></td>}
               {isClaude&&<td data-label="답장" style={{textAlign:'center'}} title={r.replyDate?`답장일 ${r.replyDate}`:'답장 오면 체크'}><YN value={r.replied} onChange={v=>H.current.setReplied(r,v)}/></td>}
               {/* 자동화 탭 승인: Y/N 분리 버튼 — Y = 승인(진행), N = 승인 안 함 → 거절(보관)으로 이동,
                   거절 상태에서 N을 다시 누르면 복귀. 승인 여부를 판단하는 자리에서 거절까지 끝내도록 옮겼다. */}
@@ -5207,8 +5226,8 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                         onClick={()=>{if(isRej(r)){H.current.setStatus(r,'컨택 전');return;}const patch={approved:'',approveDate:'',contactStatus:'거절',endReason:autoEndReason(r)};if(!r.rejectDate)patch.rejectDate=today();H.current.onUpdate(r.id,patch);}}>N</button>
                     </span>}
               </td>}
-              <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>H.current.setDeal(r,v)}/></td>
-              <td data-label="최종완료" style={{textAlign:'center'}}><YN value={r.finalDone} onChange={v=>H.current.setFinal(r,v)}/></td>
+              {!isClaude&&<td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>H.current.setDeal(r,v)}/></td>}
+              {!isClaude&&<td data-label="최종완료" style={{textAlign:'center'}}><YN value={r.finalDone} onChange={v=>H.current.setFinal(r,v)}/></td>}
               <td data-label="완료일"><Cell value={r.finalDate} onChange={v=>H.current.up(r.id,'finalDate',v)} type="date" style={{width:85}} placeholder={r.finalDone==='Y'?'날짜 입력':'—'}/></td>
               <td data-label="단가"><Cell value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80,color:'var(--yellow)'}}/></td>
               <td data-label="링크" style={{textAlign:'center'}}>
