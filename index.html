@@ -3523,7 +3523,7 @@ function koFmt(n){ // 4900 → "4.9천", 21000 → "2.1만"
 }
 function DealBoard({ brand, onClose, onEdit, canEdit }){
   const [cat,setCat]=useState('');
-  // 광고 성과 좋은 사람에 ★ — 📈 리포트 탭과 같은 자료(reportGet)에서 사람별로 비용·직접전환을 합산해 직접ROAS가 100% 이상이고 직접전환이 3건 이상이면 (2026-11-17)
+  // 광고 성과 좋은 사람에 ★ — 📈 리포트 탭과 같은 자료(reportGet)에서 사람별로 비용·직접전환을 합산해 직접ROAS가 120% 이상이고 직접전환이 3건 이상이면 (2026-11-17)
   const [perf,setPerf]=useState(null);
   const nk=x=>String(x||'').replace(/s/g,'').replace(/^@/,'').toLowerCase();
   useEffect(()=>{ let on=true;
@@ -3540,7 +3540,7 @@ function DealBoard({ brand, onClose, onEdit, canEdit }){
     return ()=>{ on=false; };
   },[brand.name]);
   const goodOf=p=>{ if(!perf) return null;
-    for(const k of [nk(p.key),nk(p.name)]){ const o=k&&perf.get(k); if(o&&o.cost>0&&o.dc>=3&&o.da/o.cost>=1) return {roas:o.da/o.cost*100,dc:o.dc,cost:o.cost}; }
+    for(const k of [nk(p.key),nk(p.name)]){ const o=k&&perf.get(k); if(o&&o.cost>0&&o.dc>=3&&o.da/o.cost>=1.2) return {roas:o.da/o.cost*100,dc:o.dc,cost:o.cost}; }
     return null; };
   const keyOf=r=>String(r.username||igHandle(r.link)||r.name||'').toLowerCase();
   const people=useMemo(()=>{
@@ -3576,7 +3576,7 @@ function DealBoard({ brand, onClose, onEdit, canEdit }){
     <div className="modal" style={{width:'min(980px,94vw)',maxHeight:'90vh'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,flexWrap:'wrap'}}>
         <div className="modal-title" style={{margin:0}}>⭐ {brand.name} 성사 모음 <span style={{fontWeight:400,color:'var(--muted)',fontSize:12}}>· {people.length}명</span> <span style={{fontWeight:400,color:'var(--muted)',fontSize:11,marginLeft:8}}>* 성별·연령은 사진·소개글로 추정한 값(바꾸면 확정)</span></div>
-        {perf&&people.some(p=>goodOf(p))&&<span style={{fontSize:12,color:'var(--muted)'}}><span style={{color:'#e0a800',fontSize:18}}>★</span> 직접ROAS 100% 이상 (리포트 기준)</span>}
+        {perf&&people.some(p=>goodOf(p))&&<span style={{fontSize:12,color:'var(--muted)'}}><span style={{color:'#e0a800',fontSize:18}}>★</span> 직접ROAS 120% 이상 (리포트 기준)</span>}
         <span style={{flex:1}}/>
         <button className="btn btn-ghost" style={{fontSize:11}} onClick={onClose}>닫기</button>
       </div>
