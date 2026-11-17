@@ -374,6 +374,9 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 .s2p-date{font-size:11px;color:var(--muted);margin-left:6px;font-weight:400;}
 .s2p-fg{margin-bottom:12px;}
 /* 메모 대화 기록 — 관리자=오른쪽 검정, 알바=왼쪽 회색 (색 대신 위치·명암으로 구분) */
+.th-box{border:1.5px solid var(--text);border-radius:10px;padding:12px 14px 4px;margin:6px 0 14px;background:var(--surface);}
+.th-box .s2p-fg{margin-bottom:8px;}
+.th-box .s2p-rq{margin-bottom:8px !important;}
 .th-wrap{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
 .th-msg{display:flex;flex-direction:column;max-width:88%;}
 .th-meta{font-size:10.5px;color:var(--muted);margin-bottom:2px;}
@@ -5288,6 +5291,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
           {fldS('팔로워 수','followers','12,400')}
           {fldS('모집일','date','YY.MM.DD')}
         </div>
+        <div className="th-box">
         {(()=>{ const me=thMe(r);
           // 메모는 지우지 않고 대화로 쌓는다 — 보낸 글은 thread 에 붙고, memo(목록에 한 줄로 보이는 값)는 가장 최근 말로 갱신
           const send=kind=>{ const t=cmp.trim(); if(!t){ alert(kind==='요청'?'메모에 검토받을 내용을 먼저 적어 주세요.':'보낼 내용을 적어 주세요.'); return; }
@@ -5327,6 +5331,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
               <button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} title="메모 내용을 관리자에게 보내 진행할지 물어봅니다" onClick={ask}>🙋 검토 요청</button>
             </div>}
           </div>; })()}
+        </div>
         <div className="s2p-hr"/>
         <div className="s2p-sec">단계 액션 <span style={{fontWeight:400,color:'var(--muted)'}}>· 담당 {pa||'없음'}</span></div>
         {action}
