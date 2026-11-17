@@ -797,6 +797,10 @@ a.menu-item{display:block;}
 .rpt-card.cut .tg{background:#f7e2e2;color:var(--red);}
 .rpt-card .m{font-size:14px;line-height:1.65;color:var(--text);}
 .rpt-card .a{margin-top:8px;font-size:14px;font-weight:700;}
+.rpt-sub2{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.6;}
+.rpt-dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:10px 0 4px;font-size:14px;}
+.rpt-dl dt{color:var(--muted);white-space:nowrap;}
+.rpt-dl dd{margin:0;font-weight:700;line-height:1.55;}
 .rpt-fold{background:#fff;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;}
 .rpt-fold>summary{list-style:none;cursor:pointer;padding:12px 16px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;}
 .rpt-fold>summary::-webkit-details-marker{display:none;}
@@ -7219,12 +7223,28 @@ function ReportInsights({ins,weekKey}){
   const cur=rptInsCur(ins,weekKey);
   if(!cur||!cur.lines||!cur.lines.length) return null;
   const weeks=(ins&&ins.weeks)||[];
-  const acts=cur.lines.filter(l=>l.kind!=='note'), notes=cur.lines.filter(l=>l.kind==='note');
+  // 확장 → 축소 순서(확장이 둘이면 둘 다 먼저). 같은 종류끼리는 원래 순서 유지
+  const acts=cur.lines.filter(l=>l.kind!=='note').map((l,i)=>({l,i})).sort((x,y)=>(x.l.kind==='cut'?1:0)-(y.l.kind==='cut'?1:0)||x.i-y.i).map(x=>x.l);
+  const notes=cur.lines.filter(l=>l.kind==='note');
   const split=t=>{ const i=String(t).lastIndexOf(' — '); return i>0?[t.slice(0,i),t.slice(i+3)]:[t,'']; };
+  // «잘된 N명(조건: 이름 외)은 팔로워 …, 조회수 …, 카테고리 …이었어요 — …» 긴 한 문장을 항목별로 풀어 쓴다. 모양이 다르면 null → 아래에서 그대로 보여준다.
+  const parseGood=t=>{ const m=String(t).match(/^잘된 (\d+)명\((.+?)\)은 (.+?)이었어요(?:\s*—\s*(.*))?\s*$/); if(!m) return null;
+    const [crit,names]=m[2].split(/:\s*/); const rows=m[3].split(/,\s*(?=팔로워|조회수|카테고리|성별|연령대)/).map(x=>{ const k=x.match(/^(\S+)\s+(.*)$/); return k?{k:k[1],v:k[2]}:{k:'',v:x}; });
+    return {n:m[1],crit:crit||'',names:names||'',rows,act:m[4]||''}; };
   return <div className="rpt-ins2">
     <h3>섭외 확장 제안</h3>
     <div className="b">{cur.basis}{weeks.length>1&&' · 그 주까지 쌓인 데이터 기준'}</div>
-    {acts.length>0&&<div className="rpt-cards">{acts.map((l,i)=>{ const [m,a]=split(l.text);
+    {acts.length>0&&<div className="rpt-cards">{acts.map((l,i)=>{ const g=parseGood(l.text);
+      if(g){ const ac=g.act.split(/(?<=[.요])\s+/).filter(Boolean);
+        return <div key={i} className={'rpt-card '+l.kind}><span className="tg">{RPT_IL[l.kind]||''}</span>
+          <div className="m"><b>잘된 {g.n}명이 보여주는 범위</b></div>
+          {g.crit&&<div className="rpt-sub2">{g.crit.replace(/,\s*/g,' · ')}</div>}
+          {g.names&&<div className="rpt-sub2">{g.names}</div>}
+          <dl className="rpt-dl">{g.rows.map((r,j)=><React.Fragment key={j}><dt>{r.k}</dt><dd>{r.v}</dd></React.Fragment>)}</dl>
+          {ac[0]&&<div className="a">→ {ac[0].replace(/\.$/,'')}</div>}
+          {ac.slice(1).map((x,j)=><div key={j} className="rpt-sub2">{x}</div>)}
+        </div>; }
+      const [m,a]=split(l.text);
       return <div key={i} className={'rpt-card '+l.kind}><span className="tg">{RPT_IL[l.kind]||''}</span><div className="m">{m}</div>{a&&<div className="a">→ {a}</div>}</div>; })}</div>}
     {notes.length>0&&<details className="rpt-fold"><summary>참고 {notes.length}건</summary><ul>{notes.map((l,i)=><li key={i}>{l.text}</li>)}</ul></details>}
   </div>;
