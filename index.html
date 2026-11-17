@@ -374,6 +374,8 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 .th-ack .th-b{background:transparent;border:1px solid var(--border);color:var(--muted);padding:2px 8px;font-size:11.5px;}
 .th-more{align-self:center;background:var(--surface);border:1px solid var(--text);border-radius:999px;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;padding:4px 14px;}
 .th-more:hover{background:var(--text);color:#fff;}
+.ct-tog{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;display:inline-flex;gap:4px;align-items:center;}
+.ct-tog:hover{color:var(--text);}
 .th-send{display:flex;gap:6px;align-items:flex-end;}
 .th-send textarea{flex:1;min-height:44px !important;}
 .s2p-fg label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;}
@@ -4782,8 +4784,9 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
   useEffect(()=>{ if(IS_STAFF) return; let on=true;
     fetch(MS_BRIDGE+'/seals').then(x=>x.json()).then(j=>{ if(on&&j&&Array.isArray(j.items)&&j.items.length) setSealList(j.items); }).catch(()=>{});
     return ()=>{on=false;}; },[]);
+  const [ctOpen,setCtOpen]=useState(false);   // 계약서 파일 칸 펼침(평소엔 접어 둠)
   const [cmp,setCmp]=useState(''), [thOpen,setThOpen]=useState(false);   // 메모 대화: 쓰는 중인 글 · 이전 대화 펼침
-  useEffect(()=>{setF(init());setMsAsk('');setMsMsg(null);setCmp('');setThOpen(false);},[r.id]);
+  useEffect(()=>{setF(init());setMsAsk('');setMsMsg(null);setCmp('');setThOpen(false);setCtOpen(false);},[r.id]);
   const u=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const upd=patch=>H.current.onUpdate(r.id,patch);
   const dates=[r.date,r.dmDate,r.dealDate,r.contractDate||(rv&&rv.contractDate),r.shipDate,r.finalDate];
@@ -4910,8 +4913,8 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
       {fld('모델료 (진행 단가)','rate','예: 80,000')}
       {fld('계약일자','contractDate','YY.MM.DD')}
       {/* 계약서 파일 — 여기서 올리면 브랜드 전체 양식(brand.contractTemplate)으로 저장. 없으면 앱 내장 양식 */}
-      <div className="s2p-fg ct-file"><label>계약서 파일</label>
-        {(()=>{ const tl=contractTplList(brand);
+      <div className="s2p-fg ct-file"><label><button type="button" className="ct-tog" onClick={()=>setCtOpen(o=>!o)} aria-expanded={ctOpen}>계약서 파일 <span>{ctOpen?'▴':'▾'}</span></button></label>
+        {ctOpen&&(()=>{ const tl=contractTplList(brand);
           if(r.contractFile||!tl.length) return <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',fontSize:12}}>
             <span className="ct-file-name" style={{fontWeight:600}}>📄 {ctT?(ctT.tpl?ctT.tpl.name:ctT.builtinName+'.docx'):'아직 없음'}</span>
             <span style={{color:'var(--muted)'}}>{ctT?(ctT.tpl&&!r.contractFile?`${(brand&&brand.name)||''} 전체 양식`:ctT.kind):'— 📎로 올려 주세요(브랜드 전체에 저장)'}</span>
@@ -4920,12 +4923,12 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
           return <select className="ct-file-sel" value={cur} disabled={msBusy} onChange={e=>{upd({contractTplId:e.target.value});setMsAsk('');setMsMsg(null);}}>
             {tl.map((x,i)=><option key={x.url} value={x.url}>{x.name}{i===0?' (기본)':''}</option>)}
           </select>; })()}
-        <div className="s2p-btns" style={{marginTop:6}}>
+        {ctOpen&&<div className="s2p-btns" style={{marginTop:6}}>
           <button className="btn s2p-outline" disabled={msBusy||!ctT} onClick={previewCt} title="지금 입력한 값을 넣은 계약서를 내려받아 확인">⬇ 값 넣어 내려받기</button>
           <button className="btn s2p-outline" disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 계약서 추가</button>
           {r.contractFile&&<button className="btn s2p-outline" disabled={msBusy} onClick={()=>{upd({contractFile:null});setMsMsg(null);}}>↺ 브랜드 양식으로</button>}
-          <input ref={ctRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickCt}/>
-        </div>
+        </div>}
+        <input ref={ctRef} type="file" accept=".docx" style={{display:'none'}} onChange={pickCt}/>
       </div>
       <div className="s2p-fg ct-seal"><label>직인 회사 <span style={{fontWeight:400,color:'var(--muted)'}}>· 광고주 대표자 (인)에 찍힘 · {(brand&&brand.name)||''} 전체에 저장</span></label>
         <select value={sealCompanyOf(brand)} disabled={msBusy} onChange={e=>{onSaveSeal&&onSaveSeal(e.target.value);setMsAsk('');setMsMsg(null);}}>

@@ -130,7 +130,11 @@ const load = async () => {
 const openCh = async n => {
   await click('.step-tab', '인플루언서 관리'); await wait(500); await click('button', '협업성사 ('); await waitFor(`document.querySelector('.ch-link')`, '컨택현황'); await wait(300);
   await evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent===${J(n)});s.click();return 1})()`); await wait(400);
+  // 계약서 파일 칸은 평소 접혀 있다(2026-11-17) — 접힌 채인지 보고, 이 테스트는 펼쳐서 진행
+  collapsedAtOpen = await evalJs(`(()=>{const t=document.querySelector('.s2p .ct-tog');return t?(t.getAttribute('aria-expanded')!=='true'&&!document.querySelector('.s2p .ct-file select')&&!document.querySelector('.s2p .ct-file .ct-file-name')):null})()`);
+  await evalJs(`(()=>{const t=document.querySelector('.s2p .ct-tog');if(t&&t.getAttribute('aria-expanded')!=='true')t.click();return 1})()`); await wait(300);
 };
+let collapsedAtOpen = null;
 
 // 등록 양식 준비 — 앱 기본 양식을 빈 값으로 만들어 '올린 양식'처럼 쓴다
 await load();
@@ -143,6 +147,7 @@ const msgIs = re => waitFor(`${re}.test((document.querySelector('.s2p .ms-msg')|
 await load();
 await openCh('에이채널');
 console.log('\n[화면] 계약서발송/수집 단계 — 관리자 모두싸인 발송');
+chk(collapsedAtOpen === true, '계약서 파일 칸은 처음엔 접혀 있음(토글로만 펼침)', collapsedAtOpen);
 let p = await panel();
 chk(['실명 (계약자)', '연락처 (카카오톡', '주소', '주민등록번호', '모델료', '계약일자', '✍️ 모두싸인으로 계약서 보내기', '계약서 파일', '계약완료'].every(s => p.includes(s)), '입력칸·모두싸인 버튼·계약완료', p);
 chk(/드래프터_광고(모델)?계약서.docx \(기본\)/.test(p), '계약서 파일 드롭다운: 기본 = 드래프터 양식', (p.match(/드래프터[^\n]*/) || [''])[0]);
