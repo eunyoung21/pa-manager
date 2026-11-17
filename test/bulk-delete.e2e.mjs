@@ -97,12 +97,12 @@ const delRow  = name=>evalJs(`(()=>{const tr=[...document.querySelectorAll('tbod
   if(!tr)throw new Error('행 없음: '+${JSON.stringify(name)});tr.querySelector('td.del-col .row-del-x').click();return 1})()`);
 
 await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
-await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.includes('인플루언서 관리'))`,'앱 로딩');
+await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.includes('수기리스트업'))`,'앱 로딩');
 await evalJs(`(window.__cf=[],window.confirm=m=>{window.__cf.push(m);return true},1)`); // 확인창은 항상 예
 console.log('앱 로딩 완료');
 
-// STEP1 리스트업(리스팅 목록)·STEP2 컨택현황은 '인플루언서 관리' 한 탭 안으로 합쳐졌다 — 칩으로 오간다.
-async function gotoInf(chip){ await clickText('인플루언서 관리'); await wait(200);
+// STEP1 리스트업(리스팅 목록)·STEP2 컨택현황은 '수기리스트업' 한 탭 안으로 합쳐졌다 — 칩으로 오간다.
+async function gotoInf(chip){ await clickText('수기리스트업'); await wait(200);
   await evalJs(`(()=>{const b=[...document.querySelectorAll('.fchip')].find(x=>x.textContent.includes(${JSON.stringify(chip)}));if(!b)throw new Error('칩 없음: '+${JSON.stringify(chip)});b.click();return 1})()`); }
 // 탭마다 같은 시나리오를 돌린다: 전체선택 → 하나 해제 → 선택 삭제 → 남은 1건 개별 삭제
 async function runTab(tabLabel, waitSel, keepName, unit, expect){

@@ -92,7 +92,7 @@ const B = () => savedData.brands[0];
 const row = n => (B().step2Rows.find(x => x.name === n) || B().claudeStep2Rows.find(x => x.name === n));
 
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('인플루언서 관리'))`, '앱 로딩');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('수기리스트업'))`, '앱 로딩');
 // 저장(=purge 반영) 완료까지 기다린다
 await wait(2500);
 

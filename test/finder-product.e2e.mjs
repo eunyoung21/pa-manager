@@ -150,7 +150,7 @@ console.log('\n[제품 A 리스팅에 추가 → 승인] 진행 중으로 넘어
 await go('listing', [R('fresh_a')], 'A'); await wait(1500);
 const s1 = H().step1Rows.find((r) => r.username === 'fresh_a');
 chk(s1 && s1.product === 'A' && s1.reviewStatus === '검수대기', '리스팅 행에 제품 A', s1);
-await click('.step-tab', '인플루언서 관리'); await wait(500);
+await click('.step-tab', '수기리스트업'); await wait(500);
 await click('.fchip', '리스팅 목록'); await wait(500);
 await click('.fchip', '검수대기'); await wait(400);
 await evalJs(`(()=>{const tr=[...document.querySelectorAll('tbody tr')].find(t=>t.innerText.includes('fresh_a'));const c=[...tr.querySelectorAll('.cell-val')].find(x=>x.textContent.includes('검수대기'));c.click();return 1})()`);

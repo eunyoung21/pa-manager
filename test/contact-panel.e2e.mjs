@@ -97,10 +97,10 @@ const fill=(label,v)=>evalJs(`(()=>{const f=[...document.querySelectorAll('.s2p 
 const pbtn=txt=>click('.s2p button',txt);
 
 await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
-await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('인플루언서 관리'))`,'앱 로딩');
+await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('수기리스트업'))`,'앱 로딩');
 await evalJs(`(window.confirm=()=>true,window.alert=()=>{},1)`);
-// STEP2 컨택현황은 '인플루언서 관리' 탭으로 합쳐졌다.
-await click('.step-tab','인플루언서 관리'); await waitFor(`document.querySelector('.ch-link')`,'컨택현황'); await wait(300);
+// STEP2 컨택현황은 '수기리스트업' 탭으로 합쳐졌다.
+await click('.step-tab','수기리스트업'); await waitFor(`document.querySelector('.ch-link')`,'컨택현황'); await wait(300);
 
 console.log('\n[열기] 채널명 누르면 오른쪽 상세 창');
 await openCh('에이'); await wait(300);

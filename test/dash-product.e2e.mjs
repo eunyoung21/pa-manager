@@ -119,7 +119,7 @@ chk(txtS.includes('스트라') && !txtS.split(String.fromCharCode(10)).includes(
 await click('.brand-tab', '베이스튠'); await wait(600);
 chk((await tabs()).length === 0, '제품 하나인 브랜드(베이스튠)는 제품 탭 없음', await tabs());
 await click('.brand-tab', '해트케'); await wait(500);
-await click('.step-tab', '인플루언서 관리'); await wait(700);
+await click('.step-tab', '수기리스트업'); await wait(700);
 await openCh('스트라'); await waitFor(`document.querySelector('.s2p')`, '상세 창');
 const opts = await evalJs(`[...[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.startsWith('협찬 제품')).querySelectorAll('select')].map(s=>[...s.options].map(o=>o.textContent).join('|'))`);
 chk(opts.some((o) => o.includes('블루 스트라이프') && o.includes('브라운 스트라이프')) && opts.some((o) => o.includes('아이보리')), '스트라이프 차렵이불: 기존 색상 유지 + 스트라이프 베개커버(블루/브라운) 선택칸', opts);

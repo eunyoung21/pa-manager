@@ -1853,7 +1853,7 @@ const productOfRow = (r, brand) => String(r&&r.product||'').trim() || shipProduc
 
 const TABS = [
   { key:'dashboard', label:'📊 대시보드' },
-  { key:'step2',    label:'👥 인플루언서 관리' },   // 옛 STEP1 리스트업 + STEP2 컨택현황을 합친 탭(리스트업은 '🟡 리스팅 목록' 칸)
+  { key:'step2',    label:'👥 수기리스트업' },   // 옛 STEP1 리스트업 + STEP2 컨택현황을 합친 탭(리스트업은 '🟡 리스팅 목록' 칸)
   { key:'claudeS2', label:'🤖 자동리스트업', mgr:true, staffOwn:true },
   { key:'shipping', label:'📦 출고' },
   { key:'review',   label:'🎬 영상검수' },
@@ -1865,7 +1865,7 @@ const TABS = [
 // 스태프 계정에 개별 부여 가능한 탭(계정별 권한 범위). 관리자 전용(계정관리·접속로그)은 제외.
 const STAFF_TAB_OPTS = [
   {key:'finder',label:'🔎 인플루언서 찾기'},{key:'claudeS2',label:'🤖 자동리스트업'},{key:'shipping',label:'📦 출고'},{key:'review',label:'🎬 영상검수'},
-  {key:'dm',label:'💬 DM 템플릿'},{key:'settle',label:'💰 정산'},{key:'step2',label:'👥 인플루언서 관리'},
+  {key:'dm',label:'💬 DM 템플릿'},{key:'settle',label:'💰 정산'},{key:'step2',label:'👥 수기리스트업'},
   {key:'dashboard',label:'📊 대시보드'},
 ];
 // 새 스태프 기본 권한 — 자동화·출고·영상검수·DM템플릿·정산
@@ -5309,8 +5309,8 @@ function FinderView({ brand, brands, onAddListing, onAddAuto }){
 /* ─── 📖 사용법 (옛 가이드 탭 대신, 2026-09-22 구조 기준) ─── */
 const HOWTO=[
   ['🔎 인플루언서 찾기','이 PC에서 「리스트업 창.bat」을 켜 두면 이 탭 안에 리스트업 프로그램이 나타나요 → 찾기 → 고르기(전부 선택된 채로, 싫은 사람만 눌러 빼기) → PA 리스팅 목록·자동화에 추가하거나 바로 DM. 이미 PA에 있는 사람은 자동으로 빠져요.'],
-  ['👥 인플루언서 관리 · 🟡 리스팅 목록','찾은·직접 추가한 사람이 검수대기로 쌓여요. 관리자가 승인하면 「진행 중」으로 넘어가 DM 대상이 돼요.'],
-  ['👥 인플루언서 관리 · 진행 중','DM 보내면 DM발송 Y. 채널명을 누르면 오른쪽 상세 창에서 단계를 진행해요: DM → 계약서 → 제품 발송 → 광고코드·입금정보 → 광고세팅·입금.'],
+  ['👥 수기리스트업 · 🟡 리스팅 목록','찾은·직접 추가한 사람이 검수대기로 쌓여요. 관리자가 승인하면 「진행 중」으로 넘어가 DM 대상이 돼요.'],
+  ['👥 수기리스트업 · 진행 중','DM 보내면 DM발송 Y. 채널명을 누르면 오른쪽 상세 창에서 단계를 진행해요: DM → 계약서 → 제품 발송 → 광고코드·입금정보 → 광고세팅·입금.'],
   ['🚫 거절','DM 후 7일 동안 답장이 없으면 자동으로 거절로 옮겨져요. 잘못 옮겨졌으면 상세 창에서 ↩ 복구.'],
   ['🤖 자동리스트업','자동 DM 대상 목록. 답장 오면 답장 Y, 관리자가 승인 Y(진행) / N(거절).'],
   ['📦 출고 · 🎬 영상검수','상세 창에서 제품 발송을 누르면 출고에 자동으로 생겨요. 영상검수에서 광고코드·계약서·라이브·정산을 확인해요.'],
@@ -5985,7 +5985,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                 <td data-label="채널명" style={{fontWeight:500}}>{String(r.channelName||'').trim()&&chEdit!==r.id
                   ?<span style={{display:'inline-flex',alignItems:'center',gap:4,maxWidth:180}}>
                     <span className="ch-link" style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title="눌러서 상세 보기"
-                      onClick={()=>{ if(!(onOpenInf&&onOpenInf(r.channelName,r.realName))) alert(r.channelName+' — 인플루언서 관리·자동화에 같은 사람이 없어 상세를 열 수 없어요.'); }}>{r.channelName}</span>
+                      onClick={()=>{ if(!(onOpenInf&&onOpenInf(r.channelName,r.realName))) alert(r.channelName+' — 수기리스트업·자동리스트업에 같은 사람이 없어 상세를 열 수 없어요.'); }}>{r.channelName}</span>
                     <span title="채널명 고치기" style={{cursor:'pointer',color:'var(--muted)',fontSize:11}} onClick={()=>setChEdit(r.id)}>✎</span></span>
                   :<Cell value={r.channelName} onChange={v=>{up(r.id,'channelName',v);setChEdit(null);}} placeholder="채널명"/>}</td>
                 <td><Cell value={r.realName||''} onChange={v=>up(r.id,'realName',v)} placeholder={nameOf(r.channelName)||'본명'}/></td>
@@ -6040,7 +6040,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                           {isManager&&<button onClick={()=>onSettle&&onSettle(r.channelName,true,{pa:r.pa,realName:r.realName})} title="단가 지급 완료 표시 (30일 후 신분증·통장 사본·주민번호 자동 폐기)" style={{fontSize:9,padding:'2px 7px',border:0,borderRadius:4,background:'var(--green)',color:'#fff',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>💰 정산완료</button>}
                         </span>}
                 </td>
-                <td data-label="단가" style={{textAlign:'right',whiteSpace:'nowrap'}} title="인플루언서 관리·자동화 탭에 적은 단가입니다 (여기서는 수정할 수 없어요)">
+                <td data-label="단가" style={{textAlign:'right',whiteSpace:'nowrap'}} title="수기리스트업·자동리스트업 탭에 적은 단가입니다 (여기서는 수정할 수 없어요)">
                   {(()=>{const v=rateOf(r); return v
                     ? <span style={{fontSize:12,fontWeight:600,color:'var(--yellow)'}}>{/^\d[\d,]*$/.test(v)?Number(v.replace(/,/g,'')).toLocaleString():v}</span>
                     : <span style={{fontSize:11,color:'var(--dim)'}}>—</span>;})()}

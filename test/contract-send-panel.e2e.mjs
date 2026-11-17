@@ -124,11 +124,11 @@ const msg = () => evalJs(`((document.querySelector('.s2p .ms-msg')||{}).innerTex
 const row = (bi, n) => savedData.brands[bi].step2Rows.find(r => r.name === n) || {};
 const load = async () => {
   await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-  await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('인플루언서 관리'))`, '앱 로딩');
+  await waitFor(`[...document.querySelectorAll('.step-tab')].some(b=>b.textContent.includes('수기리스트업'))`, '앱 로딩');
   await evalJs(`(window.confirm=()=>true,window.alert=()=>{},1)`);
 };
 const openCh = async n => {
-  await click('.step-tab', '인플루언서 관리'); await wait(500); await click('button', '협업성사 ('); await waitFor(`document.querySelector('.ch-link')`, '컨택현황'); await wait(300);
+  await click('.step-tab', '수기리스트업'); await wait(500); await click('button', '협업성사 ('); await waitFor(`document.querySelector('.ch-link')`, '컨택현황'); await wait(300);
   await evalJs(`(()=>{const s=[...document.querySelectorAll('.ch-link')].find(x=>x.textContent===${J(n)});s.click();return 1})()`); await wait(400);
   // 계약서 파일 칸은 평소 접혀 있다(2026-11-17) — 접힌 채인지 보고, 이 테스트는 펼쳐서 진행
   collapsedAtOpen = await evalJs(`(()=>{const t=document.querySelector('.s2p .ct-tog');return t?(t.getAttribute('aria-expanded')!=='true'&&!document.querySelector('.s2p .ct-file select')&&!document.querySelector('.s2p .ct-file .ct-file-name')):null})()`);

@@ -145,7 +145,7 @@ chk(JSON.stringify(dSearch)===JSON.stringify(['디디']),'칸 검색 → 디디�
 await evalJs(`(()=>{const c=[...document.querySelectorAll('.talk-col')].find(x=>x.innerText.trim().startsWith('안민영'));const i=c.querySelector('.srch-in');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'');i.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`); await wait(250);
 await evalJs(`(()=>{[...document.querySelectorAll('.talk-item')].find(x=>x.textContent.includes('비비')).click();return 1})()`);
 await waitFor(`document.querySelector('td[data-label="협업성사"]')`,'컨택현황'); await wait(300);
-chk((await activeTab()).includes('인플루언서 관리')&&await searchVal()==='비비','답장 전 사람 클릭 → 컨택현황에서 검색',[await activeTab(),await searchVal()]);
+chk((await activeTab()).includes('수기리스트업')&&await searchVal()==='비비','답장 전 사람 클릭 → 컨택현황에서 검색',[await activeTab(),await searchVal()]);
 await backToDash();
 
 console.log('\n[할 일] 이미 다 처리된 건(최종완료)은 안 띄움');
@@ -173,7 +173,7 @@ chk((savedData.paList||[]).includes('신입매니저'),'담당자 목록이 저�
 console.log('\n[이동] 이름 클릭 → 기존 탭 + 이름 검색');
 await evalJs(`(()=>{[...document.querySelectorAll('.talk-item')].find(x=>x.textContent.includes('씨씨')).click();return 1})()`);
 await waitFor(`document.querySelector('td[data-label="협업성사"]')`,'컨택현황'); await wait(300);
-chk((await activeTab()).includes('인플루언서 관리'),'인플루언서 관리로 이동',await activeTab());
+chk((await activeTab()).includes('수기리스트업'),'인플루언서 관리로 이동',await activeTab());
 chk(await searchVal()==='씨씨'&&(await bodyTxt()).includes('씨씨')&&!(await bodyTxt()).includes('디디'),'검색어 씨씨로 그 사람만',await bodyTxt());
 await backToDash();
 await evalJs(`(()=>{[...document.querySelectorAll('.talk-item')].find(x=>x.textContent.includes('이이')).click();return 1})()`);

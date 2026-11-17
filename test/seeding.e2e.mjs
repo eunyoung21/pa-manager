@@ -101,7 +101,7 @@ const pickSeed = (v) => evalJs(`(()=>{const f=[...document.querySelectorAll('.s2
 await S('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
 await waitFor(`[...document.querySelectorAll('.brand-tab')].some(b=>b.textContent.includes('해트케'))`, '앱 로딩');
 await click('.brand-tab', '해트케'); await wait(700);
-await click('.step-tab', '인플루언서 관리'); await wait(700);
+await click('.step-tab', '수기리스트업'); await wait(700);
 await openCh('무가기본'); await waitFor(`document.querySelector('.s2p')`, '상세 창');
 let st = await steps();
 chk(!st.some((x) => x.includes('계약서')) && await sel() === '', '무가 제품 기본: 계약서 단계 없음 · 드롭다운 = 제품 기본값', st);

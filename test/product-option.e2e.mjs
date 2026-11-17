@@ -126,7 +126,7 @@ await pick(0, '휘핑크림 차렵이불'); await wait(800); await pick(1, '블�
 await evalJs(`(()=>{const b=[...document.querySelectorAll('.s2p button')].find(x=>x.textContent.includes('닫기'));b&&b.click();return 1})()`); await wait(300);
 
 console.log('\n[진행 중 · 압력이불] 무게');
-await click('.step-tab', '인플루언서 관리'); await wait(600);
+await click('.step-tab', '수기리스트업'); await wait(600);
 await openCh('압력이'); await waitFor(`document.querySelector('.s2p')`, '상세 창 2');
 await pick(1, '5.4kg'); await wait(1500);
 chk((H().step2Rows.find((r) => r.id === 's1').opt || {})['무게'] === '5.4kg', '저장: 무게 5.4kg', H().step2Rows.find((r) => r.id === 's1').opt);
@@ -145,7 +145,7 @@ const modalInputs = () => evalJs(`[...document.querySelectorAll('.overlay .modal
 
 console.log('\n[베이스튠 · 제품 없던 브랜드] ⚙ 제품·옵션 → 제품·옵션 추가');
 await click('.brand-tab', '베이스튠'); await wait(500);
-await click('.step-tab', '인플루언서 관리'); await wait(600);
+await click('.step-tab', '수기리스트업'); await wait(600);
 await openCh('이어폰러'); await waitFor(`document.querySelector('.s2p')`, '상세 창(베이스튠)');
 chk(await optSelects() === 1, '처음엔 제품 선택칸만', await optSelects());
 await click('.s2p button', '제품·옵션'); await waitFor(`document.querySelector('.overlay .modal')`, '제품·옵션 창');
@@ -164,7 +164,7 @@ await evalJs(`(()=>{const b=[...document.querySelectorAll('.s2p button')].find(x
 
 console.log('\n[해트케] 기존 옵션 값 추가 · 쓰인 제품 이름은 고정');
 await click('.brand-tab', '해트케'); await wait(500);
-await click('.step-tab', '인플루언서 관리'); await wait(600);
+await click('.step-tab', '수기리스트업'); await wait(600);
 await openCh('압력이'); await waitFor(`document.querySelector('.s2p')`, '상세 창(해트케)');
 await click('.s2p button', '제품·옵션'); await waitFor(`document.querySelector('.overlay .modal')`, '제품·옵션 창(해트케)');
 const mi = await modalInputs();
