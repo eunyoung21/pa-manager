@@ -116,6 +116,13 @@ const { nodeIds } = await S('DOM.querySelectorAll', { nodeId: root.nodeId, selec
 await S('DOM.setFileInputFiles', { files: [PNG], nodeId: nodeIds[nodeIds.length - 1] });
 await waitFor("document.querySelectorAll('.ck-edit-item')[document.querySelectorAll('.ck-edit-item').length-1].querySelector('img')", '사진 올라감');
 chk(true, '사진이 올라가 미리보기가 보임');
+// 항목이 많아도 스크롤이 됨 — 12칸 더 늘려 본문이 자체 스크롤되고, 맨 아래로 내려도 저장 버튼이 화면 안에 있어야 한다
+for (let i = 0; i < 12; i++) await evalJs("document.querySelectorAll('.ck-add')[1].click()");
+await wait(500);
+const sc = await evalJs("(()=>{const b=document.querySelector('.ck-body');return {over:b.scrollHeight>b.clientHeight+20,ov:getComputedStyle(b).overflowY}})()");
+chk(sc.over && sc.ov === 'auto', '항목이 많으면 체크리스트 본문이 스크롤됨', sc);
+await evalJs("(()=>{const b=document.querySelector('.ck-body');b.scrollTop=b.scrollHeight;return 1})()"); await wait(300);
+chk(await evalJs("(()=>{const r=document.querySelector('.ck-save').getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight})()"), '맨 아래까지 내려도 저장 버튼이 화면 안에 보임');
 await evalJs("document.querySelector('.ck-save').click()"); await wait(4500);
 const ck = savedData.brands[0].reviewChecklist;
 chk(ck && ck.common[0].t === '나레이션 오류 여부 (수정됨)', '수정한 내용이 저장됨', ck && ck.common[0]);

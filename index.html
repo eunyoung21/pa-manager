@@ -6108,18 +6108,18 @@ function ReviewChecklist({ brand, isManager, onSave }){
       {isManager&&!edit&&<button type="button" className="btn btn-outline btn-sm ck-edit-btn" onClick={e=>{e.stopPropagation();startEdit();}}>✎ 편집</button>}
       <span style={{color:'var(--muted)',fontSize:12,flexShrink:0}}>{open?'▲ 접기':'▼ 펼치기'}</span>
     </div>
-    {open&&(edit&&draft?<div style={{padding:'16px 18px',maxWidth:780}}>
+    {open&&(edit&&draft?<div className="ck-body" style={{padding:'16px 18px 0',maxWidth:780,maxHeight:'calc(100vh - 240px)',overflowY:'auto'}}>
       {editSection('공통','common')}
       {editSection(brandName||'브랜드','own')}
       {err&&<div style={{fontSize:12,color:'#e74c3c',marginBottom:8}}>{err}</div>}
-      <div style={{display:'flex',gap:8,alignItems:'center'}}>
+      <div style={{display:'flex',gap:8,alignItems:'center',position:'sticky',bottom:0,background:'var(--surface)',padding:'10px 0',borderTop:'1px solid var(--border)'}}>
         <button type="button" className="btn btn-sm ck-save" disabled={!!busy} onClick={save}>저장</button>
         <button type="button" className="btn btn-outline btn-sm" onClick={()=>{setEdit(false);setDraft(null);setErr('');}}>취소</button>
         <span style={{flex:1}}/>
         <button type="button" className="btn btn-outline btn-sm" onClick={resetDefault}>기본 내용으로</button>
       </div>
       <div style={{fontSize:11,color:'var(--dim)',marginTop:8}}>※ 이 브랜드에만 적용돼요. 저장하면 담당자 화면에도 바로 바뀝니다.</div>
-    </div>:<div style={{padding:'16px 18px',maxWidth:780}}>
+    </div>:<div className="ck-body" style={{padding:'16px 18px',maxWidth:780,maxHeight:'calc(100vh - 240px)',overflowY:'auto'}}>
       {renderSection('공통',cur.common,'c')}
       {cur.own.length>0&&renderSection(brandName||'브랜드',cur.own,'b')}
       <div style={{fontSize:11,color:'var(--dim)',marginTop:6}}>※ 참고용 체크리스트입니다. 체크는 저장되지 않습니다(새로고침 시 초기화).</div>
