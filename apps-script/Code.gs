@@ -591,7 +591,8 @@ function saveData(sess, body, p) {
     var rev = writeData(incoming, g.pbucket !== undefined ? { pbucket: g.pbucket } : null);
     logAction('save', sess, null);
     try { notifyNewAdCodes(incoming); } catch (x) { Logger.log('광고코드 슬랙 알림 실패: ' + x); } // 알림 실패가 저장을 막으면 안 됨
-    try { notifyReviewRequests(incoming); } catch (x) { Logger.log('검토 요청 슬랙 알림 실패: ' + x); }
+    /* 2026-11-20 사용자 요청: 메모(검토 요청)를 남겨도 슬랙으로 보내지 않는다 — 일시 중단. 다시 켜려면 아래 줄 주석을 푼다. 광고코드 알림은 그대로. */
+    // try { notifyReviewRequests(incoming); } catch (x) { Logger.log('검토 요청 슬랙 알림 실패: ' + x); }
     return json({ ok: true, rev: rev });
   } finally { try { lock.releaseLock(); } catch (x) {} }
 }
