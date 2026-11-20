@@ -4285,6 +4285,14 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       </div>
       {lm&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}><b style={{color:'var(--text)'}}>{lm.who}</b> {lm.text}</div>}
     </div>; };
+  // 승인 — 메모(검토 요청)가 있는 건은 남길 말을 묻고, 관리자 답변(💬 매니저 할 일)으로 같이 남긴다(2026-11-20).
+  // 안 그러면 메모에 답하고 승인만 눌렀을 때 담당자에게 내용이 안 보인다. 메모 없는 건은 예전처럼 바로 승인.
+  const apvOk=i=>{ const c=i.contact, rq=rqOf(i);
+    const base={approved:'Y',approveDate:c.approveDate||today(),replied:'Y',...(c.replyDate?{}:{replyDate:today()})};
+    if(!memoLine(c.memo)&&rq.status!=='요청'){ act.up(i,base); return; }
+    const reply=prompt('담당자에게 남길 말 (비워도 승인돼요. 예: 15만원까지 OK)',''); if(reply===null) return;
+    const txt='승인'+(reply.trim()?' — '+reply.trim():'');
+    act.up(i,{...base,reviewReq:{...rvAnswer(rq,'진행',reply.trim()),ack:'',ackAt:'',ackBy:''},thread:thAppend(c,'관리자',txt,'답변')}); };
   const apvItem=i=>{ const c=i.contact; const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
     return <div key={i.id} className="todo-item" onClick={()=>openInf(i)}>
       <span style={{minWidth:0,flex:1}}><span className="todo-name" style={{display:'block'}}>{i.name}</span>
@@ -4292,7 +4300,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       <div className="todo-right">
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
         {isStaff?<span className="todo-stage" style={{background:'var(--surface3)',color:'var(--muted)'}}>승인 대기</span>:<>
-          <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title="승인 — 매니저가 소통 진행" onClick={e=>{e.stopPropagation(); act.up(i,{approved:'Y',approveDate:c.approveDate||today(),replied:'Y',...(c.replyDate?{}:{replyDate:today()})});}}>✓ 승인</button>
+          <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title="승인 — 매니저가 소통 진행" onClick={e=>{e.stopPropagation(); apvOk(i);}}>✓ 승인</button>
           <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title="승인 안 함 → 거절(보관)" onClick={e=>{e.stopPropagation(); if(confirm(`${i.name} — 거절 처리할까요?`)) act.up(i,{approved:'',approveDate:'',contactStatus:'거절',endReason:autoEndReason(c),rejectDate:c.rejectDate||today()});}}>거절</button></>}
       </div>
     </div>; };
