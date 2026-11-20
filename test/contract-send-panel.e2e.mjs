@@ -223,6 +223,10 @@ chk(p.includes('해트케_협찬계약서.docx') && p.includes('해트케_계약
 await evalJs(`(()=>{const s=document.querySelector('.s2p .ct-file select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'/api/pfile?id=900001');s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`); await wait(1500);
 const hRows = [...(savedData.brands[2].step2Rows || []), ...(savedData.brands[2].claudeStep2Rows || [])];
 chk(hRows.some((r) => r.contractTplId === '/api/pfile?id=900001'), '드롭다운에서 기본 양식 고르면 이 건에 저장', hRows.map((r) => r.contractTplId));
+// 삭제: 추가 양식(협찬계약서)을 골라 ✕ 삭제 → 목록에서 사라지고 기본은 남음
+await evalJs(`(()=>{window.confirm=()=>true;const s=document.querySelector('.s2p .ct-file select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'${extra.url}');s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`); await wait(800);
+await evalJs(`document.querySelector('.s2p .ct-del').click()`); await wait(1800);
+chk((savedData.brands[2].contractTemplates || []).length === 0 && savedData.brands[2].contractTemplate.name === '해트케_계약서.docx', '✕ 삭제 → 고른 양식만 목록에서 빠지고 기본은 남음', [savedData.brands[2].contractTemplate && savedData.brands[2].contractTemplate.name, savedData.brands[2].contractTemplates]);
 await evalJs(`(()=>{const el=document.querySelector('.s2p .ct-seal select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(el,'신규회사');el.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);
 await wait(1800);
 chk(savedData.brands[2].sealCompany === '신규회사', '고른 직인 회사가 해트케 브랜드에 저장', savedData.brands[2].sealCompany);

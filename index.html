@@ -4724,7 +4724,7 @@ function DashInfPanel({ r, brand, onUpdate, onDelete, onAddPrivacy, onClose, ...
   hRef.current={...s2Handlers(onUpdate),onDelete,onUpdate,onAddPrivacy,isRej:x=>normStatus(x.contactStatus)==='거절'};
   return <Step2Panel r={r} brand={brand} H={hRef} onClose={onClose} {...rest}/>;
 }
-function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSetPostLink, onSettle, onShip, onUnship }) {
+function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract, onDeleteContract, actions, listing, listingCount, brand, rows, privacyRows, onUpdate, onDelete, onDeleteMany, onAddPrivacy, filter, setFilter, search, setSearch, isClaude, onSetAdCode, onSetPostLink, onSettle, onShip, onUnship }) {
   const [openId,setOpenId]=useState(null); // 채널명 누르면 오른쪽 상세 창
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
@@ -4891,7 +4891,7 @@ function Step2View({ onAddProduct, onSaveProducts, onSaveSeal, onUploadContract,
     </div>
     </div>
     {calOpen&&<CalSidebar rows={named} dayFilter={dayFilter} setDayFilter={setDayFilter} monthFilter={monthFilter} setMonthFilter={setMonthFilter}/>}
-    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSetPostLink={onSetPostLink} onSettle={onSettle} onShip={onShip} onUnship={onUnship} onSaveProducts={onSaveProducts} onSaveSeal={onSaveSeal} onUploadContract={onUploadContract}/>}
+    {openRow&&<Step2Panel r={openRow} brand={brand} H={hRef} onClose={()=>setOpenId(null)} onSetAdCode={onSetAdCode} onSetPostLink={onSetPostLink} onSettle={onSettle} onShip={onShip} onUnship={onUnship} onSaveProducts={onSaveProducts} onSaveSeal={onSaveSeal} onUploadContract={onUploadContract} onDeleteContract={onDeleteContract}/>}
   </div>;
 }
 
@@ -5039,7 +5039,7 @@ function purgeRejected(b,cap){
   Object.entries(endAdd).forEach(([ym,o])=>{ const c={...(endCounts[ym]||{})}; Object.entries(o).forEach(([k,v])=>{c[k]=(c[k]||0)+v;}); endCounts[ym]=c; });
   return {b:{...b,step2Rows:s2.kept,claudeStep2Rows:cs2.kept,rejectedBilling:[...(b.rejectedBilling||[]),...billingAdd],endCounts},n};
 }
-function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle, onShip, onUnship, onSaveProducts, onSaveSeal, onUploadContract }){
+function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle, onShip, onUnship, onSaveProducts, onSaveSeal, onUploadContract, onDeleteContract }){
   const rv=s2Review(brand,r);
   const [pcOpen,setPcOpen]=useState(false);   // ⚙ 제품·옵션 창
   const brandProdList=brandProducts(brand||{},[...((brand&&brand.step2Rows)||[]),...((brand&&brand.claudeStep2Rows)||[])]);
@@ -5202,9 +5202,15 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
             <span style={{color:'var(--muted)'}}>{ctT?(ctT.tpl&&!r.contractFile?`${(brand&&brand.name)||''} 전체 양식`:ctT.kind):'— 📎로 올려 주세요(브랜드 전체에 저장)'}</span>
           </div>;
           const cur=(ctT&&ctT.tpl&&ctT.tpl.url)||'';
-          return <select className="ct-file-sel" value={cur} disabled={msBusy} onChange={e=>{upd({contractTplId:e.target.value});setMsAsk('');setMsMsg(null);}}>
-            {tl.map((x,i)=><option key={x.url} value={x.url}>{x.name}{i===0?' (기본)':''}</option>)}
-          </select>; })()}
+          return <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <select className="ct-file-sel" style={{flex:1,minWidth:0}} value={cur} disabled={msBusy} onChange={e=>{upd({contractTplId:e.target.value});setMsAsk('');setMsMsg(null);}}>
+              {tl.map((x,i)=><option key={x.url} value={x.url}>{x.name}{i===0?' (기본)':''}</option>)}
+            </select>
+            {onDeleteContract&&cur&&<button type="button" className="ct-del" disabled={msBusy} title="선택한 계약서 양식 삭제"
+              style={{border:0,background:'none',color:'var(--muted)',cursor:'pointer',fontSize:12,padding:'2px 4px',whiteSpace:'nowrap'}}
+              onClick={()=>{const nm=(ctT&&ctT.tpl&&ctT.tpl.name)||'이 양식'; if(!window.confirm(`「${nm}」 양식을 삭제할까요?\n(${(brand&&brand.name)||''} 전체 목록에서 사라져요)`)) return;
+                onDeleteContract(cur); if(r.contractTplId) upd({contractTplId:''}); setMsAsk(''); setMsMsg(null);}}>✕ 삭제</button>}
+          </div>; })()}
         {ctOpen&&<div className="s2p-btns" style={{marginTop:6}}>
           <button className="btn s2p-outline" disabled={msBusy||!ctT} onClick={previewCt} title="지금 입력한 값을 넣은 계약서를 내려받아 확인">⬇ 값 넣어 내려받기</button>
           <button className="btn s2p-outline" disabled={msBusy} onClick={()=>ctRef.current&&ctRef.current.click()}>📎 계약서 추가</button>
@@ -8650,6 +8656,15 @@ function AppMain({ authInfo, onLogout }) {
     setMsg(`✅ 계약서 양식 저장됨 (${file.name})`);
     return {...an, url, name:file.name};
   }
+  // 드롭다운에서 필요 없는 양식 하나만 지운다(2026-11-20). 기본을 지우면 다음 양식이 기본이 된다.
+  function deleteContractTemplateByUrl(url){
+    updateBrand(bId, b=>{
+      const list=[b.contractTemplate, ...(b.contractTemplates||[])].filter(Boolean).filter(x=>x.url!==url);
+      return {...b, contractTemplate:list[0]||null, contractTemplates:list.slice(1)};
+    });
+    immediateRef.current=true;
+    setMsg('🗑 계약서 양식 삭제됨');
+  }
   function removeContractTemplate(){
     updateBrand(bId, b=>({...b, contractTemplate:null}));
     immediateRef.current=true;
@@ -8848,12 +8863,13 @@ function AppMain({ authInfo, onLogout }) {
         onDelete={dashInf.src==='auto'?deleteClaudeS2Row:deleteStep2Row}
         onAddPrivacy={r=>setPrivacyModalRow({channelName:r.name,realName:r.realName||'',phone:r.phone,pa:sanitizePA(r.pa)})}
         onSetAdCode={setReviewCode} onSetPostLink={setReviewPostLink} onSettle={setInfSettledByName} onShip={shipFromContact} onUnship={unshipFromContact}
-        onSaveProducts={saveBrandProducts} onSaveSeal={saveBrandSeal} onUploadContract={uploadContractTemplate}/>}
+        onSaveProducts={saveBrandProducts} onSaveSeal={saveBrandSeal} onUploadContract={uploadContractTemplate} onDeleteContract={deleteContractTemplateByUrl}/>}
       {tab==='step2'&&<Step2View
         onAddProduct={addBrandProduct}
         onSaveProducts={saveBrandProducts}
         onSaveSeal={saveBrandSeal}
         onUploadContract={uploadContractTemplate}
+        onDeleteContract={deleteContractTemplateByUrl}
         listing={<Step1View
         rows={brand.step1Rows||[]}
         onUpdate={updateStep1Row}
@@ -8884,6 +8900,7 @@ function AppMain({ authInfo, onLogout }) {
           onSaveProducts={saveBrandProducts}
           onSaveSeal={saveBrandSeal}
           onUploadContract={uploadContractTemplate}
+          onDeleteContract={deleteContractTemplateByUrl}
           actions={<>
             <button className="btn btn-primary" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={()=>setModal('addAuto')}>＋ 인플루언서 추가</button>
             {(brand.claudeStep1Rows||[]).length>0&&<button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12,fontWeight:600}} onClick={mergeClaudeListup}>📥 기존 리스트업 {(brand.claudeStep1Rows||[]).length}명 합치기</button>}
