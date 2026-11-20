@@ -1884,7 +1884,7 @@ const noContractOf=(brand,r)=>{ if(!r) return false; const s=seedingOf(brand,r);
 const extrasText=(brand,extras)=>(extras||[]).filter(e=>e&&String(e.product||'').trim()).map(e=>{const o=optText(brand,e.product,e.opt); return ' + '+String(e.product).trim()+(o?' · '+o:'')+' ('+(e.qty||'1')+')';}).join('');
 // 검토 요청(2026-11-11) — 알바가 메모에 사유를 적고 요청 → 관리자가 대시보드에서 진행/보류/패스. 컨택 행의 reviewReq={status:'요청|진행|보류|패스',note,reply,reqTs,reqAt,replyAt,ack}
 // 패스 = 바로 거절 처리(endReason·contactStatus·rejectDate 같이 기록)
-const rvAnswer=(rq,status,reply)=>({...(rq||{}),status,reply:reply||'',replyAt:today()});
+const rvAnswer=(rq,status,reply)=>({...(rq||{}),status,reply:reply||'',replyAt:today(),ack:'',ackAt:'',ackBy:''});   // 새 답변이면 담당자 확인도 처음부터
 const rvStamp=()=>{ const d=new Date(), z=n=>String(n).padStart(2,'0'); return today()+' '+z(d.getHours())+':'+z(d.getMinutes()); };
 const rvAck=(rq,by)=>({...(rq||{}),ack:'Y',ackAt:rvStamp(),ackBy:by||''});   // 담당자가 관리자 답변을 확인한 시각
 const rvWho=pa=>{ const s=String(pa||'').trim(); return s&&s!==AUTO_PA?s:'담당자'; };
@@ -1905,7 +1905,17 @@ function thMe(r){ if(!IS_STAFF) return '관리자';
   if(rp&&rp!==AUTO_PA&&(!mine.length||mine.includes(rp))) return rp;
   return mine[0]||rvWho(rp); }
 // 확인 줄은 빼고 가장 최근 말 1개 — 대시보드 카드·목록에 이것만 보인다
-const lastMsg=r=>{ const t=threadOf(r).filter(e=>e.kind!=='확인'); return t[t.length-1]||null; };
+const lastMsg=r=>{ const t=thShown(r).filter(e=>e.kind!=='확인'); return t[t.length-1]||null; };
+/* 관리자가 메모를 남기고 바로 진행/승인을 누르면 대화 끝에 '진행'만 남아, 접힌 화면에 진짜 메모 대신 '진행'이 보였다(2026-11-20).
+   메모 바로 아래의 맨 '진행·승인·보류' 한 줄은 화면에서 접어 둔다(데이터는 그대로). 메모 없이 누른 '진행'은 그대로 보인다. */
+const thShown=r=>{ const t=threadOf(r);
+  return t.filter((e,i)=>!(i>0&&e.who==='관리자'&&e.kind==='답변'&&/^(진행|승인|보류)$/.test(String(e.text||'').trim())&&t[i-1].who==='관리자'&&!t[i-1].kind)); };
+// 관리자가 마지막으로 말했고 담당자가 아직 확인(✓)도 답도 안 한 상태 — 진행 버튼을 안 눌러도 담당자 할 일에 뜨게 한다
+const adminUnread=r=>{ const t=threadOf(r), e=t[t.length-1]; return !!e&&e.who==='관리자'&&e.kind!=='확인'&&e.kind!=='패스'; };
+// 관리자가 이미 메모를 남긴 뒤 누른 맨 '진행·승인' 은 대화에 다시 쌓지 않는다(메모가 맨 위로 보이게). 글을 같이 남기면 그대로 쌓는다.
+const thAnswer=(r,txt,plain)=>{ const t=threadOf(r), e=t[t.length-1];
+  if(plain&&e&&e.who==='관리자'&&!e.kind) return {};
+  return {thread:thAppend(r,'관리자',txt,'답변'),memo:txt}; };
 function ThreadView({thread,open,setOpen}){
   if(!thread.length) return <div style={{fontSize:12,color:'var(--dim)',marginBottom:6}}>아직 대화가 없어요</div>;
   const shown=open?thread:thread.slice(-1), hidden=thread.length-shown.length;
@@ -4258,14 +4268,15 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   // 🙋 검토 요청 — 알바가 메모와 함께 올린 건. 여기서 바로 진행/보류/패스(패스=거절 처리)
   const rqOf=i=>(i.contact&&i.contact.reviewReq)||{};
   const reqItems=infs.filter(i=>i.status==='active'&&rqOf(i).status==='요청');
-  const ansItems=infs.filter(i=>i.status==='active'&&['진행','보류'].includes(rqOf(i).status)&&!rqOf(i).ack);   // 관리자가 답했고 담당자가 아직 확인 안 한 건
+  // 관리자가 답했고 담당자가 아직 확인 안 한 건 + (2026-11-20) 진행 버튼 없이 관리자가 메모만 남긴 건도 — 승인·메모만 하고 넘어가도 담당자 할 일에 뜬다
+  const ansItems=infs.filter(i=>i.status==='active'&&((['진행','보류'].includes(rqOf(i).status)&&!rqOf(i).ack)||adminUnread(i.contact)));
   // 💬 관리자 답변 — 진행/보류 답이 달린 건. 담당자가 확인(✓)해야 사라진다. 매니저 할 일 맨 위에 보인다(2026-11-11)
-  const ansRow=i=>{ const rq=rqOf(i); const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'}; const col=rq.status==='진행'?'#22c55e':'#f59e0b';
+  const ansRow=i=>{ const rq=rqOf(i); const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'}; const lbl=['진행','보류'].includes(rq.status)&&!rq.ack?rq.status:'메모'; const col=lbl==='진행'?'#22c55e':lbl==='보류'?'#f59e0b':'#3b82f6';
     return <div key={i.id} className="todo-item" style={{flexWrap:'wrap'}} onClick={()=>openInf(i)}>
       <span className="todo-name">{i.name}</span>
       <div className="todo-right">
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
-        <span className="todo-stage" style={{background:col+'22',color:col}}>{rq.status}</span>
+        <span className="todo-stage" style={{background:col+'22',color:col}}>{lbl}</span>
         <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title={isStaff?'관리자 답변 확인':'담당자 대신 확인'} onClick={e=>{e.stopPropagation(); act.up(i,{reviewReq:rvAck(rq,isStaff?'':'관리자'),thread:thAppend(i.contact,isStaff?thMe(i.contact):'관리자',isStaff?'✓ 확인':'✓ 확인 (담당자 대신)','확인')});}}>✓ 확인</button>
       </div>
       {(()=>{ const m=lastMsg(i.contact); return m&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}><b style={{color:'var(--text)'}}>{m.who}</b> {m.text}</div>; })()}
@@ -4274,7 +4285,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     if(st==='패스'){ if(confirm(`${i.name} — 패스(거절) 처리할까요?`)) act.up(i,{...rvPassPatch(i.contact,rq,''),thread:thAppend(i.contact,'관리자','패스(거절)','패스')}); return; }
     let reply=''; if(st==='보류'){ reply=prompt('담당자에게 남길 말 (예: 10만원이면 OK)',''); if(reply===null) return; }
     const txt=st+(reply?' — '+reply:'');
-    act.up(i,{reviewReq:rvAnswer(rq,st,reply),thread:thAppend(i.contact,'관리자',txt,'답변'),memo:txt}); };
+    act.up(i,{reviewReq:rvAnswer(rq,st,reply),...thAnswer(i.contact,txt,!reply)}); };
   const rvItem=i=>{ const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'}; const lm=lastMsg(i.contact);
     return <div key={i.id} className="todo-item" style={{flexWrap:'wrap'}} onClick={()=>openInf(i)}>
       <span className="todo-name">{i.name}</span>
@@ -4292,7 +4303,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     if(!memoLine(c.memo)&&rq.status!=='요청'){ act.up(i,base); return; }
     const reply=prompt('담당자에게 남길 말 (비워도 승인돼요. 예: 15만원까지 OK)',''); if(reply===null) return;
     const txt='승인'+(reply.trim()?' — '+reply.trim():'');
-    act.up(i,{...base,reviewReq:{...rvAnswer(rq,'진행',reply.trim()),ack:'',ackAt:'',ackBy:''},thread:thAppend(c,'관리자',txt,'답변')}); };
+    act.up(i,{...base,reviewReq:rvAnswer(rq,'진행',reply.trim()),...thAnswer(c,txt,!reply.trim())}); };
   const apvItem=i=>{ const c=i.contact; const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
     return <div key={i.id} className="todo-item" onClick={()=>openInf(i)}>
       <span style={{minWidth:0,flex:1}}><span className="todo-name" style={{display:'block'}}>{i.name}</span>
@@ -4945,6 +4956,17 @@ function migMemoReq(b){
     n++; return {...r,reviewReq:{status:'요청',note:memo,reply:'',reqAt:today(),replyAt:'',ack:'',fromMemo:'Y'}}; });
   return {b:{...b,step2Rows:fix(b.step2Rows),claudeStep2Rows:fix(b.claudeStep2Rows),memoReqMig:today()},n};
 }
+// 메모 칸에 '진행·승인·보류' 한 단어만 남은 건 → 그 위 관리자 메모로 되돌림(1회, 2026-11-20). 대화 기록은 건드리지 않는다.
+function migMemoWord(b){
+  if(b.memoWordMig) return {b,n:0};
+  let n=0;
+  const fix=rows=>(rows||[]).map(r=>{
+    if(!/^(진행|승인|보류)$/.test(String(r.memo||'').trim())||!Array.isArray(r.thread)) return r;
+    const t=thShown(r).filter(e=>e.kind!=='확인'), e=t[t.length-1];
+    if(!e||e.who!=='관리자'||e.kind||!String(e.text||'').trim()) return r;
+    n++; return {...r,memo:e.text}; });
+  return {b:{...b,step2Rows:fix(b.step2Rows),claudeStep2Rows:fix(b.claudeStep2Rows),memoWordMig:today()},n};
+}
 function migNameToHandle(b){
   if(b.nameHandleMig) return {b,n:0};
   const nz=x=>String(x||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,'');   // 공백 제거(2026-10-21: 예전엔 /s+/ 라 글자 s 를 지웠음)
@@ -5320,7 +5342,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
             upd({thread:thAppend(r,me,t,asReq?'요청':kind),memo:t,...(asReq?{reviewReq:{status:'요청',note:t,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}:{})});
             setCmp(''); setThOpen(false); };
           return <div className="s2p-fg"><label>메모 · 대화 기록</label><div className="s2p-note" style={{marginTop:-2,marginBottom:8}}>남긴 메모는 지워지지 않고 쌓여요.</div>
-            <ThreadView thread={threadOf(r)} open={thOpen} setOpen={setThOpen}/>
+            <ThreadView thread={thShown(r)} open={thOpen} setOpen={setThOpen}/>
             <div className="th-send">
               <textarea value={cmp} onChange={e=>setCmp(e.target.value)} placeholder={IS_STAFF?'관리자에게 남길 말… (보내면 관리자 확인 요청으로 올라가요)':'담당자에게 남길 말…'} onKeyDown={e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); send(''); } }}/>
               <button type="button" className="btn s2p-outline" style={{padding:'6px 12px',fontSize:12}} onClick={()=>send('')}>보내기</button>
@@ -5331,7 +5353,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
           const ans=st=>{ if(st==='패스'){ if(!confirm(`'${r.name}' 을(를) 패스(거절) 처리할까요?`)) return; upd({...rvPassPatch(r,rq,''),thread:thAppend(r,'관리자','패스(거절)','패스')}); return; }
             let reply=''; if(st==='보류'){ reply=prompt('담당자에게 남길 말 (예: 10만원이면 OK)',''); if(reply===null) return; }
             const txt=st+(reply?' — '+reply:'');
-            upd({reviewReq:rvAnswer(rq,st,reply),thread:thAppend(r,'관리자',txt,'답변'),memo:txt}); };
+            upd({reviewReq:rvAnswer(rq,st,reply),...thAnswer(r,txt,!reply)}); };
           if(ended&&!open) return null;
           return <div className="s2p-rq" style={{marginTop:2,marginBottom:12}}>
             {open?<div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
@@ -7808,6 +7830,14 @@ function AppMain({ authInfo, onLogout }) {
     const tot=brands.reduce((s,b)=>s+migMemoReq(b).n,0);
     setBrands(prev=>prev.map(b=>migMemoReq(b).b));
     if(tot) setMsg(`🙋 메모가 있는 ${tot}명을 검토 요청으로 올렸어요 (대시보드 관리자 할 일)`);
+  },[brands]);
+  const memoWordRef=useRef(false);
+  useEffect(()=>{
+    if(!serverLoadedRef.current||memoWordRef.current) return;
+    if((authInfo?.role||'')!=='manager') return;
+    memoWordRef.current=true;
+    if(brands.every(b=>b.memoWordMig)) return;
+    setBrands(prev=>prev.map(b=>migMemoWord(b).b));
   },[brands]);
   const sweepRef=useRef(false);
   useEffect(()=>{

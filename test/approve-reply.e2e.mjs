@@ -110,7 +110,7 @@ chk((await evalJs('window.__asked.length')) === 1 && R('c1').approved !== 'Y', '
 await evalJs("window.__ans='15만원까지 OK'"); await okBtn('메모있음'); await wait(4500);
 chk(R('c1').approved === 'Y' && R('c1').reviewReq && R('c1').reviewReq.status === '진행' && R('c1').reviewReq.reply === '15만원까지 OK' && !R('c1').reviewReq.ack, '승인 + 관리자 답변(진행) 저장', R('c1'));
 chk(R('c1').thread && R('c1').thread.length === 2 && R('c1').thread[1].who === '관리자' && R('c1').thread[1].text === '승인 — 15만원까지 OK', '대화 기록에 [승인 — 내용] 남음', R('c1').thread);
-chk(R('c1').memo === '단가 15만원 요구해요', '알바 메모는 지우지 않음', R('c1').memo);
+chk(R('c1').thread[0].text === '단가 15만원 요구해요' && R('c1').memo === '승인 — 15만원까지 OK', '알바 메모는 대화에 남고, 메모 한 줄은 최근 말', R('c1').memo);
 await wait(1500); dash = await evalJs("document.querySelector('.hk-page').innerText");
 chk(dash.includes('관리자 답변') && dash.includes('15만원까지 OK'), '매니저 할 일에 관리자 답변이 뜸', dash.slice(0, 400));
 // 4) 이미 '검토 요청' 중인 건 + 빈 답장 — 그래도 답변 상태가 됨
