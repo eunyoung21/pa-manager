@@ -6012,35 +6012,120 @@ const REVIEW_CHECKLIST_BRAND={
     {t:'서로 다른 복장 및 상황에서 실제 착용하는 장면이 3컷 이상 포함되었는지 확인'},
   ],
 };
-function ReviewChecklist({ brandId, brandName }){
+// 체크리스트 내용 저장 형태 — brand.reviewChecklist={common:[{t,note,imgs:[{name,url,type}]}], own:[…]}. 없으면 위 기본값(2026-11-20: 관리자가 직접 고침)
+const ckDefaults=brandId=>({common:REVIEW_CHECKLIST_COMMON,own:REVIEW_CHECKLIST_BRAND[brandId]||[]});
+const ckResolve=(brand)=>{ const d=ckDefaults(brand&&brand.id), s=brand&&brand.reviewChecklist;
+  return {common:Array.isArray(s&&s.common)?s.common:d.common, own:Array.isArray(s&&s.own)?s.own:d.own}; };
+// 사진 한 장 올리기 — 축소 후 첨부 저장소(pfileSave)에 따로 저장(본문에 base64를 박으면 저장이 무거워진다). 실패해도 500KB 이하면 본문에 임시 보관.
+async function ckUploadPhoto(file){
+  const shrunk=await shrinkImage(file);
+  const dataUrl=shrunk||await readAsDataUrl(file);
+  const type=shrunk?'image/jpeg':(file.type||'image/jpeg');
+  try{
+    const d=await callApi('pfileSave',{data:dataUrl,name:file.name,type});
+    if(d&&d.ok&&d.url) return {name:file.name,url:d.url,type};
+    throw new Error((d&&d.error)||'첨부 저장소 응답 없음');
+  }catch(err){
+    if(dataUrl.length<=500*1024) return {name:file.name,url:dataUrl,type};
+    throw err;
+  }
+}
+function CkPhoto({f,size,onZoom,onRemove}){
+  const src=useFileSrc(f);
+  return <span style={{position:'relative',display:'inline-block',flex:'none'}}>
+    {src?<img src={src} alt={f.name||'사진'} onClick={onZoom?()=>onZoom(src):undefined} style={{width:size,height:size,objectFit:'cover',borderRadius:8,border:'1px solid var(--border)',display:'block',cursor:onZoom?'zoom-in':'default'}}/>
+      :<span style={{width:size,height:size,borderRadius:8,border:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'var(--dim)'}}>불러오는 중</span>}
+    {onRemove&&<button type="button" title="사진 삭제" onClick={onRemove} style={{position:'absolute',top:3,right:3,width:20,height:20,borderRadius:10,border:'none',background:'rgba(0,0,0,.6)',color:'#fff',fontSize:11,lineHeight:'20px',padding:0,cursor:'pointer'}}>✕</button>}
+  </span>;
+}
+function ReviewChecklist({ brand, isManager, onSave }){
+  const brandId=brand&&brand.id, brandName=brand&&brand.name;
   const [open,setOpen]=useState(false);
   const [checked,setChecked]=useState(()=>new Set()); // 세션 참고용 — 저장 안 함(새로고침 시 초기화)
-  const brandItems=REVIEW_CHECKLIST_BRAND[brandId]||[];
+  const [edit,setEdit]=useState(false);
+  const [draft,setDraft]=useState(null);
+  const [busy,setBusy]=useState('');
+  const [err,setErr]=useState('');
+  const [zoom,setZoom]=useState('');
+  const cur=ckResolve(brand);
   const toggle=k=>setChecked(s=>{const n=new Set(s);n.has(k)?n.delete(k):n.add(k);return n;});
-  const total=REVIEW_CHECKLIST_COMMON.length+brandItems.length, done=checked.size;
+  const total=cur.common.length+cur.own.length, done=checked.size;
+  const startEdit=()=>{ setDraft({common:cur.common.map(x=>({...x,imgs:[...(x.imgs||[])]})),own:cur.own.map(x=>({...x,imgs:[...(x.imgs||[])]}))}); setErr(''); setEdit(true); setOpen(true); };
+  const setItem=(sec,i,patch)=>setDraft(d=>({...d,[sec]:d[sec].map((x,j)=>j===i?{...x,...patch}:x)}));
+  const move=(sec,i,dir)=>setDraft(d=>{ const a=[...d[sec]], j=i+dir; if(j<0||j>=a.length) return d; [a[i],a[j]]=[a[j],a[i]]; return {...d,[sec]:a}; });
+  const remove=(sec,i)=>{ const it=draft[sec][i]; if((it.t||it.note||(it.imgs||[]).length)&&!confirm('이 항목을 지울까요?')) return; setDraft(d=>({...d,[sec]:d[sec].filter((_,j)=>j!==i)})); };
+  const add=sec=>setDraft(d=>({...d,[sec]:[...d[sec],{t:'',note:'',imgs:[]}]}));
+  async function addPhotos(sec,i,e){
+    const files=[...(e.target.files||[])]; e.target.value=''; if(!files.length) return;
+    setErr(''); setBusy(sec+i);
+    const got=[];
+    for(const f of files){ try{ got.push(await ckUploadPhoto(f)); }catch(x){ setErr('사진 올리기 실패 — '+String(x&&x.message||x)); } }
+    if(got.length) setDraft(d=>({...d,[sec]:d[sec].map((it,j)=>j===i?{...it,imgs:[...(it.imgs||[]),...got]}:it)}));
+    setBusy('');
+  }
+  const save=()=>{
+    const clean=a=>a.map(x=>({t:String(x.t||'').trim(),note:String(x.note||'').trim(),imgs:x.imgs||[]})).filter(x=>x.t);
+    onSave&&onSave({common:clean(draft.common),own:clean(draft.own)});
+    setEdit(false); setDraft(null); setChecked(new Set());
+  };
+  const resetDefault=()=>{ if(!confirm('기본 내용으로 되돌릴까요? (저장 전까지는 화면에서만 바뀌어요. 사진은 빠집니다)')) return; const d=ckDefaults(brandId); setDraft({common:d.common.map(x=>({...x,imgs:[]})),own:d.own.map(x=>({...x,imgs:[]}))}); };
+  const inp={width:'100%',boxSizing:'border-box',padding:'7px 10px',border:'1px solid var(--border)',borderRadius:8,background:'var(--surface)',color:'var(--text)',fontSize:13,fontFamily:'inherit'};
   const renderItem=(sec,i,it,last)=>{const k=sec+i, on=checked.has(k);
     return <div key={k} onClick={()=>toggle(k)} style={{display:'flex',gap:11,alignItems:'flex-start',padding:'11px 4px',cursor:'pointer',borderBottom:last?'none':'1px solid var(--border)'}}>
       <span style={{flex:'none',fontSize:18,lineHeight:'23px',color:on?'var(--accent)':'var(--dim)'}}>{on?'☑':'☐'}</span>
       <div style={{minWidth:0}}>
         <div style={{fontSize:14,lineHeight:1.5,fontWeight:500,color:on?'var(--muted)':'var(--text)',textDecoration:on?'line-through':'none'}}>{it.t}</div>
-        {it.note&&<div style={{fontSize:12,color:'var(--muted)',marginTop:3,lineHeight:1.45}}>{it.note}</div>}
+        {it.note&&<div style={{fontSize:12,color:'var(--muted)',marginTop:3,lineHeight:1.45,whiteSpace:'pre-wrap'}}>{it.note}</div>}
+        {(it.imgs||[]).length>0&&<div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}} onClick={e=>e.stopPropagation()}>
+          {it.imgs.map((f,j)=><CkPhoto key={j} f={f} size={88} onZoom={setZoom}/>)}</div>}
       </div>
     </div>;};
   const renderSection=(label,items,sec)=><div style={{marginBottom:16}}>
     <div style={{display:'inline-block',fontSize:12.5,fontWeight:800,color:'var(--accent)',background:'var(--accent-soft)',padding:'4px 12px',borderRadius:20,marginBottom:4}}>{label}</div>
-    <div>{items.map((it,i)=>renderItem(sec,i,it,i===items.length-1))}</div>
+    {items.length?<div>{items.map((it,i)=>renderItem(sec,i,it,i===items.length-1))}</div>:<div style={{fontSize:12,color:'var(--dim)',padding:'8px 4px'}}>항목이 없어요</div>}
   </div>;
-  return <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden',margin:'0 0 12px',flex:'none'}}>
+  const editSection=(label,sec)=><div style={{marginBottom:18}}>
+    <div style={{display:'inline-block',fontSize:12.5,fontWeight:800,color:'var(--accent)',background:'var(--accent-soft)',padding:'4px 12px',borderRadius:20,marginBottom:8}}>{label}</div>
+    {draft[sec].map((it,i)=><div key={i} className="ck-edit-item" style={{border:'1px solid var(--border)',borderRadius:10,padding:10,marginBottom:8}}>
+      <input className="ck-t" style={inp} value={it.t} placeholder="검수할 내용" onChange={e=>setItem(sec,i,{t:e.target.value})}/>
+      <textarea className="ck-note" style={{...inp,marginTop:6,minHeight:44,resize:'vertical'}} value={it.note||''} placeholder="설명·예시 (선택)" onChange={e=>setItem(sec,i,{note:e.target.value})}/>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginTop:8}}>
+        {(it.imgs||[]).map((f,j)=><CkPhoto key={j} f={f} size={72} onRemove={()=>setItem(sec,i,{imgs:it.imgs.filter((_,x)=>x!==j)})}/>)}
+        <label className="btn btn-outline btn-sm" style={{cursor:'pointer'}}>{busy===sec+i?'올리는 중…':'＋ 사진'}
+          <input className="ck-file" type="file" accept="image/*" multiple style={{display:'none'}} disabled={!!busy} onChange={e=>addPhotos(sec,i,e)}/></label>
+        <span style={{flex:1}}/>
+        <button type="button" className="btn btn-outline btn-sm" title="위로" onClick={()=>move(sec,i,-1)} disabled={i===0}>↑</button>
+        <button type="button" className="btn btn-outline btn-sm" title="아래로" onClick={()=>move(sec,i,1)} disabled={i===draft[sec].length-1}>↓</button>
+        <button type="button" className="btn btn-outline btn-sm" onClick={()=>remove(sec,i)}>삭제</button>
+      </div>
+    </div>)}
+    <button type="button" className="btn btn-outline btn-sm ck-add" onClick={()=>add(sec)}>＋ 항목 추가</button>
+  </div>;
+  return <div className="ck-card" style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden',margin:'0 0 12px',flex:'none'}}>
     <div onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 16px',cursor:'pointer',borderBottom:open?'1px solid var(--border)':'none'}}>
       <span style={{fontSize:14,fontWeight:700}}>✅ 1차 영상 검수 체크리스트</span>
       <span style={{fontSize:11,color:'var(--muted)',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{brandName||''} · 업로드 영상 게시 전 확인{done>0?` · ${done}/${total}`:''}</span>
+      {isManager&&!edit&&<button type="button" className="btn btn-outline btn-sm ck-edit-btn" onClick={e=>{e.stopPropagation();startEdit();}}>✎ 편집</button>}
       <span style={{color:'var(--muted)',fontSize:12,flexShrink:0}}>{open?'▲ 접기':'▼ 펼치기'}</span>
     </div>
-    {open&&<div style={{padding:'16px 18px',maxWidth:780}}>
-      {renderSection('공통',REVIEW_CHECKLIST_COMMON,'c')}
-      {brandItems.length>0&&renderSection(brandName||'브랜드',brandItems,'b')}
+    {open&&(edit&&draft?<div style={{padding:'16px 18px',maxWidth:780}}>
+      {editSection('공통','common')}
+      {editSection(brandName||'브랜드','own')}
+      {err&&<div style={{fontSize:12,color:'#e74c3c',marginBottom:8}}>{err}</div>}
+      <div style={{display:'flex',gap:8,alignItems:'center'}}>
+        <button type="button" className="btn btn-sm ck-save" disabled={!!busy} onClick={save}>저장</button>
+        <button type="button" className="btn btn-outline btn-sm" onClick={()=>{setEdit(false);setDraft(null);setErr('');}}>취소</button>
+        <span style={{flex:1}}/>
+        <button type="button" className="btn btn-outline btn-sm" onClick={resetDefault}>기본 내용으로</button>
+      </div>
+      <div style={{fontSize:11,color:'var(--dim)',marginTop:8}}>※ 이 브랜드에만 적용돼요. 저장하면 담당자 화면에도 바로 바뀝니다.</div>
+    </div>:<div style={{padding:'16px 18px',maxWidth:780}}>
+      {renderSection('공통',cur.common,'c')}
+      {cur.own.length>0&&renderSection(brandName||'브랜드',cur.own,'b')}
       <div style={{fontSize:11,color:'var(--dim)',marginTop:6}}>※ 참고용 체크리스트입니다. 체크는 저장되지 않습니다(새로고침 시 초기화).</div>
-    </div>}
+    </div>)}
+    {zoom&&<div onClick={()=>setZoom('')} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.78)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',cursor:'zoom-out'}}>
+      <img src={zoom} alt="" style={{maxWidth:'92vw',maxHeight:'92vh',borderRadius:8}}/></div>}
   </div>;
 }
 
@@ -6078,7 +6163,7 @@ function ModusignArchiveBtn({ isManager }){
   </>;
 }
 
-function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, onOpenInf, isManager }) {
+function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch, onUpdatePrivacy, onAddPrivacy, onSettle, onOpenInf, isManager, onSaveChecklist }) {
   const [chEdit,setChEdit]=useState(null);   // ✎ 채널명 고치기(채널명 누르면 상세 창)
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
@@ -6160,7 +6245,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
 
   return <div className="view-wrap roomy-wrap">
     <div className="view-main roomy no-cal">
-    <ReviewChecklist brandId={brand?.id} brandName={brand?.name}/>
+    <ReviewChecklist brand={brand} isManager={isManager} onSave={onSaveChecklist}/>
     {revProducts.length>1&&<div className="prod-tabs">
       {[{k:'all',l:`전체 (${rows.length})`},...revProducts.map(pn=>({k:pn,l:`${pn} (${rows.filter(r=>prodOfRev(r)===pn).length})`})),
         ...(rows.some(r=>!prodOfRev(r))?[{k:'__none__',l:'제품 미지정'}]:[])]
@@ -8173,6 +8258,11 @@ function AppMain({ authInfo, onLogout }) {
     updateBrand(bId,b=>({...b,sealCompany:String(v||'').replace(/^주식회사\s*/,'').trim()}));
     immediateRef.current=true;
   }
+  // 1차 영상 검수 체크리스트 내용(관리자가 직접 고침, 사진 포함) — 브랜드마다. 바로 저장.
+  function saveBrandChecklist(v){
+    updateBrand(bId,b=>({...b,reviewChecklist:v}));
+    immediateRef.current=true;
+  }
   function saveBrandProducts(products,productOptions,noContract){
     updateBrand(bId,b=>({...b,products:[...new Set((products||[]).map(x=>String(x).trim()).filter(Boolean))],productOptions:productOptions||{},
       ...(noContract?{productNoContract:noContract}:{})}));
@@ -8951,6 +9041,7 @@ function AppMain({ authInfo, onLogout }) {
         onSettle={setInfSettledByName}
         onOpenInf={openInfByName}
         isManager={isManager}
+        onSaveChecklist={saveBrandChecklist}
         filter={filter} setFilter={setFilter}
         search={search} setSearch={setSearch}
       />}
