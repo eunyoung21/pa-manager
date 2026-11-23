@@ -101,10 +101,13 @@ chk(dash.includes("검토 요청") && dash.includes("안민영") && dash.include
 await click(".todo-item", "대화테스트"); await wait(1200);
 chk(await evalJs("!!document.querySelector('.th-wrap')"), "상세 창에 대화 기록 영역");
 chk(await evalJs("document.querySelectorAll('.th-msg').length") === 1, "옛 메모는 대화 1개로 보임(지우지 않음)");
-// 2) 관리자 진행 → 관리자 말이 오른쪽(th-adm)으로 쌓임
-await click("button", "✓ 진행"); await waitFor("(()=>{const r=savedData})", "x").catch(()=>{});
+// 2) 관리자가 메모창에 답장 → 요청이 자동으로 풀리고 관리자 말이 오른쪽(th-adm)으로 쌓임(진행·보류 버튼은 없음)
+chk(!(await evalJs("[...document.querySelectorAll('.s2p button')].some(b=>/진행|보류|요청 취소|답변 취소|확인 취소/.test(b.textContent))")), "진행·보류·취소 버튼 없음");
+await setVal(".th-send textarea", "진행하세요"); await click("button", "보내기");
 await wait(4500);
-chk(row().thread && row().thread.length === 2 && row().thread[0].who === "안민영" && row().thread[1].who === "관리자", "진행 → 대화에 [안민영 요청, 관리자 답변]", row().thread);
+chk(row().thread && row().thread.length === 2 && row().thread[0].who === "안민영" && row().thread[1].who === "관리자", "답장 → 대화에 [안민영 요청, 관리자 답변]", row().thread);
+chk(row().reviewReq.status === "답변" && !row().reviewReq.ack, "관리자 답장 → 요청 자동 해제(답변 상태, 알바 확인 전)", row().reviewReq);
+chk((await evalJs("document.querySelector('.s2p-rq')?.innerText||''")).includes("확인 전"), "관리자 화면: ⏳ 알바 확인 전");
 chk(await evalJs("document.querySelectorAll('.th-adm').length") === 1 && await evalJs("document.querySelectorAll('.th-msg').length") === 1, "접힌 상태: 최신 1개(관리자)만 보임");
 chk((await evalJs("document.querySelector('.th-more')?.textContent||''")).includes("이전 대화 1개"), "이전 대화 1개 버튼");
 await click(".th-more", "이전 대화"); await wait(300);
@@ -113,14 +116,15 @@ chk(await evalJs("document.querySelectorAll('.th-msg').length") === 2 && await e
 await setVal(".th-send textarea", "배송은 내일 보내주세요"); await click("button", "보내기"); await wait(4500);
 chk(row().thread.length === 3 && row().thread[2].text === "배송은 내일 보내주세요" && row().thread[2].who === "관리자" && row().thread[0].text === "10만원 제안", "보내기 → 3번째로 쌓임, 이전 글 그대로", row().thread);
 chk(row().memo === "배송은 내일 보내주세요", "memo(목록 한 줄) = 가장 최근 말", row().memo);
-// 4) 알바가 확인 — 대시보드 카드에서 사라져도 기록은 남음
+// 4) 알바가 열어 보면 자동 확인 — 대시보드 카드에서 사라져도 기록은 남음
 await S("Page.navigate", { url: `http://127.0.0.1:${PORT}/?role=staff` }); await wait(3500);
 await evalJs("(()=>{const b=[...document.querySelectorAll('.brand-tab')].find(x=>x.textContent.includes('해트케'));if(b)b.click();return 1})()"); await wait(1200);
 const before = row().thread.length;
-await click("button", "확인"); await wait(4500);
-chk(row().reviewReq.ack === "Y", "알바 확인 처리됨", row().reviewReq);
+chk((await evalJs("document.querySelector('.hk-page').innerText")).includes("대화테스트"), "알바 할 일에 관리자 답장 건이 뜸");
+await click(".todo-item", "대화테스트"); await wait(4500);
+chk(row().reviewReq.ack === "Y" && !!row().reviewReq.ackAt, "알바가 열면 자동 확인 처리(버튼 없음)", row().reviewReq);
 chk(row().thread.length === before + 1 && row().thread[before].kind === "확인" && row().thread[before].who === "안민영", "확인도 기록으로 남고 이름은 안민영", row().thread.slice(-2));
-chk(row().thread.slice(0, before).every((e, i) => e.text === ["10만원 제안", "진행", "배송은 내일 보내주세요"][i]), "관리자 말 3개 전부 그대로(사라지지 않음)", row().thread);
+chk(row().thread.slice(0, before).every((e, i) => e.text === ["10만원 제안", "진행하세요", "배송은 내일 보내주세요"][i]), "관리자 말 3개 전부 그대로(사라지지 않음)", row().thread);
 // 4-2) 알바 보내기 하나로 끝 — 보내면 관리자 확인 요청까지 올라감(이미 요청 중이면 글만 추가), 관리자가 보내면 그냥 대화
 const ro = () => savedData.brands.find((b) => b.id === "hatke").step2Rows.find((r) => r.id === "m2");
 savedData.brands[0].step2Rows.push(S2("m2", "알바보내기", "alba_send", { dmSent: "Y", replied: "Y", pa: "안민영", contactStatus: "진행중", memo: "" }));

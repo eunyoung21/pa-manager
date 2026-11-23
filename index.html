@@ -1887,6 +1887,7 @@ const extrasText=(brand,extras)=>(extras||[]).filter(e=>e&&String(e.product||'')
 const rvAnswer=(rq,status,reply)=>({...(rq||{}),status,reply:reply||'',replyAt:today(),ack:'',ackAt:'',ackBy:''});   // 새 답변이면 담당자 확인도 처음부터
 const rvStamp=()=>{ const d=new Date(), z=n=>String(n).padStart(2,'0'); return today()+' '+z(d.getHours())+':'+z(d.getMinutes()); };
 const rvAck=(rq,by)=>({...(rq||{}),ack:'Y',ackAt:rvStamp(),ackBy:by||''});   // 담당자가 관리자 답변을 확인한 시각
+const rvAnswered=s=>s==='진행'||s==='보류'||s==='답변';   // 관리자가 답한 상태 ('진행·보류'는 옛 버튼 시절 기록, '답변'=메모로 답장)
 const rvWho=pa=>{ const s=String(pa||'').trim(); return s&&s!==AUTO_PA?s:'담당자'; };
 /* 메모·검토 요청 대화 기록(2026-11-17) — 컨택 행의 r.thread=[{who,text,at,kind,ts}] 에 쌓기만 한다(지우지 않음).
    who = '관리자' 또는 알바 이름. kind = ''(그냥 메모)|'요청'|'답변'|'확인'|'패스'. 옛 메모·검토요청은 처음 쓸 때 첫 대화로 옮겨 담는다(저장 전엔 화면에서만 만들어 보여줌). */
@@ -4276,30 +4277,22 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const rqOf=i=>(i.contact&&i.contact.reviewReq)||{};
   const reqItems=infs.filter(i=>i.status==='active'&&rqOf(i).status==='요청');
   // 관리자가 답했고 담당자가 아직 확인 안 한 건 + (2026-11-20) 진행 버튼 없이 관리자가 메모만 남긴 건도 — 승인·메모만 하고 넘어가도 담당자 할 일에 뜬다
-  const ansItems=infs.filter(i=>i.status==='active'&&((['진행','보류'].includes(rqOf(i).status)&&!rqOf(i).ack)||adminUnread(i.contact)));
+  const ansItems=infs.filter(i=>i.status==='active'&&((rvAnswered(rqOf(i).status)&&!rqOf(i).ack)||adminUnread(i.contact)));
   // 💬 관리자 답변 — 진행/보류 답이 달린 건. 담당자가 확인(✓)해야 사라진다. 매니저 할 일 맨 위에 보인다(2026-11-11)
-  const ansRow=i=>{ const rq=rqOf(i); const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'}; const lbl=['진행','보류'].includes(rq.status)&&!rq.ack?rq.status:'메모'; const col=lbl==='진행'?'#22c55e':lbl==='보류'?'#f59e0b':'#3b82f6';
+  const ansRow=i=>{ const rq=rqOf(i); const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'}; const lbl=rvAnswered(rq.status)&&!rq.ack?(rq.status==='답변'?'답변':rq.status):'메모'; const col=lbl==='진행'?'#22c55e':lbl==='보류'?'#f59e0b':'#3b82f6';
     return <div key={i.id} className="todo-item" style={{flexWrap:'wrap'}} onClick={()=>openInf(i)}>
       <span className="todo-name">{i.name}</span>
       <div className="todo-right">
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
         <span className="todo-stage" style={{background:col+'22',color:col}}>{lbl}</span>
-        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title={isStaff?'관리자 답변 확인':'담당자 대신 확인'} onClick={e=>{e.stopPropagation(); act.up(i,{reviewReq:rvAck(rq,isStaff?'':'관리자'),thread:thAppend(i.contact,isStaff?thMe(i.contact):'관리자',isStaff?'✓ 확인':'✓ 확인 (담당자 대신)','확인')});}}>✓ 확인</button>
       </div>
       {(()=>{ const m=lastMsg(i.contact); return m&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}><b style={{color:'var(--text)'}}>{m.who}</b> {m.text}</div>; })()}
     </div>; };
-  const rvAns=(i,st)=>{ const rq=rqOf(i);
-    if(st==='패스'){ if(confirm(`${i.name} — 패스(거절) 처리할까요?`)) act.up(i,{...rvPassPatch(i.contact,rq,''),thread:thAppend(i.contact,'관리자','패스(거절)','패스')}); return; }
-    let reply=''; if(st==='보류'){ reply=prompt('담당자에게 남길 말 (예: 10만원이면 OK)',''); if(reply===null) return; }
-    const txt=st+(reply?' — '+reply:'');
-    act.up(i,{reviewReq:rvAnswer(rq,st,reply),...thAnswer(i.contact,txt,!reply)}); };
   const rvItem=i=>{ const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'}; const lm=lastMsg(i.contact);
     return <div key={i.id} className="todo-item" style={{flexWrap:'wrap'}} onClick={()=>openInf(i)}>
       <span className="todo-name">{i.name}</span>
       <div className="todo-right">
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
-        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={e=>{e.stopPropagation(); rvAns(i,'진행');}}>✓ 진행</button>
-        <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={e=>{e.stopPropagation(); rvAns(i,'보류');}}>⏸ 보류</button>
       </div>
       {lm&&<div style={{width:'100%',fontSize:11,color:'var(--muted)',marginTop:2,whiteSpace:'pre-wrap'}}><b style={{color:'var(--text)'}}>{lm.who}</b> {lm.text}</div>}
     </div>; };
@@ -5074,6 +5067,15 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
   useEffect(()=>{setF(init());setMsAsk('');setMsMsg(null);setCmp('');setThOpen(false);setCtOpen(false);},[r.id]);
   const u=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const upd=patch=>H.current.onUpdate(r.id,patch);
+  // 알바가 이 건을 열면 관리자 답장을 '읽음'으로 자동 기록(2026-11-23) — 누르는 버튼 없음. 관리자 화면엔 '✓ 확인 시각'이 뜬다.
+  const readKey=r.id+'|'+(rvAnswered((r.reviewReq||{}).status)&&!(r.reviewReq||{}).ack?'a':'')+(adminUnread(r)?'u':'');
+  const readDone=useRef('');
+  useEffect(()=>{ if(!IS_STAFF||readDone.current===readKey) return;
+    const rq=r.reviewReq||{}, ansUnread=rvAnswered(rq.status)&&!rq.ack;
+    if(!ansUnread&&!adminUnread(r)) return;
+    readDone.current=readKey;
+    upd({...(ansUnread?{reviewReq:rvAck(rq)}:{}),thread:thAppend(r,thMe(r),'✓ 확인','확인')});
+  },[readKey]);
   const dates=[r.date,r.dmDate,r.dealDate,r.contractDate||(rv&&rv.contractDate),r.shipDate,r.finalDate];
   const cur=typeof st==='number'?st:(st==='done'?6:-1);
   // 진행 단계에서 지난 단계를 누르면 그 단계로 되돌린다(잘못 눌렀을 때). 그 뒤 단계 기록만 지운다.
@@ -5353,7 +5355,9 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
           const send=kind=>{ const t=cmp.trim(); if(!t){ alert('보낼 내용을 적어 주세요.'); return; }
             const open0=(r.reviewReq||{}).status==='요청', ended0=normStatus(r.contactStatus)==='거절';
             const asReq=IS_STAFF&&!ended0&&!open0;
-            upd({thread:thAppend(r,me,t,asReq?'요청':kind),memo:t,...(asReq?{reviewReq:{status:'요청',note:t,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}:{})});
+            // 관리자가 요청 중인 건에 글을 보내면 그게 곧 답변 — 요청이 자동으로 풀리고 알바 확인(읽음)을 기다린다(2026-11-23)
+            const asAns=!IS_STAFF&&open0;
+            upd({thread:thAppend(r,me,t,asReq?'요청':asAns?'답변':kind),memo:t,...(asReq?{reviewReq:{status:'요청',note:t,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}:{}),...(asAns?{reviewReq:rvAnswer(r.reviewReq,'답변','')}:{})});
             setCmp(''); setThOpen(false); };
           return <div className="s2p-fg"><label>메모 · 대화 기록</label><div className="s2p-note" style={{marginTop:-2,marginBottom:8}}>남긴 메모는 지워지지 않고 쌓여요.</div>
             <ThreadView thread={thShown(r)} open={thOpen} setOpen={setThOpen}/>
@@ -5361,33 +5365,14 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
               <textarea value={cmp} onChange={e=>setCmp(e.target.value)} placeholder={IS_STAFF?'관리자에게 남길 말… (보내면 관리자 확인 요청으로 올라가요)':'담당자에게 남길 말…'} onKeyDown={e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); send(''); } }}/>
               <button type="button" className="btn s2p-outline" style={{padding:'6px 12px',fontSize:12}} onClick={()=>send('')}>보내기</button>
             </div></div>; })()}
-        {(()=>{ const rq=r.reviewReq||{}; const open=rq.status==='요청'; const ended=normStatus(r.contactStatus)==='거절'; const me=thMe(r);
-          const ask=()=>{ const t=cmp.trim(); if(!t){ alert('메모에 검토받을 내용을 먼저 적어 주세요.'); return; }
-            upd({thread:thAppend(r,me,t,'요청'),memo:t,reviewReq:{status:'요청',note:t,reply:'',reqTs:Date.now(),reqAt:today(),replyAt:'',ack:''}}); setCmp(''); setThOpen(false); };
-          const ans=st=>{ if(st==='패스'){ if(!confirm(`'${r.name}' 을(를) 패스(거절) 처리할까요?`)) return; upd({...rvPassPatch(r,rq,''),thread:thAppend(r,'관리자','패스(거절)','패스')}); return; }
-            let reply=''; if(st==='보류'){ reply=prompt('담당자에게 남길 말 (예: 10만원이면 OK)',''); if(reply===null) return; }
-            const txt=st+(reply?' — '+reply:'');
-            upd({reviewReq:rvAnswer(rq,st,reply),...thAnswer(r,txt,!reply)}); };
-          if(ended&&!open) return null;
-          return <div className="s2p-rq" style={{marginTop:2,marginBottom:12}}>
-            {open?<div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-              <span style={{fontSize:12,color:'#f59e0b',fontWeight:700}}>🙋 검토 요청 중{IS_STAFF?' · 관리자 확인 대기':''}</span>
-              {IS_STAFF?null
-                :<>
-                  <button className="btn s2p-success" style={{padding:'3px 10px',fontSize:12}} onClick={()=>ans('진행')}>✓ 진행</button>
-                  <button className="btn s2p-outline" style={{padding:'3px 10px',fontSize:12}} onClick={()=>ans('보류')}>⏸ 보류</button>
-                </>}
-              <button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="검토 요청 취소(잘못 눌렀을 때)" onClick={()=>upd({reviewReq:{...rq,status:'',ack:'Y'}})}>↩ 요청 취소</button>
-            </div>:<div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-              {(rq.status==='진행'||rq.status==='보류')&&<span style={{fontSize:12,fontWeight:700,color:rq.status==='진행'?'var(--green)':'#f59e0b'}}>💬 관리자: {rq.status}{rq.reply?' — '+rq.reply:''}</span>}
-              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&IS_STAFF&&<button className="btn s2p-outline" style={{padding:'3px 9px',fontSize:12}} onClick={()=>upd({reviewReq:rvAck(rq),thread:thAppend(r,me,'✓ 확인','확인')})}>확인</button>}
-              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<span style={{fontSize:12,fontWeight:700,color:'#f59e0b'}}>⏳ {rvWho(r.pa)} 확인 대기</span>}
-              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="담당자 대신 관리자가 확인 처리" onClick={()=>upd({reviewReq:rvAck(rq,'관리자'),thread:thAppend(r,'관리자','✓ 확인 (담당자 대신)','확인')})}>✓ 확인</button>}
-              {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&<span style={{fontSize:12,fontWeight:700,color:'var(--green)'}}>✓ {rvWho(r.pa)} 확인{rq.ackAt?' '+rq.ackAt:''}{rq.ackBy==='관리자'?' (관리자가 대신)':''}</span>}
-              {(rq.status==='진행'||rq.status==='보류')&&!rq.ack&&!IS_STAFF&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="답변을 취소하고 다시 검토 요청 상태로" onClick={()=>upd({reviewReq:{...rq,status:'요청',reply:'',replyAt:''}})}>↩ 답변 취소</button>}
-              {(rq.status==='진행'||rq.status==='보류')&&rq.ack==='Y'&&(IS_STAFF||rq.ackBy==='관리자')&&<button className="btn s2p-outline" style={{padding:'1px 7px',fontSize:11,color:'var(--muted)'}} title="확인을 취소하고 다시 확인 전 상태로" onClick={()=>upd({reviewReq:{...rq,ack:'',ackAt:'',ackBy:''}})}>↩ 확인 취소</button>}
-            </div>}
-          </div>; })()}
+        {(()=>{ const rq=r.reviewReq||{}; const open=rq.status==='요청'; const answered=rvAnswered(rq.status);
+          // 버튼 없음(2026-11-23) — 관리자는 위 메모창에 답장을 쓰면 요청이 풀리고, 알바는 열어 보면 자동으로 '확인' 표시가 남는다.
+          if(!open&&!answered) return null;
+          return <div className="s2p-rq" style={{marginTop:2,marginBottom:12}}><div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+            {open&&<span style={{fontSize:12,color:'#f59e0b',fontWeight:700}}>🙋 검토 요청 중{IS_STAFF?' · 관리자 답장 대기':' · 위에 답장을 쓰면 풀려요'}</span>}
+            {answered&&!rq.ack&&<span style={{fontSize:12,fontWeight:700,color:'#f59e0b'}}>⏳ {rvWho(r.pa)} 확인 전</span>}
+            {answered&&rq.ack==='Y'&&<span style={{fontSize:12,fontWeight:700,color:'var(--green)'}}>✓ {rvWho(r.pa)} 확인{rq.ackAt?' '+rq.ackAt:''}</span>}
+          </div></div>; })()}
         </div>
         <div className="s2p-hr"/>
         <div className="s2p-sec">단계 액션 <span style={{fontWeight:400,color:'var(--muted)'}}>· 담당 {pa||'없음'}</span></div>
