@@ -516,6 +516,7 @@ function handle(e, body) {
       case 'pfileSave':return pfileSave(need(), body);
       case 'pfileGet': return pfileGet(need(), body, p);
       case 'contractArchive': return contractArchive(need(), body);
+      case 'shipSheetAppend': return shipSheetAppend(need(), body);
       case 'archivePending': return archivePending(mgr(), body);
       case 'archiveFile': return archiveFile(mgr(), body);
       case 'archiveComplete': return archiveComplete(mgr(), body);
@@ -817,6 +818,86 @@ function findArchived(folder, memo) {
   }
   return { same: same, names: names };
 }
+/* ── 출고 요청 시트 자동 기입(2026-11-23) ─────────────────────────
+   앱 대시보드 '출고 정보'(알바가 제품 발송을 완료해 '처리중'으로 뜬 건)를 회사 물류 시트
+   「데이즈 별도 출고요청 시트」의 이번 달 탭 '출고요청(N월)' 맨 아래에 한 줄 추가한다.
+   열: A 출고요청일 · B 요청자 성함 · C 출고 요청 사유 · D 수령자명 · E 수령자연락처 · F 주소 · G 상품명 · H 출고 송장번호 · I 비고
+   ★ H(출고 송장번호)에 값이 들어가면 물류가 '출고된 건'으로 보므로, 앱에 송장이 없으면 H 는 건드리지 않는다.
+   ★ 배포 계정(USER_DEPLOYING)이 그 시트의 '편집' 권한을 갖고 있어야 한다. 시트 id 는 스크립트 속성 SHIP_SHEET_ID 로 바꿀 수 있다. */
+var SHIP_SHEET_ID = '1SSqBPaocBdkxOenYrb773grdMNKFmfjCfjnGXKIbLFI';
+
+/* A열 날짜 — 위 줄과 같은 모양으로 오늘 날짜를 만든다(날짜 셀이면 날짜로, 글자 셀이면 같은 글자 모양으로) */
+function shipSheetDate_(cell, now) {
+  var tz = 'Asia/Seoul';
+  var v = cell ? cell.getValue() : '';
+  var iso = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+  if (v instanceof Date) return { value: Utilities.parseDate(iso, tz, 'yyyy-MM-dd'), text: false };
+  var shown = String((cell && cell.getDisplayValue()) || '').trim();
+  var y = Utilities.formatDate(now, tz, 'yyyy'), mo = Number(Utilities.formatDate(now, tz, 'M')), d = Number(Utilities.formatDate(now, tz, 'd'));
+  var pad = function (n, two) { return two ? ('0' + n).slice(-2) : String(n); };
+  var m = shown.match(/^(\d{4})(\D+)(\d{1,2})(\D+)(\d{1,2})(\D*)$/);
+  if (m) return { value: y + m[2] + pad(mo, m[3].length === 2) + m[4] + pad(d, m[5].length === 2) + m[6], text: true };
+  m = shown.match(/^(\d{1,2})(\D+)(\d{1,2})(\D*)$/);
+  if (m) return { value: pad(mo, m[1].length === 2) + m[2] + pad(d, m[3].length === 2) + m[4], text: true };
+  return { value: iso, text: true };
+}
+
+function shipSheetAppend(sess, body) {
+  var s = function (k, max) { return String(body[k] == null ? '' : body[k]).replace(/\r/g, '').trim().slice(0, max || 500); };
+  var requester = s('requester', 60), reason = s('reason', 100) || '협찬';
+  var recipient = s('recipient', 100), phone = s('phone', 60), address = s('address', 400);
+  var product = s('product', 200), tracking = s('tracking', 100), notes = s('notes', 500);
+  if (!requester) return json({ ok: false, error: '요청자 성함이 비었어요(출고 탭에서 먼저 설정)' });
+  if (!recipient || !phone || !address) return json({ ok: false, error: '수령자·연락처·주소가 다 있어야 해요' });
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return json({ ok: false, error: '다른 저장 중이에요. 잠시 뒤 다시 시도' });
+  try {
+    var id = PropertiesService.getScriptProperties().getProperty('SHIP_SHEET_ID') || SHIP_SHEET_ID;
+    var ss;
+    try { ss = SpreadsheetApp.openById(id); }
+    catch (e) { return json({ ok: false, error: '출고 시트를 열 수 없어요(배포 계정의 접근 권한 확인): ' + String(e && e.message || e).slice(0, 120) }); }
+    var now = new Date();
+    var tabName = '출고요청(' + Number(Utilities.formatDate(now, 'Asia/Seoul', 'M')) + '월)';
+    var sh = ss.getSheetByName(tabName);
+    if (!sh) return json({ ok: false, error: '시트에 「' + tabName + '」 탭이 없어요(새 달 탭이 먼저 만들어져야 해요)' });
+    // 머리글 줄 찾기 — 위쪽 안내 문구 줄 수가 달마다 다르다
+    var top = sh.getRange(1, 1, 12, 1).getDisplayValues(), hr = 0;
+    for (var i = 0; i < top.length; i++) if (String(top[i][0]).replace(/\s/g, '') === '출고요청일') { hr = i + 1; break; }
+    if (!hr) return json({ ok: false, error: '「' + tabName + '」에서 머리글(출고요청일)을 못 찾았어요' });
+    var last = sh.getLastRow(), vals = last > hr ? sh.getRange(hr + 1, 1, last - hr, 9).getDisplayValues() : [];
+    var lastData = 0;                                   // 수령자·연락처·주소 중 하나라도 있는 마지막 줄(상대 위치)
+    for (var j = vals.length - 1; j >= 0; j--) if (vals[j][3] !== '' || vals[j][4] !== '' || vals[j][5] !== '') { lastData = j + 1; break; }
+    var norm = function (x) { return String(x || '').replace(/\s+/g, '').toLowerCase(); };
+    var digits = function (x) { return String(x || '').replace(/\D/g, ''); };
+    // 같은 사람·같은 주소·같은 상품이 최근 줄에 이미 있으면 다시 안 넣는다(더블클릭·재시도 방지)
+    for (var k = Math.max(0, lastData - 60); k < lastData; k++) {
+      var r = vals[k];
+      if (norm(r[3]) === norm(recipient) && digits(r[4]) === digits(phone) && norm(r[5]) === norm(address) && norm(r[6]) === norm(product))
+        return json({ ok: true, dup: true, row: hr + 1 + k, sheet: tabName });
+    }
+    var target = hr + lastData + 1, ref = lastData ? hr + lastData : 0;
+    if (target > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 5);
+    var row = sh.getRange(target, 1, 1, 9);
+    if (ref) {                                          // 위 줄의 서식·드롭다운을 그대로
+      sh.getRange(ref, 1, 1, 9).copyTo(row, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+      sh.getRange(ref, 1, 1, 9).copyTo(row, SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false);
+    }
+    var dt = shipSheetDate_(ref ? sh.getRange(ref, 1) : null, now);
+    if (dt.text) sh.getRange(target, 1).setNumberFormat('@');
+    // 글자로 고정 — 이름·주소가 '='로 시작해도 수식이 되지 않고, 전화 앞자리 0 이 안 사라지게
+    sh.getRange(target, 2, 1, 8).setNumberFormat('@');
+    sh.getRange(target, 1, 1, 7).setValues([[dt.value, requester, reason, recipient, phone, address, product]]);
+    if (tracking) sh.getRange(target, 8).setValue(tracking);
+    if (notes) sh.getRange(target, 9).setValue(notes);
+    SpreadsheetApp.flush();
+    return json({ ok: true, row: target, sheet: tabName });
+  } catch (err) {
+    return json({ ok: false, error: '시트 기입 실패: ' + String(err && err.message || err).slice(0, 150) });
+  } finally {
+    try { lock.releaseLock(); } catch (e2) {}
+  }
+}
+
 function contractArchive(sess, body) {
   var brand = String((body && body.brand) || '');
   var kind = ARCHIVE_KIND[String((body && body.kind) || 'contract')];

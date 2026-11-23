@@ -3108,7 +3108,10 @@ function ShipCopyBtn({ row, product }){
 }
 
 // 출고 내용 팝업 — 대시보드 📦 출고 정보·📦 출고 탭 채널명이 같이 쓴다(2026-10-21). onDone 이 없으면(이미 완료) 완료 버튼 없음.
-function ShipInfoModal({ title, s, product, pa, infMemo, onDone, onClose }){
+function ShipInfoModal({ title, s, product, pa, infMemo, onDone, onClose, onSheet }){
+  const [sending,setSending]=useState(false);
+  const shipDone=String(s.status||'').includes('완료');
+  const canSheet=!s.sheetSentAt&&!shipDone&&onSheet&&String(s.recipient||'').trim()&&String(s.phone||'').trim()&&String(s.address||'').trim();
   const rows=[['받는 분',s.recipient],['연락처',s.phone],['주소',s.address],['상품',`${product} (${String(s.qty||'').trim()||'1'})`],['담당',pa],['요청일',s.requestDate],['상태',s.status],['송장',s.tracking],['출고 메모',s.notes],['협업 메모',infMemo]].filter(([,v])=>String(v||'').trim());
   return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
     <div className="modal" style={{maxWidth:480}}>
@@ -3118,6 +3121,10 @@ function ShipInfoModal({ title, s, product, pa, infMemo, onDone, onClose }){
         <span style={{flex:1,minWidth:0,wordBreak:'break-all',whiteSpace:'pre-wrap'}}>{v}</span>
         {['받는 분','연락처','주소','송장'].includes(k)&&<CopyBtn value={String(v)}/>}
       </div>)}
+      {(s.sheetSentAt||!shipDone)&&<div className="ship-sheet-line" style={{fontSize:12,margin:'10px 0 2px',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',color:s.sheetSentAt?'var(--muted)':(s.sheetErr?'#e74c3c':'var(--muted)')}}>
+        <span style={{flex:1,minWidth:0}}>{s.sheetSentAt?`✓ 출고 시트에 올라감 · ${s.sheetTab||''} ${s.sheetRow?s.sheetRow+'행':''} · ${s.sheetSentAt}`:(s.sheetErr?`⚠️ 출고 시트에 안 올라감 — ${s.sheetErr}`:'출고 시트에 아직 안 올라갔어요')}</span>
+        {canSheet&&<button className="btn btn-outline btn-sm ship-sheet-btn" disabled={sending} onClick={async()=>{setSending(true);try{await onSheet();}finally{setSending(false);}}}>{sending?'올리는 중…':'시트에 올리기'}</button>}
+      </div>}
       <div className="modal-foot" style={{alignItems:'center'}}>
         <span style={{display:'inline-flex',alignItems:'center',gap:6,marginRight:'auto',fontSize:12,color:'var(--muted)'}}><ShipCopyBtn row={s} product={product}/>한 번에 복사(시트 붙여넣기용)</span>
         <button className="btn btn-ghost" onClick={onClose}>닫기</button>
@@ -4391,7 +4398,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const shipUp=sp&&(()=>{ const s=sp.shipping, c=sp.contact||{};
     const opt=Object.entries(c.opt||{}).filter(([,v])=>v).map(([,v])=>v).join(' / ');
     const product=[s.product||c.product||'',opt].filter(Boolean).join(' · ')+extrasText(brand,c.extras);
-    return <ShipInfoModal title={sp.name} s={s} product={product} pa={sp.pa} infMemo={String(c.memo||'').trim()} onClose={()=>setShipPop(null)}
+    return <ShipInfoModal title={sp.name} s={s} product={product} pa={sp.pa} infMemo={String(c.memo||'').trim()} onClose={()=>setShipPop(null)} onSheet={isStaff?null:()=>A.sendShipSheet(s,product)}
       onDone={()=>A.updateShipRow(s.id,{status:'✅ 완료',shipDate:s.shipDate||today()})}/>; })();
 
   return (
@@ -4405,10 +4412,11 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       <PaTabs infs={infsAll} paFocus={paFocus} setPaFocus={setPaFocus} paList={paList}/>
       {shipPending.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4}}>
         <h3><span style={{color:'#8b5cf6'}}>📦</span> 출고 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({shipPending.length})</span></h3>
+        {!isStaff&&!String(brand.shipSheetRequester||'').trim()&&<div style={{fontSize:11,color:'#e74c3c',margin:'-4px 0 6px'}}>출고 시트 자동 기입이 멈춰 있어요 — 📦 출고 탭 위쪽 [시트 요청자]에 관리자 이름을 넣어 주세요</div>}
         {shipPending.slice(0,MAX).map(i=>{
           const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
           return <div key={i.id} className="todo-item">
-            <span className="todo-name" style={{cursor:'pointer'}} onClick={()=>setShipPop(i.id)}>{i.name}</span>
+            <span className="todo-name" style={{cursor:'pointer'}} onClick={()=>setShipPop(i.id)}>{i.name}{i.shipping.sheetErr&&!i.shipping.sheetSentAt?<span title={i.shipping.sheetErr} style={{marginLeft:6,fontSize:11,color:'#e74c3c'}}>시트 안 올라감</span>:null}</span>
             <div className="todo-right">
               {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
               <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} onClick={()=>A.updateShipRow(i.shipping.id,{status:'✅ 완료',shipDate:i.shipping.shipDate||today()})}>✓ 완료</button>
@@ -5562,7 +5570,7 @@ function HowToModal({ onClose }){
 }
 
 /* ─── SHIPPING VIEW ─── */
-function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
+function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdate, isManager, shipRequester, onSetShipRequester, onSendSheet, onDelete, onDeleteMany, onAdd, onPasteImport, filter, setFilter, search, setSearch }) {
   const [dayFilter,setDayFilter]=useState(null);
   const [monthFilter,setMonthFilter]=useState(null);
   const [reqF,setReqF]=useState(''); // 요청자 필터('' = 전체)
@@ -5647,7 +5655,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
   const openShip=shipOpen&&rows.find(r=>r.id===shipOpen);
   return <div className="view-wrap roomy-wrap">
     {openShip&&<ShipInfoModal title={openShip.channelName||chanOf(openShip.recipient)} s={openShip} product={shipLabel(openShip)} pa={openShip.requester} infMemo={s2memo[nzs(openShip.channelName)]||s2memo[nzs(openShip.recipient)]||''}
-      onClose={()=>setShipOpen(null)}
+      onClose={()=>setShipOpen(null)} onSheet={onSendSheet?()=>onSendSheet(openShip,shipLabel(openShip)):null}
       onDone={String(openShip.status||'').includes('완료')?null:()=>onUpdate(openShip.id,{status:'✅ 완료',shipDate:openShip.shipDate||today()})}/>}
     <div className="view-main roomy no-cal">
     {shipProducts.length>1&&<div className="prod-tabs">
@@ -5661,6 +5669,7 @@ function ShippingView({ brand, rows, step2Rows, reviewRows, privacyRows, onUpdat
         <option value="">요청자 전체</option>
         {reqOpts.map(p=><option key={p} value={p}>{p}</option>)}
       </select>
+      {isManager&&onSetShipRequester&&<button className="fchip ship-req-btn" title="출고 시트 B열(요청자 성함)에 들어갈 관리자 이름 — 관리자가 바뀌면 여기서 고치세요" onClick={onSetShipRequester}>시트 요청자: {shipRequester||'미설정'} ✎</button>}
       <button className={`fchip ${showColF||colFActive.length?'active':''}`} onClick={()=>setShowColF(v=>!v)} title="엑셀처럼 열마다 필터를 겁니다">열 필터{colFActive.length?` (${colFActive.length})`:''}</button>
       {colFActive.length>0&&<button className="fchip" onClick={()=>setColF({})} title="모든 열 필터 지우기">✕ 필터 초기화</button>}
       <button className="fchip" onClick={onPasteImport} title="구글 시트에서 복사한 데이터를 붙여넣어 한 번에 추가">붙여넣기로 추가</button>
@@ -8401,13 +8410,46 @@ function AppMain({ authInfo, onLogout }) {
   // 출고 탭에서 완료로 바꾸는 용도다(대시보드 '출고 정보' 칸이 이 처리중 건들을 보여준다).
   const shipKey=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
   const findShip=(rows,r,info)=>rows.findIndex(x=>(shipKey(x.channelName)&&shipKey(x.channelName)===shipKey(r.name))||(info&&info.realName&&shipKey(x.recipient)===shipKey(info.realName)&&(!x.channelName||shipKey(x.channelName)===shipKey(r.name))));
+  // 출고 요청 시트 자동 기입(2026-11-23) — 대시보드 '출고 정보'에 처리중으로 뜨는 순간(출고 행이 새로 생기거나 수령자·연락처·주소가 처음 다 채워질 때)
+  // 회사 물류 시트(데이즈 별도 출고요청 시트)의 이번 달 탭에 한 줄 보낸다. 같은 행은 한 번만(sheetSentAt), 실패하면 sheetErr 에 사유를 남기고
+  // 출고 정보 창의 [시트에 올리기]로 다시 보낸다. 요청자 성함(B열)은 출고 탭의 [시트 요청자]에 적은 관리자 이름(관리자가 바뀌면 거기서 고친다).
+  const shipComplete=x=>!!(x&&String(x.recipient||'').trim()&&String(x.phone||'').trim()&&String(x.address||'').trim());
+  const shipRequesterOf=()=>{ const bs=brandsRef.current, me=bs.find(x=>x.id===bId); return String((me&&me.shipSheetRequester)||((bs.find(x=>x.shipSheetRequester)||{}).shipSheetRequester)||'').trim(); };
+  async function sendShipToSheet(row,productLabel){
+    if(!row||row.sheetSentAt) return {ok:true,skipped:true};
+    const requester=shipRequesterOf();
+    if(!requester){ updateShipRow(row.id,{sheetErr:'요청자 성함이 아직 없어요 — 📦 출고 탭 위쪽 [시트 요청자]에서 관리자 이름을 먼저 넣어 주세요'}); setMsg('⚠️ 출고 시트에 못 올렸어요 — 출고 탭에서 시트 요청자 이름을 먼저 설정해 주세요'); return {ok:false}; }
+    const lab=cleanShipProd(String(productLabel||row.product||shipProductOf(bId)||'')), qty=String(row.qty||'').trim()||'1';
+    const res=await callApi('shipSheetAppend',{requester,reason:'협찬',recipient:row.recipient,phone:row.phone,address:row.address,product:`${lab}${shipQty(lab,qty)}`,tracking:row.tracking||'',notes:row.notes||''});
+    if(res&&res.ok){
+      updateShipRow(row.id,{sheetSentAt:rvStamp(),sheetRow:res.row||'',sheetTab:res.sheet||'',sheetErr:''});
+      setMsg(res.dup?'📦 이미 출고 시트에 있는 건이에요('+(res.sheet||'')+' '+(res.row||'')+'행)':'📦 출고 시트에 올렸어요('+(res.sheet||'')+' '+(res.row||'')+'행)');
+      return res;
+    }
+    const err=String((res&&res.error)||'시트 기입 실패'); updateShipRow(row.id,{sheetErr:err}); setMsg('⚠️ 출고 시트에 못 올렸어요 — '+err);
+    return {ok:false};
+  }
+  function setShipSheetRequester(){
+    const v=prompt('출고 시트 B열(요청자 성함)에 들어갈 관리자 이름',shipRequesterOf()); if(v===null) return;
+    const name=String(v).trim().slice(0,60);
+    setBrands(prev=>prev.map(b=>({...b,shipSheetRequester:name})));
+    immediateRef.current=true;
+  }
   function shipFromContact(r,info){
+    const b0=brandsRef.current.find(x=>x.id===bId)||{};
+    const i0=findShip(b0.shippingRows||[],r,info), before=i0>=0?b0.shippingRows[i0]:null, newId=makeId();
+    const fill={channelName:r.name||'',recipient:info.realName||'',phone:info.phone||'',address:info.address||'',qty:String(r.qty||'').trim()};   // 갯수는 상세 창 값(비면 출고 행 값·1 유지)
     updateBrand(bId,b=>{
       const rows=b.shippingRows||[]; const i=findShip(rows,r,info);
-      const fill={channelName:r.name||'',recipient:info.realName||'',phone:info.phone||'',address:info.address||'',qty:String(r.qty||'').trim()};   // 갯수는 상세 창 값(비면 출고 행 값·1 유지)
       if(i>=0) return {...b,shippingRows:rows.map((x,j)=>j!==i?x:{...x,...Object.fromEntries(Object.entries(fill).filter(([k,v])=>v||!x[k]))})};
-      return {...b,shippingRows:[...rows,{id:makeId(),requestDate:today(),requester:sanitizePA(r.pa)||'',notes:'',tracking:'',qty:'1',fromContact:'Y',status:'처리중',product:r.product||shipProductOf(bId),...fill,qty:fill.qty||'1'}]};
+      return {...b,shippingRows:[...rows,{id:newId,requestDate:today(),requester:sanitizePA(r.pa)||'',notes:'',tracking:'',qty:'1',fromContact:'Y',status:'처리중',product:r.product||shipProductOf(bId),...fill,qty:fill.qty||'1'}]};
     });
+    const after=before?{...before,...Object.fromEntries(Object.entries(fill).filter(([k,v])=>v||!before[k]))}
+      :{id:newId,requestDate:today(),requester:sanitizePA(r.pa)||'',notes:'',tracking:'',qty:'1',fromContact:'Y',status:'처리중',product:r.product||shipProductOf(bId),...fill,qty:fill.qty||'1'};
+    if(shipComplete(after)&&!shipComplete(before)&&!after.sheetSentAt&&!String(after.status||'').includes('완료')){
+      const opt=Object.entries(r.opt||{}).filter(([,v])=>v).map(([,v])=>v).join(' / ');
+      sendShipToSheet(after,[after.product||r.product||'',opt].filter(Boolean).join(' · ')+extrasText(b0,r.extras));
+    }
   }
   // 되돌리기 — 상세 창이 만든 행이고 송장이 아직 없으면 지우고, 아니면 '처리중'으로 되돌린다(송장·주소 기록은 남김)
   function unshipFromContact(r){
@@ -8842,7 +8884,7 @@ function AppMain({ authInfo, onLogout }) {
   const moreTabs=visibleTabs.filter(t=>!PRIMARY_TABS.has(t.key));
   const activeMore=moreTabs.find(t=>t.key===tab);
   // 대시보드 '→' 빠른 처리가 쓰는 원본 조작 함수 — 기존 탭과 같은 함수
-  const infA={updateStep1Row,updateStep2Row,updateClaudeS2Row,updateShipRow,addShipRow,updateReviewRow,ensureReviewRow,setInfSettledByName,deleteRowsMany,
+  const infA={updateStep1Row,updateStep2Row,updateClaudeS2Row,updateShipRow,sendShipSheet:sendShipToSheet,addShipRow,updateReviewRow,ensureReviewRow,setInfSettledByName,deleteRowsMany,
     openPrivacy:setPrivacyModalRow,
     addContact:(inf,patch)=>{ if(inf.step1){ const b0=brandsRef.current.find(x=>x.id===bId)||{}; const dup=findListupDup(b0,inf.step1,{step1Id:inf.step1.id});
       if(dup.level==='block'&&!confirm('⚠️ 이미 담당자가 있는 인플루언서예요.\n\n'+dupText(dup)+'\n\n그래도 진행할까요?')) return; }
@@ -9014,6 +9056,7 @@ function AppMain({ authInfo, onLogout }) {
         reviewRows={brand.reviewRows||[]}
         privacyRows={brand.privacyRows||[]}
         onUpdate={updateShipRow}
+        isManager={isManager} shipRequester={shipRequesterOf()} onSetShipRequester={setShipSheetRequester} onSendSheet={sendShipToSheet}
         onDelete={deleteShipRow}
         onDeleteMany={ids=>deleteRowsMany('shippingRows',ids)}
         onAdd={()=>setModal('addShip')}
