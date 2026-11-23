@@ -89,6 +89,9 @@ const val = (sh, r, c) => (sh._grid[r] && sh._grid[r][c - 1] ? sh._grid[r][c - 1
   // 같은 건 다시 → 중복으로 안 넣음
   const again = run({ [tab]: sh }, base);
   chk(again.ok && again.dup === true && again.row === 7 && sh.getLastRow() === 7, '같은 건 재요청 → 중복으로 안 넣음', again);
+  // 상품 문구만 달라도(수동으로 먼저 옮겨 적은 건) 같은 사람·연락처·주소면 중복
+  const diffProd = run({ [tab]: sh }, { ...base, product: '구르미차렵 · 블루 (1)' });
+  chk(diffProd.ok && diffProd.dup === true && sh.getLastRow() === 7, '상품 문구가 달라도 같은 사람·연락처·주소면 중복', diffProd);
   // 다른 사람 → 8행
   const res2 = run({ [tab]: sh }, { ...base, recipient: '박다른', phone: '010-9999-0000' });
   chk(res2.ok && res2.row === 8, '다른 사람은 그 다음 줄(8행)', res2);

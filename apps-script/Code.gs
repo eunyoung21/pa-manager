@@ -869,10 +869,10 @@ function shipSheetAppend(sess, body) {
     for (var j = vals.length - 1; j >= 0; j--) if (vals[j][3] !== '' || vals[j][4] !== '' || vals[j][5] !== '') { lastData = j + 1; break; }
     var norm = function (x) { return String(x || '').replace(/\s+/g, '').toLowerCase(); };
     var digits = function (x) { return String(x || '').replace(/\D/g, ''); };
-    // 같은 사람·같은 주소·같은 상품이 최근 줄에 이미 있으면 다시 안 넣는다(더블클릭·재시도 방지)
+    // 같은 사람·같은 연락처·같은 주소가 최근 줄(60줄)에 이미 있으면 다시 안 넣는다(더블클릭·재시도·수동으로 먼저 옮겨 적은 건 방지 — 상품 문구가 조금 달라도 걸러야 중복 출고가 안 난다)
     for (var k = Math.max(0, lastData - 60); k < lastData; k++) {
       var r = vals[k];
-      if (norm(r[3]) === norm(recipient) && digits(r[4]) === digits(phone) && norm(r[5]) === norm(address) && norm(r[6]) === norm(product))
+      if (norm(r[3]) === norm(recipient) && digits(r[4]) === digits(phone) && norm(r[5]) === norm(address))
         return json({ ok: true, dup: true, row: hr + 1 + k, sheet: tabName });
     }
     var target = hr + lastData + 1, ref = lastData ? hr + lastData : 0;
