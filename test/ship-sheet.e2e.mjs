@@ -128,20 +128,22 @@ chk(calls().length === 1 && calls()[0].requester === '이은영' && calls()[0].r
 chk(calls()[0].product === '해트케 압력이불 (1)' && calls()[0].address.includes('ship_a') && !calls()[0].tracking, '상품명(수량)·주소 · 송장 비어 있음', calls()[0]);
 chk(!!SR('ship_a').sheetSentAt && SR('ship_a').sheetRow === 7 && !SR('ship_a').sheetErr, '출고 행에 올라간 시각·행 번호 기록', SR('ship_a'));
 pop = await evalJs("document.querySelector('.ship-sheet-line')?.innerText||''");
-chk(pop.includes('올라감') && !pop.includes('시트에 올리기'), '창에 ✓ 올라감 표시, 버튼 사라짐', pop);
-await evalJs("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='닫기').click()"); await wait(300);
+chk(SR('ship_a').status === '✅ 완료' && !!SR('ship_a').shipDate, '시트에 올라가면 상태가 ✅ 완료로 바뀜(출고일 기록)', SR('ship_a'));
+chk(!(await evalJs("!!document.querySelector('.ship-sheet-line')")), '완료되면 출고 정보 창은 닫힘');
+const shipBox = await evalJs("(()=>{const b=[...document.querySelectorAll('.todo-box')].find(x=>x.textContent.includes('출고 정보'));return b?b.innerText:''})()");
+chk(!shipBox.includes('ship_a'), '대시보드 출고 정보 목록에서 빠짐', shipBox);
 // 4) 요청자 있을 때는 완료 순간 자동 전송
 await doShip('ship_b', '이다라');
 chk(calls().length === 2 && calls()[1].recipient === '이다라', '제품 발송 완료 순간 자동으로 시트에 전송', calls().length);
-chk(!!SR('ship_b').sheetSentAt, '자동 전송된 행에도 기록');
+chk(!!SR('ship_b').sheetSentAt && SR('ship_b').status === '✅ 완료', '자동 전송된 행도 기록 + 자동으로 완료 처리', SR('ship_b'));
 // 5) 실패(탭 없음 등) → 사유 저장 · 목록 표시 · 나중에 다시 올리기
 global.__sheetMode = 'fail';
 await doShip('ship_c', '박마바');
-chk(calls().length === 3 && !SR('ship_c').sheetSentAt && SR('ship_c').sheetErr === '이번 달 탭이 없어요', '실패하면 사유 저장·미기록', SR('ship_c'));
+chk(calls().length === 3 && !SR('ship_c').sheetSentAt && SR('ship_c').sheetErr === '이번 달 탭이 없어요' && SR('ship_c').status === '처리중', '실패하면 사유 저장·미기록·완료 처리 안 함(처리중 유지)', SR('ship_c'));
 global.__sheetMode = 'ok';
 await click('.todo-item .todo-name', 'ship_c'); await wait(800);
 await evalJs("document.querySelector('.ship-sheet-btn').click()"); await wait(4500);
-chk(calls().length === 4 && !!SR('ship_c').sheetSentAt && !SR('ship_c').sheetErr, '다시 올리기 성공 → 기록·사유 지움', SR('ship_c'));
+chk(calls().length === 4 && !!SR('ship_c').sheetSentAt && !SR('ship_c').sheetErr && SR('ship_c').status === '✅ 완료', '다시 올리기 성공 → 기록·사유 지움·완료 처리', SR('ship_c'));
 // 6) 이미 올라간 건 다시 보내지 않음(같은 행에 버튼 없음)
 await evalJs("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='닫기')?.click()");
 chk(calls().length === 4, '총 4번만 전송(중복 없음)', calls().length);
