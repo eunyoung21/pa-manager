@@ -300,35 +300,6 @@ tr:hover td.del-end .row-del-x{opacity:.7;}
 
 /* ACCESS LOG */
 .log-page{flex:1 1 0;overflow-y:auto;padding:16px;}
-.rpt-seg{display:inline-flex;gap:2px;}
-.rpt-seg button{background:none;border:0;color:var(--muted);font-size:12px;padding:3px 10px;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;}
-.rpt-seg button.on{color:var(--text,#e5e5e5);border-bottom-color:var(--text,#e5e5e5);font-weight:600;}
-.rpt-link{color:inherit;text-decoration:underline dotted;text-underline-offset:3px;}
-.rpt-link:hover{text-decoration:underline;}
-.rpt-weeks{display:flex;flex-wrap:wrap;gap:4px 6px;margin:4px 0 16px;}
-.rpt-weeks button{font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;border-bottom-width:1px;}
-.rpt-weeks button.on{border-color:var(--text,#e5e5e5);}
-.rpt-ins{margin:0 0 26px;padding:16px 0 4px;border-top:1px solid var(--border);font-size:13.5px;line-height:1.8;}
-.rpt-ins summary{cursor:pointer;font-weight:700;font-size:14.5px;margin-bottom:4px;}
-.rpt-ins .b{font-size:12.5px;color:var(--muted);margin:4px 0 12px;}
-.rpt-ins ul{margin:0;padding:0;list-style:none;}
-.rpt-ins li{display:flex;gap:14px;padding:7px 0;border-top:1px solid var(--border);}
-.rpt-ins li:first-child{border-top:0;}
-.rpt-ins .lv{flex:0 0 44px;font-size:12.5px;color:var(--muted);}
-.rpt-ins .lv.grow{color:var(--text,#e5e5e5);font-weight:700;}
-.rpt-ins .lv.cut{color:var(--red);font-weight:700;}
-.rpt-kpis{display:flex;gap:36px;flex-wrap:wrap;margin-bottom:22px;}
-.rpt-kl{font-size:11px;color:var(--muted);margin-bottom:3px;}
-.rpt-kv{font-size:20px;font-weight:700;}
-.rpt-table{border-collapse:collapse;font-size:12.5px;width:100%;min-width:1150px;}
-.rpt-table th,.rpt-table td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;}
-.rpt-th{font-size:11px;font-weight:500;color:var(--muted);cursor:pointer;user-select:none;}
-.rpt-th.on{color:var(--text,#e5e5e5);}
-.rpt-grp{font-size:11px;font-weight:500;color:var(--muted);text-align:center!important;border-bottom:1px solid var(--border);}
-.rpt-sub{font-size:10.5px;color:var(--muted);}
-.rpt-ch{margin-left:7px;font-size:11px;color:var(--muted);}
-.rpt-wkrow td{background:var(--surface2);padding:11px 10px;font-size:12.5px;border-top:1px solid var(--border);}
-.rpt-wksum{margin-left:12px;font-size:11.5px;color:var(--muted);}
 .log-table{width:100%;border-collapse:collapse;}
 .log-table th{padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--thead-fg);border-bottom:1px solid var(--border);background:var(--thead-bg);position:sticky;top:0;}
 .log-table td{padding:6px 10px;font-size:11px;border-bottom:1px solid var(--border);font-family:monospace;}
@@ -785,60 +756,70 @@ a.menu-item{display:block;}
 .ship-t td{vertical-align:middle;}
 .ship-t .cell-val.empty>span{opacity:0!important;}
 .ship-t .row-del-btn{opacity:1;color:var(--muted);font-size:18px;}
-/* ── 리포트 정리 (2026-11-17) ── */
-.rpt{word-break:keep-all;}
-.rpt-ins2{margin:6px 0 26px;}
-.rpt-ins2 h3{font-size:18px;margin:0 0 4px;}
-.rpt-ins2 .b{font-size:14px;color:var(--muted);margin:0 0 14px;}
-.rpt-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:12px;}
-.rpt-card{background:#fff;border:1px solid var(--border);border-left:5px solid var(--ok);border-radius:6px;padding:14px 18px;}
-.rpt-card.cut{border-left-color:var(--red);}
-.rpt-card .tg{display:inline-block;font-size:13px;font-weight:700;border-radius:4px;padding:1px 9px;margin-bottom:6px;background:#e4f2e9;color:var(--ok);}
-.rpt-card.cut .tg{background:#f7e2e2;color:var(--red);}
-.rpt-card .m{font-size:14px;line-height:1.65;color:var(--text);}
-.rpt-card .a{margin-top:8px;font-size:14px;font-weight:700;}
+/* ── 리포트 (2026-11-23 정리): 상자·색 막대 없이 선과 여백으로 ── */
+.rpt{word-break:keep-all;font-size:14px;}
+.rpt-top{display:flex;align-items:baseline;gap:6px 14px;flex-wrap:wrap;}
+.rpt-top b{font-size:16px;}
+.rpt-top .upd{margin-left:auto;font-size:12.5px;color:var(--muted);}
+.rpt-top .upd.stale{color:var(--red);}
+.rpt-top .upd button{background:none;border:0;padding:0;margin-left:6px;font:inherit;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;}
+.rpt-seg{display:flex;flex-wrap:wrap;align-items:center;gap:0 20px;}
+.rpt-seg button{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;padding:9px 0;margin:0;font:inherit;font-size:14px;color:var(--muted);cursor:pointer;}
+.rpt-seg button:hover{color:var(--text);}
+.rpt-seg button.on{color:var(--text);font-weight:700;border-bottom-color:var(--text);}
+.rpt-weeks{border-bottom:1px solid var(--border);margin:10px 0 0;}
+.rpt-prods{border-bottom:0;margin:8px 0 0;gap:0 16px;}
+.rpt-prods button{font-size:13px;padding:2px 0;}
+.rpt-wsel{font:inherit;font-size:14px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:9px 0;color:var(--muted);cursor:pointer;}
+.rpt-wsel.on{color:var(--text);font-weight:700;border-bottom-color:var(--text);}
+.rpt-ins2{margin:28px 0 8px;}
+.rpt-ins2 h3{font-size:15px;margin:0 0 3px;}
+.rpt-ins2 .b{font-size:12.5px;color:var(--muted);margin:0 0 8px;}
+.rpt-irow{display:grid;grid-template-columns:44px minmax(0,1fr);gap:3px 14px;padding:11px 0;border-top:1px solid var(--border);}
+.rpt-irow .k{font-size:13px;font-weight:700;color:var(--muted);}
+.rpt-irow.grow .k{color:var(--ok);}
+.rpt-irow.cut .k{color:var(--red);}
+.rpt-irow .m{line-height:1.65;}
+.rpt-irow .a{grid-column:2;font-size:13px;color:var(--muted);}
 .rpt-sub2{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.6;}
-.rpt-dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:10px 0 4px;font-size:14px;}
+.rpt-dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:8px 0 2px;font-size:13px;}
 .rpt-dl dt{color:var(--muted);white-space:nowrap;}
-.rpt-dl dd{margin:0;font-weight:700;line-height:1.55;}
-.rpt-fold{background:#fff;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;}
-.rpt-fold>summary{list-style:none;cursor:pointer;padding:12px 16px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;}
+.rpt-dl dd{margin:0;line-height:1.55;}
+.rpt-fold{border-top:1px solid var(--border);}
+.rpt-fold>summary{list-style:none;cursor:pointer;padding:11px 0;font-size:13px;color:var(--muted);}
 .rpt-fold>summary::-webkit-details-marker{display:none;}
-.rpt-fold>summary::before{content:'+';width:22px;height:22px;border:1px solid #aab0ab;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-weight:400;font-size:16px;}
-.rpt-fold[open]>summary::before{content:'−';}
-.rpt-fold ul{margin:0;padding:0 16px 12px;list-style:none;font-size:14px;color:var(--muted);}
-.rpt-fold li{padding:7px 0;border-top:1px solid var(--border);line-height:1.6;}
-.rpt-kpis2{display:grid;grid-template-columns:1.5fr repeat(4,1fr);gap:12px;margin:0 0 26px;}
-.rpt-kpis2 .k{background:#fff;border:1px solid var(--border);border-radius:6px;padding:14px 18px;}
-.rpt-kpis2 .k small{display:block;font-size:13px;color:var(--muted);margin-bottom:2px;}
-.rpt-kpis2 .k b{font-size:24px;font-weight:700;}
-.rpt-kpis2 .k.main b{font-size:40px;line-height:1.1;}
-.rpt-kpis2 .cmp{font-size:14px;font-weight:700;margin-top:4px;color:var(--muted);}
-.roas-danger{color:#ef4444;font-weight:700;}
-.roas-warn{color:#f59e0b;}
-.roas-good{color:#22c55e;font-weight:700;}
-.roas-na{color:#8a93a0;}
-.rpt-roas.roas-warn{font-weight:400;}
+.rpt-fold ul{margin:0;padding:0 0 8px;list-style:none;font-size:13px;color:var(--muted);}
+.rpt-fold li{padding:6px 0;line-height:1.6;}
+.rpt-kpis2{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 40px;margin:24px 0 8px;}
+.rpt-kpis2 .k small{display:block;font-size:12.5px;color:var(--muted);margin-bottom:3px;}
+.rpt-kpis2 .k b{font-size:20px;font-weight:700;}
+.rpt-kpis2 .k.main b{font-size:44px;line-height:1;}
+.rpt-kpis2 .cmp{font-size:13px;margin-top:6px;color:var(--muted);}
 .rpt-kpis2 .cmp.good{color:var(--ok);}
 .rpt-kpis2 .cmp.bad{color:var(--red);}
-.rpt-tbar{display:flex;margin:0 0 10px;}
-.rpt-tbar .btn{height:36px;border:1px solid #aab0ab;background:#fff;font-size:14px;}
-.rpt-table th,.rpt-table td{padding:13px 14px;font-size:14px;}
-.rpt-th{font-size:13px;font-weight:700;color:var(--muted);}
-.rpt-nm{font-weight:700;font-size:15px;}
-.rpt-nm .rpt-link{text-decoration:none;}
-.rpt-nm .rpt-link:hover{text-decoration:underline;}
-.rpt-ch2{font-size:13px;color:var(--muted);margin-top:3px;}
-.rpt-roas{font-weight:700;font-size:16px;display:block;}
-.mute{color:#8a93a0;}
-.rpt-fsub{display:block;font-size:12px;color:#8a93a0;font-weight:400;}
-.rpt-live{display:inline-flex;align-items:center;gap:7px;font-weight:700;}
-.rpt-live i{width:9px;height:9px;border-radius:50%;display:inline-block;}
-.rpt-weeks button{font-size:14px;padding:8px 14px;}
-.rpt-wsel{height:38px;font-size:14px;border:1px solid var(--border);border-radius:6px;background:#fff;padding:0 10px;color:var(--text);}
-.rpt-wsel.on{border-color:var(--text);font-weight:700;}
-.rpt-wksum{font-size:13px;}
-@media (max-width:768px){.rpt-kpis2{grid-template-columns:1fr 1fr;}}
+.roas-danger{color:var(--red);font-weight:700;}
+.roas-warn{color:var(--text);}
+.roas-good{color:var(--ok);font-weight:700;}
+.roas-na{color:var(--dim);}
+.rpt-tbar{display:flex;margin:14px 0 6px;}
+.rpt-tbar .btn{background:none;border:0;padding:0;height:auto;font-size:13px;color:var(--muted);text-decoration:underline;text-underline-offset:3px;}
+.rpt-table{border-collapse:collapse;width:100%;}
+.rpt-table th,.rpt-table td{padding:12px;font-size:14px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.rpt-th{font-size:12.5px!important;font-weight:400;color:var(--muted);cursor:pointer;user-select:none;}
+.rpt-th.on{color:var(--text);font-weight:700;}
+.rpt-nm{font-weight:700;font-size:14.5px;}
+.rpt-link{color:inherit;text-decoration:none;}
+.rpt-link:hover{text-decoration:underline;}
+.rpt-ch2{font-size:12.5px;color:var(--muted);margin-top:2px;}
+.rpt-roas{font-weight:700;font-size:15px;}
+.rpt-roas.roas-warn{font-weight:400;}
+.rpt-roas.few{color:var(--dim);font-weight:400;}
+.mute{color:var(--dim);}
+.rpt-live{display:inline-flex;align-items:center;gap:6px;}
+.rpt-live i{width:7px;height:7px;border-radius:50%;display:inline-block;}
+.rpt-wkrow td{text-align:left;padding:18px 12px 8px;font-size:14px;}
+.rpt-wksum{margin-left:12px;font-size:13px;color:var(--muted);}
+.rpt-note{margin-top:22px;padding-top:12px;border-top:1px solid var(--border);font-size:13px;color:var(--muted);line-height:1.75;}
 @media (min-width:769px){
   .step-tab{padding:11px 16px;}
 }
@@ -7360,19 +7341,21 @@ function ReportInsights({ins,weekKey}){
   return <div className="rpt-ins2">
     <h3>섭외 확장 제안</h3>
     <div className="b">{cur.basis}{weeks.length>1&&' · 그 주까지 쌓인 데이터 기준'}</div>
-    {acts.length>0&&<div className="rpt-cards">{acts.map((l,i)=>{ const g=parseGood(l.text);
+    {acts.length>0&&<div>{acts.map((l,i)=>{ const g=parseGood(l.text);
       if(g){ const ac=g.act.split(/(?<=[.요])\s+/).filter(Boolean);
-        return <div key={i} className={'rpt-card '+l.kind}><span className="tg">{RPT_IL[l.kind]||''}</span>
-          <div className="m"><b>잘된 {g.n}명이 보여주는 범위</b></div>
-          {g.crit&&<div className="rpt-sub2">{g.crit.replace(/,\s*/g,' · ')}</div>}
-          {g.names&&<div className="rpt-sub2">{g.names}</div>}
-          <dl className="rpt-dl">{g.rows.map((r,j)=><React.Fragment key={j}><dt>{r.k}</dt><dd>{r.v}</dd></React.Fragment>)}</dl>
-          {ac[0]&&<div className="a">→ {ac[0].replace(/\.$/,'')}</div>}
-          {ac.slice(1).map((x,j)=><div key={j} className="rpt-sub2">{x}</div>)}
+        return <div key={i} className={'rpt-irow '+l.kind}><span className="k">{RPT_IL[l.kind]||''}</span>
+          <div>
+            <div className="m">잘된 {g.n}명이 보여주는 범위</div>
+            {g.crit&&<div className="rpt-sub2">{g.crit.replace(/,\s*/g,' · ')}</div>}
+            {g.names&&<div className="rpt-sub2">{g.names}</div>}
+            <dl className="rpt-dl">{g.rows.map((r,j)=><React.Fragment key={j}><dt>{r.k}</dt><dd>{r.v}</dd></React.Fragment>)}</dl>
+          </div>
+          {ac[0]&&<div className="a">{ac[0].replace(/\.$/,'')}</div>}
+          {ac.slice(1).map((x,j)=><div key={j} className="a">{x}</div>)}
         </div>; }
       const [m,a]=split(l.text);
-      return <div key={i} className={'rpt-card '+l.kind}><span className="tg">{RPT_IL[l.kind]||''}</span><div className="m">{m}</div>{a&&<div className="a">→ {a}</div>}</div>; })}</div>}
-    {notes.length>0&&<details className="rpt-fold"><summary>참고 {notes.length}건</summary><ul>{notes.map((l,i)=><li key={i}>{l.text}</li>)}</ul></details>}
+      return <div key={i} className={'rpt-irow '+l.kind}><span className="k">{RPT_IL[l.kind]||''}</span><div className="m">{m}</div>{a&&<div className="a">{a}</div>}</div>; })}</div>}
+    {notes.length>0&&<details className="rpt-fold"><summary>참고 {notes.length}건 보기 +</summary><ul>{notes.map((l,i)=><li key={i}>{l.text}</li>)}</ul></details>}
   </div>;
 }
 
@@ -7467,15 +7450,15 @@ function ReportView({brand}) {
     if(sortK==='name') return String(a.name).localeCompare(String(b.name),'ko');
     if(sortK==='setAt'){ if(!a.setAt&&!b.setAt) return (b.cost||0)-(a.cost||0); if(!a.setAt) return 1; if(!b.setAt) return -1; return b.setAt.localeCompare(a.setAt)||(b.cost||0)-(a.cost||0); }
     const av=a[sortK],bv=b[sortK]; if(av==null&&bv==null) return 0; if(av==null) return 1; if(bv==null) return -1; return bv-av;});
-  const th=(k,label,right=true)=><th className={'rpt-th'+(sortK===k?' on':'')} style={{textAlign:right?'right':'left'}} onClick={()=>setSortK(k)}>{label}</th>;
+  const th=(k,label,right=true)=><th className={'rpt-th'+(sortK===k?' on':'')} style={{textAlign:right?'right':'left'}} onClick={()=>setSortK(k)}>{label}{sortK===k&&k!=='name'?' ↓':''}</th>;
   const plain=(label,left)=><th className="rpt-th" style={{textAlign:left?'left':'right',cursor:'default'}}>{label}</th>;
   const Kpi=({l,v})=><div><div className="rpt-kl">{l}</div><div className="rpt-kv">{v}</div></div>;
   // 열 순서: 직접ROAS → 직접전환 → 직접전환값 → 비용 → (세팅일/집행주) → [매체 신고값 보기 때만] 매출·전환·CPA·ROAS·담기당비용·직접CPA
   const MetricHead=({tail})=><>{th('dRoas','직접ROAS')}{th('dc','직접전환')}{th('da','직접전환값')}{th('cost','비용')}{tail}
     {showMedia&&<>{th('rev','매출')}{th('conv','전환')}{th('cpa','CPA')}{th('roas','ROAS')}{th('atcCost','담기당비용')}{th('dCpa','직접CPA')}</>}</>;
-  // 색은 액션툴과 같게(roasCls). 전환이 5건 미만이면 숫자 아래에 «표본 적음»만 작게 붙인다.
+  // 색은 사이트 팔레트로 통일. 전환이 5건 미만이면 숫자를 회색으로(마우스를 올리면 이유가 보임).
   const RoasCell=({r})=>{ const v=r.dRoas; const few=!(r.dc>=5);
-    return <td><span className={'rpt-roas '+roasCls(v)}>{v==null||!(v>0)?'–':pct(v)}</span>{few&&<span className="rpt-fsub">{'전환 '+(r.dc||0)+'건 · '+(r.dc?'표본 적음':'판단 보류')}</span>}</td>; };
+    return <td><span className={'rpt-roas '+roasCls(v)+(few?' few':'')} title={few?('전환 '+(r.dc||0)+'건 · '+(r.dc?'표본 적음':'판단 보류')):''}>{v==null||!(v>0)?'–':pct(v)}</span></td>; };
   const MetricCells=({r,tail})=><><RoasCell r={r}/><td>{won(r.dc)}</td><td>{won(r.da)}</td><td>{won(r.cost)}</td>{tail}
     {showMedia&&<><td>{won(r.rev)}</td><td>{won(r.conv)}</td><td>{won(r.cpa)}</td><td>{pct(r.roas)}</td><td>{won(r.atcCost)}</td><td>{won(r.dCpa)}</td></>}</>;
   // 맨 위 요약: 직접ROAS를 가장 크게, 그 구간 누적 평균(제안의 «직접ROAS NN%»)과 비교
@@ -7514,9 +7497,9 @@ function ReportView({brand}) {
   const insAvg=(()=>{ const c=rptInsCur(meta.insights&&meta.insights[brand?.name],insWeek); const m=c&&String(c.basis||'').match(/직접ROAS\s*(\d+)%/); return m?Number(m[1]):null; })();
 
   return <div className="log-page rpt">
-    <div style={{display:'flex',alignItems:'baseline',gap:14,flexWrap:'wrap',marginBottom:6}}>
-      <span style={{fontWeight:700,fontSize:15}}>{brand?.name} 리포트</span>
-      <button className="btn btn-ghost" style={{fontSize:11,marginLeft:'auto'}} onClick={load}>새로고침</button>
+    <div className="rpt-top">
+      <b>{brand?.name} 리포트</b>
+      <span className={'upd'+(staleDays!=null&&staleDays>9?' stale':'')}>{updated?`갱신 ${updated.toLocaleDateString('ko-KR')} ${updated.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`:'아직 올라온 데이터가 없어요'}{staleDays!=null&&staleDays>9&&' — 자동 갱신이 멈춘 것 같아요'}<button onClick={load}>새로고침</button></span>
     </div>
     <div className="rpt-seg rpt-weeks" style={{flexWrap:'wrap',marginBottom:8}}>
       <button className={span==='w'?'on':''} onClick={()=>goSpan('w')}>이번 주{wk&&wk.start?` ${md(wk.start)}~${md(wk.end)}`:''}</button>
@@ -7533,10 +7516,6 @@ function ReportView({brand}) {
       <button className={prod==='__none'?'on':''} onClick={()=>setProd('__none')}>제품 미상</button>
     </div>}
     {hasProd&&prod&&<div style={{fontSize:12.5,color:'var(--muted)',margin:'0 0 8px'}}>{prod==='__none'?'제품이 적히지 않은 사람':prod} 기준으로 보고 있어요 — 두 제품을 맡은 사람은 양쪽에 잡혀요. 아래 «섭외 확장 제안»은 제품 구분 없이 브랜드 전체 기준이에요.</div>}
-    <div style={{fontSize:11,color:staleDays!=null&&staleDays>9?'var(--red)':'var(--muted)',marginBottom:14}}>
-      {updated?`갱신 ${updated.toLocaleDateString('ko-KR')} ${updated.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`:'아직 올라온 데이터가 없어요'}
-      {staleDays!=null&&staleDays>9&&' — 자동 갱신이 멈춘 것 같아요'}
-    </div>
 
     <ReportInsights ins={meta.insights&&meta.insights[brand?.name]} weekKey={insWeek}/>
     {span==='w'&&<>
@@ -7599,10 +7578,9 @@ function ReportView({brand}) {
         {h.gaps.length>0&&<div style={{fontSize:11,color:'var(--muted)',marginTop:12}}>빠진 구간(액션툴에 기록이 없어요): {h.gaps.join(', ')}</div>}
       </>)}
 
-    <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.8,marginTop:14}}>
-      · 직접 값은 cafe24 직접전환(소재명 기준), 매체 신고값은 매체가 주장하는 값이라 보통 더 커요. 손익 판단은 직접 값으로 하세요.<br/>
-      · 라이브는 지금 광고가 켜져 있는지(ON) 꺼졌는지(OFF)예요. 이전 데이터의 라이브도 «지금» 상태예요.<br/>
-      · 이전 데이터는 그 주를 수집한 시점의 값이에요. 표본이 적은 칸(전환 15건 미만)은 순위로 결론내지 마세요.
+    <div className="rpt-note">
+      직접 값은 cafe24 직접전환 기준이고, 매체 신고값은 보통 더 커요. 손익 판단은 직접 값으로 하세요.<br/>
+      회색 ROAS는 전환 5건 미만이라 참고만 하세요. 라이브는 «지금» 광고가 켜져 있는지(ON)·꺼졌는지(OFF)예요.
     </div>
   </div>;
 }

@@ -111,7 +111,9 @@ chk(a && a[5] === '1,000,000' && a[7] === '1,500,000' && a[8] === '10' && a[9] =
 chk(a && a[12] === '125,000' && a[2] === '80%' && a[3] === '8' && a[4] === '800,000', '염지윤 직접 지표: 직접CPA 125,000 · 직접ROAS 80% · 전환수 8 · 전환값 800,000', a);
 chk(a && a[0].includes('yjy') && a[1] === 'ON' && a[6] === '11-03', '이름 옆에 채널명(yjy) · 라이브 ON · 세팅일 11-03', a);
 const b = await cells('양형석');
-chk(b && b[9] === '–' && b[12] === '–' && b[2].startsWith('–') && b[2].includes('판단 보류') && b[1] === 'OFF' && b[0].includes('yhs'), '전환 0건: CPA는 –(0으로 나누지 않음), 직접ROAS는 회색 – + 판단 보류, 라이브 OFF, 채널 yhs', b);
+chk(b && b[9] === '–' && b[12] === '–' && b[2].startsWith('–') && b[1] === 'OFF' && b[0].includes('yhs'), '전환 0건: CPA는 –(0으로 나누지 않음), 직접ROAS는 –, 라이브 OFF, 채널 yhs', b);
+const tipB = await evalJs(`(()=>{const tr=[...document.querySelectorAll('.rpt-table tbody tr')].find(x=>x.children[0].querySelector('.rpt-nm')?.textContent==='양형석');const s=tr.querySelector('.rpt-roas');return s.className+'|'+s.title})()`);
+chk(tipB.includes('few') && tipB.includes('판단 보류'), '전환 5건 미만 ROAS는 회색(few) + 마우스를 올리면 이유(판단 보류)', tipB);
 const t = await page();
 chk(t.includes('1,800,000') /* 합계 비용 */ && t.includes('3명') && /직접 ROAS\s+44%/.test(t), '합계: 비용 180만 · 직접ROAS 800,000/1,800,000=44% (게시 링크 없는 사람 포함, 사람당 한 번)', t.slice(0, 300));
 // 광고 없는 인원도 보기는 이번 주 화면에서 먼저
