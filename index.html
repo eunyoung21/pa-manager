@@ -5484,7 +5484,7 @@ function FinderView({ brand, brands, onAddListing, onAddAuto }){
         const have=haveFor(products.includes(product)?product:'');
         const seen=new Set();
         const rows=all.filter(r=>{const u=String(r&&r.username||'').toLowerCase();if(!u||have.has(u)||seen.has(u))return false;seen.add(u);return true;})
-          .map(r=>({name:String(r.name||r.username),username:String(r.username),link:String(r.link||`https://www.instagram.com/${r.username}/`),followers:String(r.followers||''),memo:String(r.memo||''),...(products.includes(product)?{product}:{})}));
+          .map(r=>({name:String(r.name||r.username),username:String(r.username),link:String(r.link||`https://www.instagram.com/${r.username}/`),followers:String(r.followers||''),memo:String(r.memo||''),...(r.pa?{pa:String(r.pa)}:{}),...(products.includes(product)?{product}:{})}));
         if(rows.length)(e.data.to==='auto'?onAddAuto:onAddListing)(rows);
         e.source.postMessage({type:'pa-added',to:e.data.to,added:rows.length,skipped:all.length-rows.length},ORIGIN);
       }
@@ -8246,11 +8246,11 @@ function AppMain({ authInfo, onLogout }) {
   // 🔎 인플루언서 찾기 결과 → 🟡 리스팅 목록(검수대기) / 🤖 자동화(컨택 전)
   function addFinderListing(list){
     const td=today();
-    updateBrand(bId,b=>({...b,step1Rows:[...(b.step1Rows||[]),...list.map(r=>({id:makeId(),date:td,pa:'',reviewStatus:'검수대기',name:r.name,username:r.username,link:r.link,followers:r.followers,persona:'',memo:r.memo,promotedToStep2:false,...(r.product?{product:r.product}:{})}))]}));
+    updateBrand(bId,b=>({...b,step1Rows:[...(b.step1Rows||[]),...list.map(r=>({id:makeId(),date:td,pa:r.pa||'',reviewStatus:'검수대기',name:r.name,username:r.username,link:r.link,followers:r.followers,persona:'',memo:r.memo,promotedToStep2:false,...(r.product?{product:r.product}:{})}))]}));
   }
   function addFinderAuto(list){
     const td=today();
-    updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...list.map(r=>({id:makeId(),date:td,name:r.name,username:r.username,link:r.link,followers:r.followers,pa:'',category:nicheOf([r.name,r.memo].join(' '))||'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:r.memo,...(r.product?{product:r.product}:{})}))]}));
+    updateBrand(bId,b=>({...b,claudeStep2Rows:[...(b.claudeStep2Rows||[]),...list.map(r=>({id:makeId(),date:td,name:r.name,username:r.username,link:r.link,followers:r.followers,pa:r.pa||'',category:nicheOf([r.name,r.memo].join(' '))||'',contactStatus:'컨택 전',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:r.memo,...(r.product?{product:r.product}:{})}))]}));
   }
   // 컨택현황에 빈 행 추가 — 직접 인플루언서 입력용.
   // 🤖 자동화 탭 직접 추가(팝업, 2026-10-22) — 여러 명·중복 확인·제품. 담당 PA는 고른 경우에만.

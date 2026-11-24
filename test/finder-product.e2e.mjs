@@ -160,6 +160,18 @@ await wait(1800);
 const s2 = H().step2Rows.find((r) => r.name === 'fresh_a');
 chk(s2 && s2.product === 'A', '진행 중(step2) 행에 제품 A 유지', s2 && { product: s2.product, name: s2.name });
 
+console.log('\n[담당 PA 한 번에 지정] 리스트업 창이 rows 에 pa 를 실어 보내면 리스팅·자동화 둘 다 그 담당으로 들어간다');
+await click('.step-tab', '인플루언서 찾기');
+await waitFor(`!!document.querySelector('iframe[title="리스트업"]')`, '찾기 iframe 다시'); await wait(800);
+await go('listing', [{ ...R('own_l1'), pa: '박민선' }, { ...R('own_l2'), pa: '박민선' }, R('own_l3')], 'A'); await wait(1500);
+const ol = ['own_l1', 'own_l2', 'own_l3'].map((u) => H().step1Rows.find((r) => r.username === u));
+chk(ol[0]?.pa === '박민선' && ol[1]?.pa === '박민선', '리스팅: 지정한 사람 전부 담당 박민선', ol.map((r) => r && r.pa));
+chk(ol[2] && ol[2].pa === '', '리스팅: 지정 안 한 사람은 담당 빈칸 그대로', ol[2] && ol[2].pa);
+await go('auto', [{ ...R('own_a1'), pa: '안민영' }, R('own_a2')], 'A'); await wait(1500);
+const oa = ['own_a1', 'own_a2'].map((u) => H().claudeStep2Rows.find((r) => r.username === u));
+chk(oa[0]?.pa === '안민영', '자동화: 지정한 사람은 담당 안민영', oa.map((r) => r && r.pa));
+chk(oa[1] && oa[1].pa === '', '자동화: 지정 안 한 사람은 담당 빈칸 그대로', oa[1] && oa[1].pa);
+
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close(); finder.close();
 process.exit(fail ? 1 : 0);
