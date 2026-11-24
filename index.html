@@ -5287,7 +5287,6 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
         <a className="s2p-help" href="https://app.modusign.co.kr/esign/documents/documents" target="_blank" rel="noopener" style={{margin:0}}>문서함 ↗</a>
       </div>
       <div className="s2p-hr"/>
-      {r.contractSent&&<div className="s2p-next"><b>{r.contractSent} 모두싸인 발송함.</b> 상대가 서명하면 완료본이 드라이브에 저장되면서 <b>계약 완료가 자동으로 표시</b>돼요(발송기가 켜진 PC 어디서든). 급하면 아래 <b>계약완료</b>를 직접 눌러도 돼요.</div>}
       <button className="btn btn-primary s2p-final" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),rate:f.rate.trim(),realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()})}>계약완료</button>
       <div className="s2p-quit"><span>진행을 그만두려면</span>{reject}</div></>;
   }
