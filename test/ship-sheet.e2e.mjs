@@ -149,6 +149,8 @@ await click('button', '출고'); await wait(1500);
 let notice = await evalJs("document.querySelector('.ship-notice')?.innerText||''");
 chk(notice.includes('출고 시트에 정상 기입됐어요') && notice.includes('ship_b'), '출고 탭 위쪽에 정상 기입 알림', notice);
 chk(notice.includes('못 올라간 건 1건') && notice.includes('ship_c'), '못 올라간 건은 따로 경고', notice);
+chk(notice.includes('ship_b_압력_' + EXPECT) && notice.includes('ship_a_압력_' + EXPECT), '알림에 오늘 올라간 건 전부 한 줄씩: 채널명_제품약칭_출고요청일', notice);
+chk(/오늘 2건/.test(notice), '오늘 건수 표시(2건)', notice);
 // 달력: 출고·영상검수 탭 오른쪽에 달력 패널, 날짜 누르면 그날 건만
 chk(await evalJs("!!document.querySelector('.cal-sidebar')"), '출고 탭에 달력 패널');
 const rowsBefore = await evalJs("document.querySelectorAll('.ship-t tbody tr:not(.add-row)').length");
