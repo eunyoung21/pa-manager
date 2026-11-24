@@ -95,7 +95,7 @@ const J2 = JSON.stringify;
 const P = (id, name, x) => S2(id, name, name, { dmSent: 'Y', replied: 'Y', approved: 'Y', dealDone: 'Y', pa: '안민영', contactStatus: '진행중', product: '해트케 압력이불', ...x });
 savedData = { paList: ['안민영'], brands: [{ ...EMPTY, id: 'hatke', name: '해트케', products: ['해트케 압력이불'],
   step2Rows: [
-    P('a', 'need_contract', { shippingDone: '✅ 완료', contractDone: '미완료' }),
+    P('a', 'need_contract', { shippingDone: '✅ 완료', contractDone: '미완료', contractSent: '26.11.20' }),
     P('b', 'need_ship', { shippingDone: '미완료', contractDone: '미완료' }),
     P('c', 'contract_done', { shippingDone: '✅ 완료', contractDone: '✅ 완료' }),
     P('f', 'review_only', { shippingDone: '미완료', contractDone: '미완료' }),
@@ -107,6 +107,7 @@ await click('.brand-tab', '해트케'); await wait(2000);
 let cb = await boxText('계약서 정보');
 chk(cb.includes('need_contract') && !cb.includes('need_ship') && !cb.includes('contract_done'), '계약서 정보 상자에는 계약서 보낼 사람만', cb);
 chk(cb.includes('(1)'), '상자 제목에 건수(1)', cb.slice(0, 60));
+chk(cb.includes('✉ 발송 11/20'), '모두싸인으로 보낸 사람은 이름 옆에 작게 «✉ 발송 11/20»', cb);
 chk(!cb.includes('review_only'), '영상검수 행만 있고 제품 발송이 안 끝난 사람은 계약서 상자에 안 뜸', cb);
 chk(!cb.includes('undecided_price'), '검토 요청 중(단가·조건 미정)인 사람은 계약서 상자에서 빠짐', cb);
 const boss = await boxText('관리자 할 일');
@@ -119,6 +120,8 @@ await evalJs("(()=>{const b=[...document.querySelectorAll('.todo-box')].find(x=>
 cb = await boxText('계약서 정보');
 chk(cb === '', '계약 완료(→) 누르면 상자에서 사라짐', cb);
 chk(savedData.brands[0].step2Rows.find((r) => r.id === 'a').contractDone === '✅ 완료', '그 사람은 계약 완료로 저장됨', savedData.brands[0].step2Rows.find((r) => r.id === 'a').contractDone);
+await click('button', '수기리스트업'); await wait(1500); await click('button', '협업성사'); await wait(1200);
+chk(await evalJs("[...document.querySelectorAll('.ms-sent')].some(x=>x.textContent.includes('✉'))"), '컨택현황 표의 채널명 옆에도 발송 표시');
 console.log(fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과');
 ws.close(); chrome.kill(); server.close(); finder.close();
 process.exit(fail ? 1 : 0);

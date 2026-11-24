@@ -2610,6 +2610,14 @@ function aliasHit(idx,q,names){
   const qn=aliasKey(q);
   return aliasNames(idx,...names).some(n=>String(n).toLowerCase().includes(q)||(qn&&aliasKey(n).includes(qn)));
 }
+function ContractSentTag({c}){
+  if(!c||!c.contractSent) return null;
+  const m=String(c.contractSent).match(/(\d{1,2})[.\-/](\d{1,2})$/);
+  const day=m?parseInt(m[1])+'/'+parseInt(m[2]):String(c.contractSent);
+  const done=c.contractDone==='✅ 완료';
+  return <span className="ms-sent" title={done?'모두싸인 계약서 서명까지 끝났어요':'모두싸인으로 계약서를 보냈어요('+c.contractSent+(c.contractSentBy?' · '+c.contractSentBy:'')+') — 상대 서명을 기다리는 중'}
+    style={{fontSize:10,color:done?'var(--green)':'var(--muted)',marginLeft:6,whiteSpace:'nowrap',fontWeight:400}}>✉ {done?'완료':'발송 '+day}</span>;
+}
 function today()  { return normDate(new Date().toLocaleDateString('ko-KR',{year:'2-digit',month:'2-digit',day:'2-digit'})); }
 // 출고일자 — 낮 12시(한국 시간) 이후에 처리한 출고는 다음 날 나간다(2026-11-24 사용자). 구글 출고 시트의 출고요청일(Code.gs shipSheetAppend)도 같은 규칙.
 // 출고 알림용 제품 약칭 — '해트케 압력이불' → '압력' (2026-11-24). 모르는 제품은 이름 그대로.
@@ -4254,7 +4262,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
     const canAdv=act.canNext(i,isStaff);
     const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
     return <div key={i.id} className="todo-item" onClick={()=>openInf(i)}>
-      <span style={{minWidth:0,flex:1}}><span className="todo-name" style={{display:'block'}}>{i.name}</span>
+      <span style={{minWidth:0,flex:1}}><span className="todo-name" style={{display:'block'}}>{i.name}<ContractSentTag c={i.contact}/></span>
         {memoLine(i.contact&&i.contact.memo)&&<div className="memo-line" title={i.contact.memo}>{memoLine(i.contact.memo)}</div>}</span>
       <div className="todo-right">
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
@@ -5432,7 +5440,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
     return <tr className={selOn?'sel-on':''}>
       <td className="del-col"><span style={{display:'inline-flex',alignItems:'center',gap:3}}>
         <input type="checkbox" className="sel-box" checked={!!selOn} onChange={()=>H.current.selToggle(r.id)} title="선택"/></span></td>
-      <td data-label="채널명" className="auto-ch"><span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>{r.product?<span className="prod-badge">{r.product}</span>:null}
+      <td data-label="채널명" className="auto-ch"><span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>{r.product?<span className="prod-badge">{r.product}</span>:null}<ContractSentTag c={r}/>
         {memoLine(r.memo)&&<div className="memo-line" title={r.memo}>{memoLine(r.memo)}</div>}</td>
       <td data-label="진행 상태">{ek
         ?<span className="end-chip" title={r.rejectDate?'종료 '+r.rejectDate:''} style={{background:END_KINDS[ek]+'22',color:END_KINDS[ek]}}>{ek}</span>
@@ -5457,7 +5465,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
                 <input type="checkbox" className="sel-box" checked={!!selOn} onChange={()=>H.current.selToggle(r.id)} title="선택"/>
                 {/* 🚫 거절 버튼은 뺐다(2026-09-22) — 거절은 승인 칸의 N으로 */}
               </span></td>
-              <td data-label="채널명"><span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>{r.product?<span className="prod-badge">{r.product}</span>:null}
+              <td data-label="채널명"><span className="ch-link" title="눌러서 상세 보기 (이름 수정도 상세에서)" onClick={()=>H.current.open(r.id)}>{r.name}</span>{r.product?<span className="prod-badge">{r.product}</span>:null}<ContractSentTag c={r}/>
                 {endKind(r)&&<span className="end-chip" style={{marginLeft:6,background:END_KINDS[endKind(r)]+'22',color:END_KINDS[endKind(r)]}}>{endKind(r)}</span>}
                 {memoLine(r.memo)&&<div className="memo-line" title={r.memo}>{memoLine(r.memo)}</div>}</td>
               <td data-label="담당 PA" style={{whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
