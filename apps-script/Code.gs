@@ -900,6 +900,42 @@ function shipSheetAppend(sess, body) {
   }
 }
 
+/* ── 서명 완료 → 계약 완료 자동 표시 (2026-11-24) ─────────────────
+   모두싸인 발송기가 서명 완료본을 브랜드 드라이브에 올리면(contractArchive) 같은 순간에 그 사람 행의
+   「계약 완료」(contractDone ✅ 완료 · 계약일 · 계약서 링크)도 서버가 직접 표시한다. 발송기가 어느 PC에서 돌든 결과가 같다.
+   사람 찾기: 채널명(name) 일치 → 여러 명이면 본명 → 그래도 여럿이면 제품으로 좁힌다. 한 명으로 못 좁히면 건드리지 않는다.
+   이미 계약 완료인 행은 날짜·링크만 비어 있을 때 채운다. 단계(stage)는 광고코드 이전일 때만 '광고코드'로 올린다(앱의 계약 완료 버튼과 같음). */
+var STAGE_BEFORE_ADCODE = { '': 1, listup: 1, dm: 1, replied: 1, ship: 1, contract: 1 };
+function markContractDone_(brandId, channel, realName, product, url, signedAt) {
+  var nz = adNz;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, reason: 'busy' };
+  try {
+    var d = readData(), b = null;
+    for (var i = 0; i < (d.brands || []).length; i++) if (d.brands[i].id === brandId) { b = d.brands[i]; break; }
+    if (!b) return { ok: false, reason: 'brand' };
+    var rows = [].concat(b.step2Rows || [], b.claudeStep2Rows || []);
+    var hit = rows.filter(function (r) { return nz(r.name) && nz(r.name) === nz(channel); });
+    if (!hit.length && realName) hit = rows.filter(function (r) { return nz(r.realName) && nz(r.realName) === nz(realName); });
+    if (hit.length > 1 && realName) { var h2 = hit.filter(function (r) { return nz(r.realName) === nz(realName); }); if (h2.length) hit = h2; }
+    if (hit.length > 1 && product) { var h3 = hit.filter(function (r) { return nz(r.product) === nz(product); }); if (h3.length) hit = h3; }
+    if (hit.length !== 1) return { ok: false, reason: hit.length ? 'ambiguous' : 'nomatch' };
+    var r = hit[0], changed = false;
+    var signed = '';
+    if (signedAt) { var t = new Date(signedAt); if (!isNaN(t.getTime())) signed = Utilities.formatDate(t, 'Asia/Seoul', 'yy.MM.dd'); }
+    if (r.contractDone !== '✅ 완료') { r.contractDone = '✅ 완료'; changed = true; }
+    if (r.contractBack) { r.contractBack = ''; changed = true; }
+    if (!r.contractDate) { r.contractDate = signed || todayDisp(); changed = true; }
+    if (url && !r.contractUrl) { r.contractUrl = url; changed = true; }
+    if (STAGE_BEFORE_ADCODE[String(r.stage || '')]) { r.stage = 'adcode'; changed = true; }
+    if (!changed) return { ok: true, already: true };
+    var rev = writeData(d);
+    return { ok: true, marked: true, rev: rev, name: r.name };
+  } catch (e) {
+    return { ok: false, reason: String(e && e.message || e).slice(0, 120) };
+  } finally { try { lock.releaseLock(); } catch (x) {} }
+}
+
 function contractArchive(sess, body) {
   var brand = String((body && body.brand) || '');
   var kind = ARCHIVE_KIND[String((body && body.kind) || 'contract')];
@@ -919,7 +955,8 @@ function contractArchive(sess, body) {
     d: dateFromName(base) || todayDisp().replace(/[^0-9]/g, '') };
 
   var prev = findArchived(sub, memo);
-  if (prev.same) return json({ ok: true, url: prev.same.getUrl(), name: prev.same.getName(), dup: true });
+  if (prev.same) return json({ ok: true, url: prev.same.getUrl(), name: prev.same.getName(), dup: true,
+    mark: memo.k === 'contract' && body.signed ? markContractDone_(brand, memo.c, memo.r, product, prev.same.getUrl(), body.signedAt) : null });
   // 계약서는 보낸 파일과 같은 표준형으로 이름을 맞춘다: 드래프터_광고모델_홍길동_2026년08월06일.docx
   // (본명이나 브랜드를 모르면 올린 이름 그대로 — 사람이 알아볼 단서를 지우지 않는다)
   var std = memo.k === 'contract' ? standardContractName(brand, memo.r, memo.d) : '';
@@ -942,7 +979,8 @@ function contractArchive(sess, body) {
   }
   if (!saved) return json({ error: 'no source' });
   try { saved.setDescription(JSON.stringify(memo)); } catch (e) {}
-  return json({ ok: true, url: saved.getUrl(), name: fname });
+  return json({ ok: true, url: saved.getUrl(), name: fname,
+    mark: memo.k === 'contract' && body.signed ? markContractDone_(brand, memo.c, memo.r, product, saved.getUrl(), body.signedAt) : null });
 }
 
 /* ── 계약서 메일 발송 ────────────────────────────────────────

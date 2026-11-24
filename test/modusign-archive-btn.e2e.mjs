@@ -92,7 +92,7 @@ async function openApp(){
   await S('Page.navigate',{url:`http://127.0.0.1:${PORT}/`});
   await waitFor(`[...document.querySelectorAll('button')].some(b=>b.textContent.includes('영상검수'))`,'앱 로딩');
   await clickText('영상검수');
-  await waitFor(`document.querySelector('.toolbar')&&document.querySelector('.toolbar').innerText.includes('드라이브')`,'검수 툴바');
+  await waitFor(`document.querySelector('.toolbar')&&document.querySelector('.toolbar').innerText.includes('미정산')`,'검수 툴바');
   await wait(300);
 }
 
@@ -105,7 +105,7 @@ chk(!bar.includes('계약서 수집') && !(await evalJs(`!!document.querySelecto
 archReply={ok:true,last:{at:'x',checked:3,saved:[{name:'최진영',drive:true,err:''},{name:'김우진',drive:true,err:''}]}};
 calls=0; await click(); await waitMsg('건 가져옴','가져옴 표시');
 chk(calls===1, '브리지 /archive?run=1 한 번 부름', calls);
-chk((await msg()).includes('2건 가져옴: 최진영, 김우진'), '가져온 건수·이름 표시', await msg());
+chk((await msg()).includes('2건 가져옴(계약 완료 자동 표시): 최진영, 김우진'), '가져온 건수·이름 표시(계약 완료 자동 표시 안내 포함)', await msg());
 chk(await evalJs(`document.querySelector('${BTN}').disabled`)===false, '끝나면 다시 누를 수 있음');
 
 archReply={ok:true,last:{at:'x',checked:4,saved:[]}};

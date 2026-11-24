@@ -5218,14 +5218,15 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
       try{
         const built=await buildBrandContract(brand,r,{name,fee,date,phone,addr:f.address.trim(),rrn:f.rrn.trim()});
         const dataUrl=await bytesToDataUrl(built.bytes, built.type);
-        await sendModusign({ name, method:'KAKAO', to:phone, data:dataUrl, title:built.filename.replace(/\.docx$/i,''),
+        const msTitle=built.filename.replace(/\.docx$/i,'');
+        await sendModusign({ name, method:'KAKAO', to:phone, data:dataUrl, title:msTitle,
           needRrn:!f.rrn.trim(), needAddr:!f.address.trim(), needPhone:false,
           // 라벨 = '<브랜드>_협찬'(브리지가 찾고 없으면 만듦) · 직인 = '<회사>_사용인감'(회사 = 브랜드 설정, 없으면 파일명 앞)
           brand:(brand&&brand.name)||'', seal:sealCompanyOf(brand),
           by:(getAuth()||{}).username||'',
           // 서명 완료되면 발송기가 완료본을 이 브랜드 드라이브 「계약서파일」에 올린다(contractArchive) — 그때 쓸 주소·로그인
           pa:{ api:API, token:(getAuth()||{}).token||'', brandId:(brand&&brand.id)||'', channel:r.name||'', product:String(r.product||'').trim() } });
-        upd({realName:name,phone,address:f.address.trim(),rate:f.rate.trim(),contractDate:f.contractDate.trim()||today(),contractSent:today()});
+        upd({realName:name,phone,address:f.address.trim(),rate:f.rate.trim(),contractDate:f.contractDate.trim()||today(),contractSent:today(),contractTitle:msTitle,contractSentAt:new Date().toISOString(),contractSentBy:(getAuth()||{}).username||''});   // 제목·보낸 사람·시각 = 어느 PC 에서든 서명 완료본을 찾아 자동 보관·계약 완료 표시하는 단서(2026-11-24)
         setMsMsg({ok:`${name} 님에게 모두싸인 서명 요청을 보냈습니다.`});
       }catch(e){ setMsMsg({err:'모두싸인 발송 실패: '+(e&&e.message||e)}); }
       finally{ setMsBusy(false); }
@@ -5278,7 +5279,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
         <a className="s2p-help" href="https://app.modusign.co.kr/esign/documents/documents" target="_blank" rel="noopener" style={{margin:0}}>문서함 ↗</a>
       </div>
       <div className="s2p-hr"/>
-      {r.contractSent&&<div className="s2p-next"><b>{r.contractSent} 모두싸인 발송함.</b> 상대가 서명하면 아래 <b>계약완료</b>를 누르세요.</div>}
+      {r.contractSent&&<div className="s2p-next"><b>{r.contractSent} 모두싸인 발송함.</b> 상대가 서명하면 완료본이 드라이브에 저장되면서 <b>계약 완료가 자동으로 표시</b>돼요(발송기가 켜진 PC 어디서든). 급하면 아래 <b>계약완료</b>를 직접 눌러도 돼요.</div>}
       <button className="btn btn-primary s2p-final" onClick={()=>upd({contractBack:'',contractDone:'✅ 완료',contractDate:f.contractDate.trim()||today(),rate:f.rate.trim(),realName:f.realName.trim(),phone:f.phone.trim(),address:f.address.trim()})}>계약완료</button>
       <div className="s2p-quit"><span>진행을 그만두려면</span>{reject}</div></>;
   }
@@ -6196,20 +6197,24 @@ function ReviewChecklist({ brand, isManager, onSave }){
 function ModusignArchiveBtn({ isManager }){
   const [msg,setMsg]=useState('');
   const [busy,setBusy]=useState(false);
+  // 이 PC 발송기가 PA 의 «모두싸인 발송함»(어느 PC 에서 보냈든)을 읽으려면 PA 로그인 정보가 필요하다 — 발송기가 켜져 있으면 조용히 넘겨 둔다(꺼져 있으면 무시)
+  const pushAuth=()=>{ const a=getAuth()||{}; if(!a.token) return Promise.resolve(); return fetch(MS_BRIDGE+'/pa-auth',{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({api:API,token:a.token,by:a.username||''})}).catch(()=>{}); };
+  useEffect(()=>{ if(isManager) pushAuth(); },[isManager]);
   if(!isManager) return null;
   async function go(){
     if(busy) return;
     setBusy(true); setMsg('모두싸인 문서함 확인 중…');
     let j=null;
-    try{ j=await (await fetch(MS_BRIDGE+'/archive?run=1')).json(); }
+    try{ await pushAuth(); j=await (await fetch(MS_BRIDGE+'/archive?run=1')).json(); }
     catch(e){ setBusy(false); setMsg(MS_BRIDGE_DOWN); return; }
     setBusy(false);
     const last=j&&j.last;
     if(!j||j.error||!last){ setMsg('실패 — '+((j&&j.error)||'응답 없음')); return; }
     if(last.error){ setMsg('실패 — '+last.error); return; }
     const saved=last.saved||[], bad=saved.filter(x=>x.err);
-    if(!saved.length){ setMsg(`새로 서명 끝난 계약서 없음 (서명 기다리는 ${last.checked||0}건)`); return; }
-    setMsg(`${saved.length}건 가져옴: ${saved.map(x=>x.name).join(', ')}`
+    const ps=last.paSync||{}, psNote=ps.added?` · PA 발송함에서 ${ps.added}건 추가 확인`:ps.error?` · ⚠ PA 발송함 읽기 실패(${String(ps.error).slice(0,40)})`:'';
+    if(!saved.length){ setMsg(`새로 서명 끝난 계약서 없음 (서명 기다리는 ${last.checked||0}건)${psNote}`); return; }
+    setMsg(`${saved.length}건 가져옴(계약 완료 자동 표시): ${saved.map(x=>x.name).join(', ')}${psNote}`
       +(bad.length?` · 드라이브 실패 ${bad.length}건(${bad[0].err}) — PC 「완료계약서」 폴더엔 저장됨`:''));
   }
   return <>
