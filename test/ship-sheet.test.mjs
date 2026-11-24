@@ -13,6 +13,8 @@ const Utilities = {
   formatDate(d, tz, pat) {
     const y = tzParts(d, { year: 'numeric' }), m = Number(tzParts(d, { month: 'numeric' })), dd = Number(tzParts(d, { day: 'numeric' }));
     const p2 = (n) => ('0' + n).slice(-2);
+    const hh = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: 'numeric', hourCycle: 'h23' }).format(d));
+    if (pat === 'H') return String(hh);
     return pat.replace('yyyy', y).replace('MM', p2(m)).replace('dd', p2(dd)).replace(/\bM\b/, String(m)).replace(/\bd\b/, String(dd));
   },
   parseDate(s) { return new Date(s + 'T00:00:00+09:00'); },
@@ -57,9 +59,11 @@ function build({ dateAsText, rows = 2, headerAt = 4 } = {}) {
 let fail = 0;
 const chk = (c, m, extra) => { console.log((c ? '  PASS ' : '  FAIL ') + m + (c || extra === undefined ? '' : '  -> ' + JSON.stringify(extra))); if (!c) fail++; };
 
-function run(sheets, body, { openThrows } = {}) {
+function run(sheets, body, { openThrows, at } = {}) {
+  const RealDate = Date;
+  const FakeDate = at ? class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(at); } static now() { return new RealDate(at).getTime(); } static [Symbol.hasInstance](x) { return x instanceof RealDate; } } : RealDate;
   const ctx = {
-    console, Utilities, Date, String, Number, Math, JSON, Object, Array, RegExp, Error, Intl,
+    console, Utilities, Date: FakeDate, String, Number, Math, JSON, Object, Array, RegExp, Error, Intl,
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => ({ t, setMimeType() { return this; } }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: () => '' }) },
@@ -73,13 +77,28 @@ function run(sheets, body, { openThrows } = {}) {
   return JSON.parse(ctx.shipSheetAppend({}, body).t);
 }
 const month = Number(tzParts(new Date(), { month: 'numeric' }));
+// 오늘(한국 날짜) 오전 1시 — 이 검사들은 돌리는 시각(낮 12시 전후)에 흔들리지 않게 고정
+const MORNING = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }) + 'T01:00:00+09:00');
 const tab = `출고요청(${month}월)`;
 const base = { requester: '이은영', recipient: '김모델', phone: '010-1234-5678', address: '부산시 해운대구 1', product: '해트케 압력이불 (1)', reason: '협찬' };
 const val = (sh, r, c) => (sh._grid[r] && sh._grid[r][c - 1] ? sh._grid[r][c - 1].v : '');
 
+// 0) 낮 12시(한국 시간) 이후면 출고요청일이 다음 날 — 11:59 는 오늘, 12:00 은 내일, 월말은 다음 달 1일(2026-11-24)
+{
+  const dstr = (sh) => Utilities.formatDate(val(sh, 7, 1), 'x', 'yyyy-MM-dd');
+  const t = (iso) => new Date(iso);
+  let sh = build(); let res = run({ [tab]: sh }, base, { at: t('2026-11-24T11:59:00+09:00') });
+  chk(res.ok && dstr(sh) === '2026-11-24' && res.date === '2026-11-24', '오전 11:59 요청 → 출고요청일 오늘(24일)', [res, dstr(sh)]);
+  sh = build(); res = run({ [tab]: sh }, base, { at: t('2026-11-24T12:00:00+09:00') });
+  chk(res.ok && dstr(sh) === '2026-11-25' && res.date === '2026-11-25', '낮 12:00 요청 → 출고요청일 다음 날(25일)', [res, dstr(sh)]);
+  sh = build(); res = run({ [tab]: sh }, base, { at: t('2026-11-24T23:30:00+09:00') });
+  chk(res.ok && dstr(sh) === '2026-11-25', '밤 23:30 요청 → 25일', dstr(sh));
+  sh = build({ dateAsText: true }); res = run({ [tab]: sh }, base, { at: t('2026-11-24T15:00:00+09:00') });
+  chk(res.ok && val(sh, 7, 1) === '2026. 11. 25', '글자 날짜 시트도 다음 날(2026. 11. 25)', val(sh, 7, 1));
+}
 // 1) 날짜 셀 시트: 맨 아래(머리글 4행 + 데이터 2줄 → 7행)에 들어감
 {
-  const sh = build(); const res = run({ [tab]: sh }, base);
+  const sh = build(); const res = run({ [tab]: sh }, base, { at: MORNING });
   chk(res.ok && res.row === 7 && !res.dup, '맨 아래 빈 줄(7행)에 추가', res);
   chk(val(sh, 7, 4) === '김모델' && val(sh, 7, 5) === '010-1234-5678' && val(sh, 7, 6) === '부산시 해운대구 1' && val(sh, 7, 7) === '해트케 압력이불 (1)', 'D~G 수령자·연락처·주소·상품명');
   chk(val(sh, 7, 2) === '이은영' && val(sh, 7, 3) === '협찬', 'B 요청자 성함 · C 사유(협찬)');
@@ -103,7 +122,7 @@ const val = (sh, r, c) => (sh._grid[r] && sh._grid[r][c - 1] ? sh._grid[r][c - 1
 }
 // 3) 글자 날짜 시트: 위 줄과 같은 모양('2026. 11. 22' → '2026. 11. dd')
 {
-  const sh = build({ dateAsText: true }); const res = run({ [tab]: sh }, base);
+  const sh = build({ dateAsText: true }); const res = run({ [tab]: sh }, base, { at: MORNING });
   const y = tzParts(new Date(), { year: 'numeric' }), d = Number(tzParts(new Date(), { day: 'numeric' }));
   chk(res.ok && val(sh, 7, 1) === `${y}. ${month}. ${d}`, '글자 날짜는 위 줄과 같은 모양(2026. 11. N)으로', val(sh, 7, 1));
   chk(sh._grid[7][0].fmt === '@', '글자 날짜 칸은 글자 서식(날짜로 안 바뀜)');

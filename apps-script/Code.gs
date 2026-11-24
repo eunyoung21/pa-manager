@@ -882,7 +882,9 @@ function shipSheetAppend(sess, body) {
       sh.getRange(ref, 1, 1, 9).copyTo(row, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
       sh.getRange(ref, 1, 1, 9).copyTo(row, SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false);
     }
-    var dt = shipSheetDate_(ref ? sh.getRange(ref, 1) : null, now);
+    // 낮 12시(한국 시간) 이후에 올리는 출고는 다음 날 나간다 → 출고요청일(A열)을 다음 날로(2026-11-24). 탭은 지금 달 그대로.
+    var at = Number(Utilities.formatDate(now, 'Asia/Seoul', 'H')) >= 12 ? new Date(now.getTime() + 24 * 3600 * 1000) : now;
+    var dt = shipSheetDate_(ref ? sh.getRange(ref, 1) : null, at);
     if (dt.text) sh.getRange(target, 1).setNumberFormat('@');
     // 글자로 고정 — 이름·주소가 '='로 시작해도 수식이 되지 않고, 전화 앞자리 0 이 안 사라지게
     sh.getRange(target, 2, 1, 8).setNumberFormat('@');
@@ -890,7 +892,7 @@ function shipSheetAppend(sess, body) {
     if (tracking) sh.getRange(target, 8).setValue(tracking);
     if (notes) sh.getRange(target, 9).setValue(notes);
     SpreadsheetApp.flush();
-    return json({ ok: true, row: target, sheet: tabName });
+    return json({ ok: true, row: target, sheet: tabName, date: Utilities.formatDate(at, 'Asia/Seoul', 'yyyy-MM-dd') });
   } catch (err) {
     return json({ ok: false, error: '시트 기입 실패: ' + String(err && err.message || err).slice(0, 150) });
   } finally {

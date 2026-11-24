@@ -33,7 +33,7 @@ const server = http.createServer((req, res) => {
     if (b.action === 'users' || b.action === 'logs') return send({ ok: true, users: [], logs: [] });
     if (b.action === 'get') return send({ ok: true, data: savedData, rev });
     if (b.action === 'rev') return send({ ok: true, rev });
-    if (b.action === 'shipSheetAppend') { global.__calls = global.__calls || []; global.__calls.push(b); if (global.__sheetMode === 'fail') return send({ ok: false, error: '이번 달 탭이 없어요' }); return send({ ok: true, row: 6 + global.__calls.length, sheet: '출고요청(11월)' }); }
+    if (b.action === 'shipSheetAppend') { global.__calls = global.__calls || []; global.__calls.push(b); if (global.__sheetMode === 'fail') return send({ ok: false, error: '이번 달 탭이 없어요' }); return send({ ok: true, row: 6 + global.__calls.length, sheet: '출고요청(11월)', ...(global.__serverDate ? { date: global.__serverDate } : {}) }); }
     if (b.action === 'save') { savedData = b.data; rev++; return send({ ok: true, rev }); }
     return send({ ok: true });
   });
@@ -81,6 +81,9 @@ async function waitFor(expr, label, ms = 25000) {
     if (Date.now() - t0 > ms) throw new Error('시간초과: ' + label);
     await new Promise((r) => setTimeout(r, 250)); }
 }
+// 낮 12시(한국 시간) 이후면 출고일자·출고요청일이 다음 날(2026-11-24) — 돌리는 시각에 맞춰 기대값을 계산
+const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })); if (kst.getHours() >= 12) kst.setDate(kst.getDate() + 1);
+const EXPECT = String(kst.getFullYear()).slice(2) + '.' + String(kst.getMonth() + 1).padStart(2, '0') + '.' + String(kst.getDate()).padStart(2, '0');
 let fail = 0;
 const chk = (c, m, extra) => { console.log((c ? '  PASS ' : '  FAIL ') + m + (c || extra === undefined ? '' : '  -> ' + JSON.stringify(extra))); if (!c) fail++; };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -140,9 +143,29 @@ chk(!!SR('ship_b').sheetSentAt && SR('ship_b').status === '✅ 완료', '자동 
 global.__sheetMode = 'fail';
 await doShip('ship_c', '박마바');
 chk(calls().length === 3 && !SR('ship_c').sheetSentAt && SR('ship_c').sheetErr === '이번 달 탭이 없어요' && SR('ship_c').status === '처리중', '실패하면 사유 저장·미기록·완료 처리 안 함(처리중 유지)', SR('ship_c'));
+chk(SR('ship_b').shipDate === EXPECT && SR('ship_b').requestDate === EXPECT, '출고일자·출고요청일 = 낮 12시 이후면 다음 날(' + EXPECT + ')', [SR('ship_b').shipDate, SR('ship_b').requestDate]);
+// 출고 탭 위쪽 알림: 올라간 건 초록 / 못 올라간 건 주황
+await click('button', '출고'); await wait(1500);
+let notice = await evalJs("document.querySelector('.ship-notice')?.innerText||''");
+chk(notice.includes('출고 시트에 정상 기입됐어요') && notice.includes('ship_b'), '출고 탭 위쪽에 정상 기입 알림', notice);
+chk(notice.includes('못 올라간 건 1건') && notice.includes('ship_c'), '못 올라간 건은 따로 경고', notice);
+// 달력: 출고·영상검수 탭 오른쪽에 달력 패널, 날짜 누르면 그날 건만
+chk(await evalJs("!!document.querySelector('.cal-sidebar')"), '출고 탭에 달력 패널');
+const rowsBefore = await evalJs("document.querySelectorAll('.ship-t tbody tr:not(.add-row)').length");
+await evalJs("document.querySelector('.cal-sidebar .cal-day.has-data')?.click()"); await wait(500);
+const rowsDay = await evalJs("document.querySelectorAll('.ship-t tbody tr:not(.add-row)').length");
+chk(rowsBefore >= 1 && rowsDay >= 1 && rowsDay <= rowsBefore, '출고 달력 날짜를 누르면 그날 건만 보임', [rowsBefore, rowsDay]);
+await evalJs("document.querySelector('.cal-toggle').click()"); await wait(300);
+chk(!(await evalJs("!!document.querySelector('.cal-sidebar')")), '달력 접기 버튼', 0);
+await evalJs("document.querySelector('.cal-toggle').click()"); await wait(300);
+await click('button', '영상검수'); await wait(1500);
+chk(await evalJs("!!document.querySelector('.cal-sidebar')"), '영상검수 탭에도 달력 패널');
+await click('button', '대시보드'); await wait(1500);
+global.__serverDate = '2030-01-02';
 global.__sheetMode = 'ok';
 await click('.todo-item .todo-name', 'ship_c'); await wait(800);
 await evalJs("document.querySelector('.ship-sheet-btn').click()"); await wait(4500);
+chk(SR('ship_c').shipDate === '30.01.02' && SR('ship_c').requestDate === '30.01.02', '서버가 쓴 날짜(res.date)를 출고일자·출고요청일로 그대로 사용', [SR('ship_c').shipDate, SR('ship_c').requestDate]);
 chk(calls().length === 4 && !!SR('ship_c').sheetSentAt && !SR('ship_c').sheetErr && SR('ship_c').status === '✅ 완료', '다시 올리기 성공 → 기록·사유 지움·완료 처리', SR('ship_c'));
 // 6) 이미 올라간 건 다시 보내지 않음(같은 행에 버튼 없음)
 await evalJs("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='닫기')?.click()");
