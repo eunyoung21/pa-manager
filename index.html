@@ -3839,7 +3839,7 @@ function AddStep1Modal({ onConfirm, onCancel, brand, mode }) {
                 <td style={{...cell,fontSize:11,color:'var(--muted)',paddingTop:9}}>{i+1}</td>
                 <td style={{...cell,width:'17%'}}><input className="modal-inp" style={inp} value={r.name} onChange={ur(r.key,'name')} placeholder={igHandle(r.link)||(i===0?'@계정명':'')} autoFocus={i===0}/></td>
                 <td style={{...cell,width:'27%'}}><input className="modal-inp" style={inp} value={r.link} onChange={ur(r.key,'link')} onPaste={onPasteLinks(r.key)} placeholder={i===0?'https://www.instagram.com/...':''}/></td>
-                <td style={{...cell,width:'9%'}}><input className="modal-inp" style={inp} value={r.followers} onChange={ur(r.key,'followers')} placeholder={i===0?'12,400':''}/></td>
+                <td style={{...cell,width:'9%'}}><input className="modal-inp" style={inp} value={fmtMoney(r.followers)} onChange={e=>ur(r.key,'followers')({target:{value:fmtMoney(e.target.value)}})} placeholder={i===0?'12,400':''}/></td>
                 <td style={{...cell,width:'17%'}}><input className="modal-inp" style={inp} value={r.persona} onChange={ur(r.key,'persona')} placeholder={i===0?'낚시/아웃도어':''}/></td>
                 <td style={{...cell,width:'15%'}}><input className="modal-inp" style={inp} value={r.memo} onChange={ur(r.key,'memo')} placeholder={i===0?'메모':''}/></td>
                 <td className="add-dup" data-level={ck.self?'block':(ck.level||'')} title={ck.dup&&ck.dup.level?dupText(ck.dup):''} style={{...cell,fontSize:11,whiteSpace:'nowrap',paddingTop:9,color:ck.level==='block'?'#b91c1c':ck.level==='warn'?'#b45309':'#15803d'}}>{st}</td>
@@ -4308,7 +4308,7 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       <span className="todo-name">{i.name}</span>
       <div className="todo-right">
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
-        <span className="todo-stage" style={{background:c+'22',color:c}}>정산{rate?' · '+rate:''}</span>
+        <span className="todo-stage" style={{background:c+'22',color:c}}>정산{rate?' · '+fmtMoney(rate):''}</span>
         {!isStaff&&<button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title="광고세팅·입금 완료"
           onClick={e=>{e.stopPropagation(); if(confirm(`${i.name} — 광고세팅·입금 완료로 처리할까요?${rate?' (단가 '+rate+')':''}`)) act.next(i,false);}}>✓ 입금</button>}
       </div>
@@ -4714,7 +4714,7 @@ function Step1View({ rows, onUpdate, onDelete, onDeleteMany, onAdd, onPasteImpor
             </span></td>
             <td><Cell value={r.date} onChange={v=>up(r.id,'date',v)} type="date" style={{width:80}}/></td>
             <td style={{fontWeight:500,whiteSpace:'nowrap'}}><Cell value={r.name} onChange={v=>up(r.id,'name',v)} placeholder="채널명" style={{whiteSpace:'nowrap',minWidth:'auto'}}/></td>
-            <td className="td-dim"><Cell value={r.followers} onChange={v=>up(r.id,'followers',v)} style={{width:70}}/></td>
+            <td className="td-dim"><Cell money value={r.followers} onChange={v=>up(r.id,'followers',v)} style={{width:70}}/></td>
             <td><Cell value={r.pa} onChange={v=>up(r.id,'pa',v)} type="select" chips options={PA_LIST}
               style={r.pa?{...paColor(sanitizePA(r.pa)),display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:11}:undefined}/></td>
             <td><Cell value={r.persona} onChange={v=>up(r.id,'persona',v)} placeholder="페르소나"/></td>
@@ -5155,7 +5155,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
     const save=()=>{ const v=k==='memo'?String(f[k]||''):String(f[k]||'').trim();
       if(k==='name'&&!v){ setF(p=>({...p,name:r.name||''})); return; }
       if(v!==String(r[k]||'')) upd({[k]:v}); };
-    return <div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph} onBlur={save}/>:<input value={f[k]} onChange={u(k)} placeholder={ph} onBlur={save}/>}</div>; };
+    const mny=k==='followers'; return <div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph} onBlur={save}/>:<input value={mny?fmtMoney(f[k]):f[k]} onChange={mny?(e=>u(k)({target:{value:fmtMoney(e.target.value)}})):u(k)} placeholder={ph} onBlur={save}/>}</div>; };
   // 입력도 되고 복사도 되는 칸 — 앞 단계에서 비워두고 넘어와도 여기서 채울 수 있게. 칸을 벗어나면 바뀐 경우에만 저장.
   const editCopy=(label,k,ph,orig,save)=><div className="s2p-fg"><label>{label}</label><div className="s2p-copy"><input value={k==='rate'?fmtMoney(f[k]):f[k]} onChange={k==='rate'?(e=>u(k)({target:{value:fmtMoney(e.target.value)}})):u(k)} placeholder={ph} onBlur={()=>{const v=f[k].trim();if(v!==String(orig||''))save(v);}}/><CopyBtn value={f[k]}/></div></div>;
   const pa=sanitizePA(r.pa)||'';
@@ -5452,7 +5452,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
       <td data-label="담당 PA" style={{whiteSpace:'nowrap'}}><Cell value={sanitizePA(r.pa)} onChange={v=>H.current.up(r.id,'pa',v)} type="select" chips options={paList}
         style={r.pa?{...paStyle,display:'inline-block',borderRadius:20,padding:'2px 9px',fontWeight:600,fontSize:12}:undefined}/></td>
       <td className="gap"/>
-      <td data-label="팔로워" className="td-dim num"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
+      <td data-label="팔로워" className="td-dim num"><Cell money value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
       <td data-label="날짜" className="td-dim"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
       <td data-label="완료일" className="td-dim"><Cell value={r.finalDate} onChange={v=>H.current.up(r.id,'finalDate',v)} type="date" style={{width:85}} placeholder={r.finalDone==='Y'?'날짜 입력':'—'}/></td>
       <td data-label="단가" className="num"><Cell money value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80}}/></td>
@@ -5476,7 +5476,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
               <td data-label="협업성사" style={{textAlign:'center'}}><YN value={r.dealDone} onChange={v=>H.current.setDeal(r,v)}/></td>
               <td data-label="최종완료" style={{textAlign:'center'}}><YN value={r.finalDone} onChange={v=>H.current.setFinal(r,v)}/></td>
               <td className="gap"/>
-              <td data-label="팔로워" className="td-dim num"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
+              <td data-label="팔로워" className="td-dim num"><Cell money value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
               <td data-label="날짜" className="td-dim"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
               <td data-label="완료일" className="td-dim"><Cell value={r.finalDate} onChange={v=>H.current.up(r.id,'finalDate',v)} type="date" style={{width:85}} placeholder={r.finalDone==='Y'?'날짜 입력':'—'}/></td>
               <td data-label="단가" className="num"><Cell money value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80}}/></td>
@@ -6510,7 +6510,7 @@ function NotionBtn({ realName, amount }) {
   }
   const isErr = typeof st === 'string' && st.startsWith('err');
   const label = st === 'sending' ? '기입 중…(30초)' : st === 'done' ? '✅ 노션 기입됨' : st === 'offline' ? '⚠️ 브리지 꺼짐' : st === 'need' ? '실명·금액 필요' : isErr ? '❌ 실패(다시)' : '📝 노션 기입';
-  return <button className="btn btn-ghost" title={isErr ? st.slice(4) : (st === 'offline' ? '로컬에서 bridge.mjs 실행 + 노션 로그인 크롬 필요' : `노션 정산내역에 기입: ${realName||'?'} / ${clean||'?'}원`)} style={{ fontSize: 9, padding: '2px 8px', whiteSpace: 'nowrap' }} disabled={st === 'sending'} onClick={go}>{label}</button>;
+  return <button className="btn btn-ghost" title={isErr ? st.slice(4) : (st === 'offline' ? '로컬에서 bridge.mjs 실행 + 노션 로그인 크롬 필요' : `노션 정산내역에 기입: ${realName||'?'} / ${clean?Number(clean).toLocaleString():'?'}원`)} style={{ fontSize: 9, padding: '2px 8px', whiteSpace: 'nowrap' }} disabled={st === 'sending'} onClick={go}>{label}</button>;
 }
 function PrivacyView({ rows, step2Rows, reviewRows, onUpdate, onDelete, onSettle, onAdd }) {
   const [pFilter,setPFilter]=useState('all');

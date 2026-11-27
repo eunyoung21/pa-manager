@@ -152,6 +152,13 @@ if(cellInfo.length){
   const vals=await evalJs(CELLS+".map(td=>td.innerText.trim())");
   chk(vals.includes('1,250,000'),'저장 뒤 표시도 1,250,000',vals);
 }
+console.log('\n[표] 팔로워 · [대시보드] 정산 대기 금액도 천단위');
+const fol=await evalJs("[...document.querySelectorAll('td[data-label=\"팔로워\"]')].map(td=>td.innerText.trim())");
+chk(fol.length>0&&fol.every(v=>v==='1,000'), '팔로워 1000 → 1,000', fol);
+await click('.step-tab','대시보드'); await wait(1200);
+const dash=await evalJs('document.body.innerText');
+chk(/정산\s*·\s*100,000/.test(dash), '대시보드 정산 대기 줄 금액 100,000', (dash.match(/정산\s*·\s*\S+/)||[])[0]);
+
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close(); finder.close();
 process.exit(fail ? 1 : 0);
