@@ -4201,7 +4201,7 @@ function useInfActions(A){
       return true;
     },
     // ③ 다음 처리 — 새 stage 와 기존 값을 같이 기록
-    next:(inf,isStaff)=>{
+    next:(inf,isStaff,extra)=>{
       if(!acts.canNext(inf,isStaff)) return false;
       const c=inf.contact||{};
       switch(inf.stage){
@@ -4213,7 +4213,7 @@ function useInfActions(A){
           A.ensureReviewRow({channelName:inf.name,realName:inf.realName,pa:pa0(inf)}); return true;
         case 4: up(inf,{stage:'adcode',contractDone:'✅ 완료'}); return true;
         case 5: up(inf,{stage:'adset',finalDone:'Y',finalDate:c.finalDate||td}); return true;
-        case 6: up(inf,{stage:'done'}); A.setInfSettledByName(inf.name,true,{pa:pa0(inf),realName:inf.realName}); return true;
+        case 6: up(inf,{stage:'done'}); A.setInfSettledByName(inf.name,true,{pa:pa0(inf),realName:inf.realName,extra}); return true;
       }
       return false;
     },
@@ -4239,6 +4239,9 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   const [talkQ,setTalkQ]=useState({}); // 소통 중 칸별 검색어 {담당자: 검색어}
   // '외 N명 더 보기' → 그 자리에서 전체 목록 팝업(2026-10-15). {kind:'settle'|'boss'|'pa', pa}. 목록은 열 때마다 다시 계산(✓ 누르면 바로 빠짐)
   const [pop,setPop]=useState(null);
+  const [reqSt,setReqSt]=useState({});   // 정산 요청 진행/실패 — {id:'busy'|'err:사유'}
+  const [flexQ,setFlexQ]=useState(()=>{try{return JSON.parse(localStorage.getItem('pa_flex_queue')||'[]');}catch{return [];}});   // 정산 요청했지만 플렉스 준비는 아직인 사람
+  const saveFlexQ=fn=>setFlexQ(q=>{const n=fn(q);try{localStorage.setItem('pa_flex_queue',JSON.stringify(n));}catch{} return n;});
   const [shipPop,setShipPop]=useState(null);   // 📦 출고 정보 이름 → 그 사람 출고 내용 팝업(2026-10-20)
   const act=useInfActions(A);
   const infs=paFocus?infsAll.filter(i=>(i.pa||'미지정')===paFocus):infsAll;
@@ -4302,6 +4305,28 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
   // 제품 발송이 끝나 계약서를 보내야 하는 사람(제품만 제공=계약서 없음은 이 단계가 아님). 검토 요청 중인 사람은 🙋 검토 요청에 남아 있다가 관리자가 답하면 여기로 온다.
   const contractItems=byStage(STAGE_IDX.contract).filter(i=>i.shipped&&!reqPending(i));
   const settleItems=byStage(STAGE_IDX.adset).filter(i=>!i.noContract);   // 제품만 제공(무가 시딩)은 입금할 게 없어 뺀다(2026-10-21)
+  // ✓ 정산 요청 = 노션 정산 내역에 올리기(지급(예정)일=다음 월/목, 금액=그 사람 단가) → 성공하면 정산 완료로 기록. 노션이 실패하면 기록하지 않는다.
+  const requestSettle=async i=>{
+    const c=i.contact||{}; const real=String(i.realName||c.realName||'').trim();
+    const amt=String(c.rate||'').replace(/[^\d]/g,'');
+    if(!real||!amt){ alert(i.name+' — '+[!real&&'본명(실명)',!amt&&'단가'].filter(Boolean).join('·')+'이(가) 비어 있어요.\n상세 창에서 채운 뒤 다시 눌러 주세요.'); return; }
+    const pay=nextPayDayStr(); const dw='일월화수목금토'[new Date(pay+'T00:00').getDay()];
+    if(!confirm(i.name+' ('+real+')\n'+Number(amt).toLocaleString()+'원 — 정산 요청할까요?\n\n노션 정산 내역에 올리고, 지급예정일은 '+pay+'('+dw+')로 들어가요.')) return;
+    setReqSt(p=>({...p,[i.id]:'busy'}));
+    try{
+      const r=await fetch(NOTION_BRIDGE+'/settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({realName:real,amount:amt,payDate:pay})});
+      const j=await r.json().catch(()=>({}));
+      if(!(r.ok&&j.ok)){ setReqSt(p=>({...p,[i.id]:'err:'+(j.error||('HTTP '+r.status))})); return; }
+      act.next(i,false,{infPayDate:pay,infNotionDate:today(),infAmount:amt});
+      saveFlexQ(q=>[...q.filter(n=>n!==real),real]);
+      setReqSt(p=>{const n={...p};delete n[i.id];return n;});
+    }catch(e){ setReqSt(p=>({...p,[i.id]:'err:브리지가 꺼져 있어요 — 노션기입_시작.bat 실행 후 다시 눌러 주세요'})); }
+  };
+  const flexPrep=async()=>{
+    try{ const f=await fetch(NOTION_BRIDGE+'/flex-prep',{method:'POST'}); const j=await f.json().catch(()=>({}));
+      if(f.ok&&j.ok) saveFlexQ(()=>[]); else alert('플렉스 준비 실패: '+(j.error||f.status));
+    }catch(e){ alert('브리지가 꺼져 있어요 — 노션기입_시작.bat 을 먼저 실행하세요'); }
+  };
   const settleItem=i=>{ const pc=i.pa&&i.pa!==AUTO_PA?paColor(i.pa):{background:'var(--surface3)',color:'var(--muted)'};
     const rate=String((i.contact&&i.contact.rate)||'').trim(); const c=INF_STAGES[STAGE_IDX.adset].color;
     return <div key={i.id} className="todo-item" onClick={()=>openInf(i)}>
@@ -4309,8 +4334,10 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
       <div className="todo-right">
         {!paFocus&&<span className="pa-badge" style={pc}>{i.pa||'미지정'}</span>}
         <span className="todo-stage" style={{background:c+'22',color:c}}>정산{rate?' · '+fmtMoney(rate):''}</span>
-        {!isStaff&&<button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} title="광고세팅·입금 완료"
-          onClick={e=>{e.stopPropagation(); if(confirm(`${i.name} — 광고세팅·입금 완료로 처리할까요?${rate?' (단가 '+rate+')':''}`)) act.next(i,false);}}>✓ 입금</button>}
+        {!isStaff&&(()=>{ const st=reqSt[i.id]||''; const bad=st.startsWith('err:');
+          return <>{bad&&<span style={{fontSize:10,color:'var(--red)',maxWidth:240}} title={st.slice(4)}>❌ {st.slice(4,60)}</span>}
+            <button className="btn btn-outline btn-sm" style={{padding:'2px 7px'}} disabled={st==='busy'} title="노션 정산 내역에 올리고 정산 요청해요"
+              onClick={e=>{e.stopPropagation(); requestSettle(i);}}>{st==='busy'?'노션 작성 중…':bad?'다시 요청':'✓ 정산 요청'}</button></>; })()}
       </div>
     </div>; };
   // 🙋 검토 요청 — 알바가 메모와 함께 올린 건. 여기서 바로 진행/보류/패스(패스=거절 처리)
@@ -4464,8 +4491,13 @@ function DashboardView({ brand, paList, paFocus, setPaFocus, isStaff, A, go, set
         {contractItems.slice(0,MAX).map(item)}
         {moreRow(contractItems.length,()=>setPop({kind:'contract'}))}
       </div>}
+      {!isStaff&&flexQ.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+        <span style={{fontSize:12,color:'var(--muted)'}}>정산 요청 {flexQ.length}명 — {flexQ.slice(0,4).join(', ')}{flexQ.length>4?' 외':''}</span>
+        <button className="btn btn-primary btn-sm" onClick={flexPrep}>플렉스 업로드 준비</button>
+        <span style={{fontSize:11,color:'var(--dim)'}}>모아서 한 번에 눌러 주세요 · 대시보드에서 서류·계좌를 확인한 뒤 플렉스로 보내요</span>
+      </div>}
       {settleItems.length>0&&<div className="todo-box" style={{marginTop:18,marginBottom:4,borderLeft:'4px solid '+INF_STAGES[STAGE_IDX.adset].color}}>
-        <h3><span style={{color:INF_STAGES[STAGE_IDX.adset].color}}>💰</span> 정산 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({settleItems.length})</span><span style={{fontWeight:400,color:'var(--muted)',fontSize:11}}>광고코드·입금정보까지 끝난 사람 — 입금하면 ✓</span></h3>
+        <h3><span style={{color:INF_STAGES[STAGE_IDX.adset].color}}>💰</span> 정산 정보 <span style={{fontWeight:400,color:'var(--muted)'}}>({settleItems.length})</span><span style={{fontWeight:400,color:'var(--muted)',fontSize:11}}>광고코드·입금정보까지 끝난 사람 — {isStaff?'관리자가 정산 요청해요':'누르면 노션에 올리고 정산 요청돼요'}</span></h3>
         {settleItems.slice(0,MAX).map(settleItem)}
         {moreRow(settleItems.length,()=>setPop({kind:'settle'}))}
       </div>}
@@ -6751,117 +6783,36 @@ function nextPayDayStr(base){ // 오늘 '이후' 첫 월/목 → YYYY-MM-DD (브
   const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
 function InfluencerSettleView({ brand, onSettle }) {
-  const priv=brand?.privacyRows||[];
-  const s2=brand?.step2Rows||[];
-  const s2all=[...s2,...(brand?.claudeStep2Rows||[])];
-  const rv=brand?.reviewRows||[];
+  // 읽기 전용(확인용). 정산 요청은 대시보드 '정산 정보'에서 한다 — 여기서는 정산한 사람이 노션에 정상 기록됐는지만 본다.
+  const s2=brand?.step2Rows||[]; const priv=brand?.privacyRows||[];
   const norm=v=>String(v||'').trim().toLowerCase().replace(/\s+/g,'');
-  const mk=v=>String(v||'').normalize('NFC').toLowerCase().replace(/[^0-9a-z가-힣]/g,'').replace(/님$/,'');
-  const settleOf=name=>{const n=norm(name);return n?(s2.find(x=>norm(x.name)===n)||{}):{};};
-  const rateOf=r=>{ // 모델료 = 인플루언서 관리·자동화 탭에 적힌 단가(사람마다 다름)
-    const n=mk(r.channelName), rn=mk(r.realName); const has=x=>String(x.rate||'').trim();
-    const hit=(n&&s2all.find(x=>mk(x.name)===n&&has(x)))||(rn&&s2all.find(x=>mk(x.realName)===rn&&has(x)))
-      ||(n&&n.length>=3&&s2all.find(x=>{const m=mk(x.name);return m&&has(x)&&(m.startsWith(n)||n.startsWith(m));}));
-    return hit?String(hit.rate).replace(/[^\d]/g,''):'';
-  };
-  const isLive=r=>!!(s2.find(x=>norm(x.name)===norm(r.channelName)&&x.live==='Y')||rv.find(x=>norm(x.channelName)===norm(r.channelName)&&x.live==='Y'));
-  const stateOf=r=>{const st=settleOf(r.channelName);return st.privacyPurged?'purged':st.infSettled==='Y'?'paid':'unpaid';};
-
-  const [amounts,setAmounts]=useState({});       // 행id → 손으로 고친 금액
-  const [picked,setPicked]=useState({});          // 행id → 체크
-  const [autoFlex,setAutoFlex]=useState(true);
-  const [busy,setBusy]=useState(false);
-  const [msg,setMsg]=useState('');
-  const [errs,setErrs]=useState({});              // 행id → 실패 사유
-  const [showPaid,setShowPaid]=useState(false);
-
-  const amountOf=r=>amounts[r.id]!=null?String(amounts[r.id]).replace(/[^\d]/g,''):rateOf(r);
-  const pending=priv.filter(r=>isLive(r)&&stateOf(r)==='unpaid');
-  const paid=priv.filter(r=>stateOf(r)==='paid');
-  const blocking=r=>!String(r.realName||'').trim()||!amountOf(r);   // 서류 미비는 경고만(플렉스 단계에서 다시 걸러짐)
-  const sel=pending.filter(r=>picked[r.id]&&!blocking(r));
-  const total=sel.reduce((a,r)=>a+Number(amountOf(r)||0),0);
-  const pendTotal=pending.reduce((a,r)=>a+Number(amountOf(r)||0),0);
-  const payDate=nextPayDayStr();
-  const dow='일월화수목금토'[new Date(payDate+'T00:00').getDay()];
-  const OFF='⚠️ 브리지가 꺼져 있어요 — 노션기입_시작.bat 을 먼저 실행하세요';
-
-  async function run(){
-    if(!sel.length||busy)return;
-    setBusy(true); setErrs({}); setMsg(`노션에 ${sel.length}명 작성 중… (1명당 약 30초, 노션 크롬 창을 건드리지 마세요)`);
-    try{
-      const rows=sel.map(r=>({key:r.id,realName:String(r.realName).trim(),amount:amountOf(r),payDate}));
-      const res=await fetch(NOTION_BRIDGE+'/settle-batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows})});
-      const j=await res.json().catch(()=>({}));
-      if(!res.ok){ setMsg('❌ '+(j.error||('HTTP '+res.status))); setBusy(false); return; }
-      const okIds=new Set((j.results||[]).filter(x=>x.ok).map(x=>x.key));
-      const e={}; (j.results||[]).filter(x=>!x.ok).forEach(x=>{e[x.key]=x.error||'실패';});
-      sel.forEach(r=>{ if(okIds.has(r.id)) onSettle(r.channelName,true,{realName:r.realName}); }); // 노션에 올라간 건만 정산 완료로
-      setErrs(e); setPicked({});
-      const nFail=Object.keys(e).length;
-      let m=`✅ 노션 작성 ${okIds.size}건 완료 · 지급예정일 ${payDate}(${dow})`+(nFail?` · ❌ ${nFail}건 실패(아래 사유)`:'');
-      if(okIds.size&&autoFlex){
-        try{ const f=await fetch(NOTION_BRIDGE+'/flex-prep',{method:'POST'}); const fj=await f.json().catch(()=>({})); m+=f.ok&&fj.ok?' · 플렉스 업로드 준비 창을 열었어요':' · ⚠️ 플렉스 준비 실패: '+(fj.error||f.status); }
-        catch{ m+=' · ⚠️ 플렉스 준비 실행 못 함'; }
-      }
-      setMsg(m);
-    }catch(err){ setMsg(OFF); }
-    setBusy(false);
-  }
-  async function flexOnly(){
-    try{ const f=await fetch(NOTION_BRIDGE+'/flex-prep',{method:'POST'}); const fj=await f.json().catch(()=>({})); setMsg(f.ok&&fj.ok?'플렉스 업로드 준비 창을 열었어요':'⚠️ '+(fj.error||f.status)); }
-    catch{ setMsg(OFF); }
-  }
-  const allOn=pending.some(r=>!blocking(r))&&pending.every(r=>blocking(r)||picked[r.id]);
-  const num=v=>v?Number(v).toLocaleString()+'원':'—';
-
+  const realOf=r=>String(r.realName||(priv.find(p=>norm(p.channelName)===norm(r.name))||{}).realName||'').trim();
+  const amtOf=r=>String(r.infAmount||r.rate||'').replace(/[^\d]/g,'');
+  const rows=s2.filter(r=>r.infSettled==='Y'||r.privacyPurged).slice()
+    .sort((a,b)=>String(parseDateKey(b.infSettledDate)||'').localeCompare(String(parseDateKey(a.infSettledDate)||'')));
+  const total=rows.reduce((a,r)=>a+Number(amtOf(r)||0),0);
+  const pd=v=>{ if(!/^\d{4}-\d{2}-\d{2}$/.test(v||''))return '—'; const d=new Date(v+'T00:00'); return (d.getMonth()+1)+'/'+d.getDate()+'('+'일월화수목금토'[d.getDay()]+')'; };
+  const th={fontSize:11,color:'var(--muted)',fontWeight:500,textAlign:'left',padding:'6px 8px'};
+  const td={padding:'8px',fontSize:13};
   return <div style={{padding:'16px 20px',overflow:'auto'}}>
-    <div style={{display:'flex',alignItems:'baseline',gap:16,flexWrap:'wrap',marginBottom:12}}>
-      <div style={{fontSize:13,color:'var(--muted)'}}>정산 대기 <b style={{color:'var(--text)'}}>{pending.length}명</b> · {pendTotal.toLocaleString()}원</div>
-      <div style={{fontSize:12,color:'var(--dim)'}}>노션 지급(예정)일 → <b style={{color:'var(--text)'}}>{payDate}({dow})</b> · 월·목 중 다음 날짜로 자동 입력</div>
+    <div style={{display:'flex',alignItems:'baseline',gap:16,flexWrap:'wrap',marginBottom:6}}>
+      <div style={{fontSize:13,color:'var(--muted)'}}>정산 요청 완료 <b style={{color:'var(--text)'}}>{rows.length}명</b> · {total.toLocaleString()}원</div>
     </div>
-
-    <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginBottom:10}}>
-      <button className="btn btn-primary" disabled={!sel.length||busy} onClick={run}>{busy?'작성 중…':`노션 작성 → 정산 완료 (${sel.length}명 · ${total.toLocaleString()}원)`}</button>
-      <label style={{fontSize:12,color:'var(--muted)',display:'flex',alignItems:'center',gap:5,cursor:'pointer'}}><input type="checkbox" checked={autoFlex} onChange={e=>setAutoFlex(e.target.checked)}/>끝나면 플렉스 업로드 준비 자동 실행</label>
-      <button className="btn btn-ghost" style={{fontSize:12}} onClick={flexOnly}>플렉스 업로드 준비만</button>
-    </div>
-    {msg&&<div style={{fontSize:12,color:'var(--accent)',marginBottom:10}}>{msg}</div>}
-
+    <div style={{fontSize:12,color:'var(--dim)',marginBottom:12}}>확인용 화면이에요. 정산 요청은 <b>대시보드 → 정산 정보</b>의 <b>✓ 정산 요청</b>으로 합니다. 지급예정일이 비어 있는 줄은 이 기능 이전에 처리된 건이에요.</div>
     <table style={{width:'100%'}}>
-      <thead><tr>
-        <th style={{width:34}}><input type="checkbox" checked={allOn} onChange={e=>{const v=e.target.checked;const n={};pending.forEach(r=>{if(!blocking(r))n[r.id]=v;});setPicked(n);}}/></th>
-        <th style={{width:150}}>채널명</th><th style={{width:100}}>본명</th>
-        <th style={{width:130,textAlign:'right'}}>모델료(원)</th><th>서류</th><th>상태</th>
-      </tr></thead>
+      <thead><tr><th style={th}>채널명</th><th style={th}>본명</th><th style={{...th,textAlign:'right'}}>모델료(원)</th><th style={th}>지급예정일</th><th style={th}>정산 요청일</th><th style={th}>개인정보</th><th style={th}></th></tr></thead>
       <tbody>
-        {pending.map(r=>{const bl=blocking(r); const noDoc=!r.idFile||!r.bankFile||!r.contractFile;
-          const why=[!String(r.realName||'').trim()?'본명':'',!amountOf(r)?'모델료':''].filter(Boolean).join('·');
-          return <tr key={r.id} style={{opacity:bl?.55:1}}>
-            <td><input type="checkbox" disabled={bl} checked={!!picked[r.id]} onChange={e=>setPicked(p=>({...p,[r.id]:e.target.checked}))}/></td>
-            <td style={{fontWeight:500}}>{r.channelName||'—'}</td>
-            <td>{r.realName||<span style={{color:'var(--red)'}}>본명 없음</span>}</td>
-            <td style={{textAlign:'right'}}><input value={amountOf(r)?Number(amountOf(r)).toLocaleString():''} placeholder="모델료 입력" onChange={e=>setAmounts(p=>({...p,[r.id]:e.target.value}))}
-              style={{width:100,textAlign:'right',background:'transparent',border:'none',borderBottom:'1px solid var(--border)',color:'var(--text)',fontSize:13}}/></td>
-            <td style={{fontSize:11,color:'var(--muted)'}}>{[['계약서',r.contractFile],['신분증',r.idFile],['통장',r.bankFile]].map(([n,f])=><span key={n} style={{marginRight:8,color:f?'var(--muted)':'var(--red)'}}>{n} {f?'✓':'✗'}</span>)}</td>
-            <td style={{fontSize:11,color:errs[r.id]?'var(--red)':'var(--dim)'}}>{errs[r.id]?('❌ '+errs[r.id]):bl?('보류 — '+why+' 필요'):noDoc?'서류 미비(플렉스에서 확인)':'대기'}</td>
-          </tr>;})}
-        {!pending.length&&<tr><td colSpan={6} style={{padding:'24px 0',textAlign:'center',color:'var(--dim)'}}>정산 대기 없음 ✓</td></tr>}
+        {rows.slice(0,300).map(r=>{ const left=r.privacyPurged?null:(()=>{const dd=daysSinceKey(r.infSettledDate);return dd==null?null:30-dd;})();
+          return <tr key={r.id} style={{borderTop:'1px solid var(--border)'}}>
+            <td style={{...td,fontWeight:500}}>{r.name}</td><td style={td}>{realOf(r)||'—'}</td>
+            <td style={{...td,textAlign:'right'}}>{amtOf(r)?Number(amtOf(r)).toLocaleString():'—'}</td>
+            <td style={td}>{pd(r.infPayDate)}</td><td style={{...td,color:'var(--muted)'}}>{r.infSettledDate||'—'}</td>
+            <td style={{...td,fontSize:11,color:'var(--dim)'}}>{r.privacyPurged?'폐기됨':left!=null?(left>0?'폐기 D-'+left:'폐기 예정'):'—'}</td>
+            <td style={{...td,textAlign:'right'}}>{!r.privacyPurged&&<button className="btn btn-ghost" style={{fontSize:10,padding:'1px 7px'}} title="취소해도 노션에 올라간 행은 지워지지 않아요 — 노션에서 직접 지우세요" onClick={()=>{if(confirm(r.name+' — 정산 완료를 취소할까요?\n(노션에 이미 올라간 행은 지워지지 않아요)'))onSettle(r.name,false,{});}}>정산 취소</button>}</td>
+          </tr>; })}
+        {!rows.length&&<tr><td colSpan={7} style={{padding:'24px 0',textAlign:'center',color:'var(--dim)'}}>아직 없어요</td></tr>}
       </tbody>
     </table>
-
-    <div style={{marginTop:22}}>
-      <button className="btn btn-ghost" style={{fontSize:12}} onClick={()=>setShowPaid(v=>!v)}>{showPaid?'▾':'▸'} 정산 완료 {paid.length}명</button>
-      {showPaid&&<table style={{width:'100%',marginTop:8}}>
-        <tbody>{paid.slice().sort((a,b)=>String(settleOf(b.channelName).infSettledDate||'').localeCompare(String(settleOf(a.channelName).infSettledDate||''))).map(r=>{const st=settleOf(r.channelName);const left=(()=>{const dd=daysSinceKey(st.infSettledDate);return dd==null?null:30-dd;})();
-          return <tr key={r.id}>
-            <td style={{width:150}}>{r.channelName}</td><td style={{width:100}}>{r.realName||'—'}</td>
-            <td style={{width:130,textAlign:'right'}}>{num(rateOf(r))}</td>
-            <td style={{fontSize:11,color:'var(--dim)'}}>정산 {st.infSettledDate||''}{left!=null?(left>0?` · 개인정보 폐기 D-${left}`:' · 폐기 예정'):''}</td>
-            <td style={{width:90,textAlign:'right'}}><button className="btn btn-ghost" style={{fontSize:10,padding:'1px 7px'}} title="취소해도 노션에 올라간 행은 지워지지 않아요 — 노션에서 직접 지우세요" onClick={()=>{if(confirm('정산 완료를 취소할까요?\n(노션에 이미 올라간 행은 지워지지 않아요)'))onSettle(r.channelName,false,{});}}>정산 취소</button></td>
-          </tr>;})}
-        </tbody></table>}
-    </div>
   </div>;
 }
 /* 정산 탭 껍데기 — 관리자는 '담당자 정산 | 인플루언서 정산' 전환, 알바는 담당자 정산만 */
@@ -8711,7 +8662,7 @@ function AppMain({ authInfo, onLogout }) {
     updateBrand(bId,b=>{
       const rows=b.step2Rows||[];
       const hit=rows.some(r=>nz(r.name)===key);
-      if(hit) return {...b,step2Rows:rows.map(r=>nz(r.name)===key?{...r,infSettled:on?'Y':'',infSettledDate:on?today():''}:r)};
+      if(hit) return {...b,step2Rows:rows.map(r=>nz(r.name)===key?{...r,infSettled:on?'Y':'',infSettledDate:on?today():'',...(on?((ctx&&ctx.extra)||{}):{infPayDate:'',infNotionDate:'',infAmount:''})}:r)};
       // 컨택현황에 아직 없는 인원(영상검수에서 바로 정산) — 정산 기록/개인정보 폐기 기준이 step2에 있어야 하므로 최소 행을 만들어 둔다.
       if(!on) return b; // 취소인데 대상 행이 없으면 할 일 없음
       return {...b,step2Rows:[...rows,{id:makeId(),date:today(),name:channelName||'',link:'',followers:'',pa:(ctx&&ctx.pa)||'',category:'',contactStatus:'컨택 완료',dmSent:'N',dealDone:'N',finalDone:'N',rate:'',shipDate:'',expectedPost:'',shippingDone:'미완료',contractDone:'미완료',contractUrl:'',memo:'영상검수에서 정산 처리됨',infSettled:'Y',infSettledDate:today()}]};
