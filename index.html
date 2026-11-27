@@ -3044,7 +3044,9 @@ function reviewLabel(s){return REVIEW_LABEL[s]||s||'검수대기';}
 const REVIEW_OPTIONS=[{value:'검수대기',label:'검수대기'},{value:'승인',label:'✅ 승인'},{value:'반려',label:'❌ 반려'}];
 
 /* ─── INLINE CELL COMPONENT ─── */
-function Cell({ value, onChange, type='text', options, placeholder, style, disabled, fmt, chips }) {
+/* 금액(단가·모델료) 천단위 쉼표 — 숫자만 적힌 값(100000, 100,000, 100000원)만 바꾸고 '80,000+협찬' 같은 글은 그대로 둔다 */
+function fmtMoney(v){ const t=String(v==null?'':v).trim(); if(!/\d/.test(t)||!/^[\d,\s]+원?$/.test(t)) return t; const d=t.replace(/\D/g,''); return d?Number(d).toLocaleString('en-US'):''; }
+function Cell({ value, onChange, type='text', options, placeholder, style, disabled, fmt, chips, money }) {
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(value||'');
   const [rect,setRect]=useState(null); // chips 팝오버 위치(클릭한 셀 기준, fixed)
@@ -3052,7 +3054,7 @@ function Cell({ value, onChange, type='text', options, placeholder, style, disab
 
   useEffect(()=>{if(editing&&ref.current)ref.current.focus();},[editing]);
 
-  function commit(){onChange(draft);setEditing(false);}
+  function commit(){onChange(money?fmtMoney(draft):draft);setEditing(false);}
   function start(e){
     if(disabled)return;
     // 드래그로 텍스트를 선택한 상태면 편집 진입 금지 → 선택이 풀리지 않아 복사 가능
@@ -3101,7 +3103,7 @@ function Cell({ value, onChange, type='text', options, placeholder, style, disab
         onBlur={()=>setEditing(false)} style={style} />;
     }
     return <input ref={ref} type={type} className="cell-input" value={draft}
-      onChange={e=>setDraft(e.target.value)}
+      onChange={e=>setDraft(money?fmtMoney(e.target.value):e.target.value)}
       onKeyDown={e=>{if(e.key==='Enter')commit();if(e.key==='Escape')setEditing(false);}}
       onBlur={commit} placeholder={placeholder} style={style} />;
   }
@@ -3111,6 +3113,7 @@ function Cell({ value, onChange, type='text', options, placeholder, style, disab
   let disp=rawDisp&&/^\d{2,4}[.\-\/]\d{1,2}[.\-\/]\d{1,2}/.test(String(rawDisp))?normDate(rawDisp):rawDisp;
   // fmt 지정 시 표시값만 변환 (저장값은 그대로) — 예: 승인 → ✅ 승인
   if(fmt&&value) disp=fmt(value);
+  if(money&&value) disp=fmtMoney(value);
   return <span className={`cell-val${!disp?' empty':''}`} onClick={start} style={chips?{...style,whiteSpace:'nowrap'}:style} title={disabled?'':undefined}>
     {disp||<span style={{opacity:.4}}>{placeholder||'—'}</span>}
   </span>;
@@ -5146,7 +5149,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
     ?<button className="btn s2p-danger" onClick={()=>{if(confirm(`${r.name} — 협업 성사 후 그만뒀나요?
 하차로 표시해요(제품을 보냈으면 관리자에게 회수 확인이 떠요).`))H.current.setStatus(r,'거절');}}>하차 처리</button>
     :<button className="btn s2p-danger" onClick={()=>H.current.setStatus(r,'거절')}>✕ 거절됨으로</button>;
-  const fld=(label,k,ph,area,help)=><div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph}/>:<input value={f[k]} onChange={u(k)} placeholder={ph}/>}{help&&<div className="s2p-note">{help}</div>}</div>;
+  const fld=(label,k,ph,area,help)=><div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph}/>:<input value={f[k]} onChange={k==='rate'?(e=>u(k)({target:{value:fmtMoney(e.target.value)}})):u(k)} placeholder={ph}/>}{help&&<div className="s2p-note">{help}</div>}</div>;
   // 기본 정보 4칸(이름·팔로워·모집일·메모) — 칸을 벗어나면 바뀐 경우에만 자동 저장(2026-11-11, 저장 버튼 삭제)
   const fldS=(label,k,ph,area)=>{
     const save=()=>{ const v=k==='memo'?String(f[k]||''):String(f[k]||'').trim();
@@ -5154,7 +5157,7 @@ function Step2Panel({ r, brand, H, onClose, onSetAdCode, onSetPostLink, onSettle
       if(v!==String(r[k]||'')) upd({[k]:v}); };
     return <div className="s2p-fg"><label>{label}</label>{area?<textarea value={f[k]} onChange={u(k)} placeholder={ph} onBlur={save}/>:<input value={f[k]} onChange={u(k)} placeholder={ph} onBlur={save}/>}</div>; };
   // 입력도 되고 복사도 되는 칸 — 앞 단계에서 비워두고 넘어와도 여기서 채울 수 있게. 칸을 벗어나면 바뀐 경우에만 저장.
-  const editCopy=(label,k,ph,orig,save)=><div className="s2p-fg"><label>{label}</label><div className="s2p-copy"><input value={f[k]} onChange={u(k)} placeholder={ph} onBlur={()=>{const v=f[k].trim();if(v!==String(orig||''))save(v);}}/><CopyBtn value={f[k]}/></div></div>;
+  const editCopy=(label,k,ph,orig,save)=><div className="s2p-fg"><label>{label}</label><div className="s2p-copy"><input value={f[k]} onChange={k==='rate'?(e=>u(k)({target:{value:fmtMoney(e.target.value)}})):u(k)} placeholder={ph} onBlur={()=>{const v=f[k].trim();if(v!==String(orig||''))save(v);}}/><CopyBtn value={f[k]}/></div></div>;
   const pa=sanitizePA(r.pa)||'';
 
   let action=null;
@@ -5452,7 +5455,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
       <td data-label="팔로워" className="td-dim num"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
       <td data-label="날짜" className="td-dim"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
       <td data-label="완료일" className="td-dim"><Cell value={r.finalDate} onChange={v=>H.current.up(r.id,'finalDate',v)} type="date" style={{width:85}} placeholder={r.finalDone==='Y'?'날짜 입력':'—'}/></td>
-      <td data-label="단가" className="num"><Cell value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80}}/></td>
+      <td data-label="단가" className="num"><Cell money value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80}}/></td>
       <td data-label="링크" style={{textAlign:'center'}}>
         {r.link?<a href={r.link} target="_blank" rel="noopener" className="lk-out">↗</a>
         :<Cell value={r.link} onChange={v=>H.current.up(r.id,'link',v)} placeholder="URL" style={{width:50}}/>}
@@ -5476,7 +5479,7 @@ const Step2Row=React.memo(function Step2Row({ r, isClaude, privSubmitted, paList
               <td data-label="팔로워" className="td-dim num"><Cell value={r.followers} onChange={v=>H.current.up(r.id,'followers',v)} style={{width:70}}/></td>
               <td data-label="날짜" className="td-dim"><Cell value={r.date} onChange={v=>H.current.up(r.id,'date',v)} type="date" style={{width:75}}/></td>
               <td data-label="완료일" className="td-dim"><Cell value={r.finalDate} onChange={v=>H.current.up(r.id,'finalDate',v)} type="date" style={{width:85}} placeholder={r.finalDone==='Y'?'날짜 입력':'—'}/></td>
-              <td data-label="단가" className="num"><Cell value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80}}/></td>
+              <td data-label="단가" className="num"><Cell money value={r.rate} onChange={v=>H.current.up(r.id,'rate',v)} style={{width:80}}/></td>
               <td data-label="링크" style={{textAlign:'center'}}>
                 {r.link?<a href={r.link} target="_blank" rel="noopener" className="lk-out">↗</a>
                 :<Cell value={r.link} onChange={v=>H.current.up(r.id,'link',v)} placeholder="URL" style={{width:50}}/>}

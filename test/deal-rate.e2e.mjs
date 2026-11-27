@@ -118,7 +118,8 @@ await click('.step-tab','자동리스트업'); await wait(700);
 await click('.fchip', '승인'); await wait(400);
 await openCh('협의씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창');
 chk((await getInp('모델료')) === '', '성사 단계에 모델료 칸(빈칸)');
-await setInp('모델료', '120,000');
+await setInp('모델료', '120000');   // 쉼표 없이 쳐도 칸에서 바로 천단위 쉼표가 붙는다
+chk((await getInp('모델료')) === '120,000', '120000 입력 → 칸에 120,000', await getInp('모델료'));
 await click('.s2p button', '협찬 성사 완료'); await wait(1200);
 const r1 = H().claudeStep2Rows.find((r) => r.id === 'r1');
 chk(r1.rate === '120,000' && r1.dealDone === 'Y', '모델료·성사 저장', { rate: r1.rate, deal: r1.dealDone });
@@ -131,6 +132,22 @@ await click('.step-tab','자동리스트업'); await wait(700);
 await openCh('계약씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창(계약)');
 chk((await getInp('모델료')) === '150,000', '계약서 단계 모델료 칸 = 성사 때 적은 값', await getInp('모델료'));
 
+console.log('\n[표] 단가 칸도 천단위');
+await closeP(); await wait(300); await srch(''); await wait(500);
+await click('.fchip','협업성사'); await wait(500);
+const CELLS = "[...document.querySelectorAll('td[data-label=\"단가\"]')]";
+const cellInfo=await evalJs(CELLS+".map(td=>td.innerText.trim())");
+chk(cellInfo.length>0, '표에 단가 칸 있음', cellInfo);
+if(cellInfo.length){
+  await evalJs("(()=>{const td="+CELLS+"[0];td.querySelector('.cell-val').click();return 1})()");
+  await wait(200);
+  await evalJs("(()=>{const el=document.querySelector('td[data-label=\"단가\"] input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,'1250000');el.dispatchEvent(new Event('input',{bubbles:true}));return 1})()");
+  await wait(200);
+  chk((await evalJs("document.querySelector('td[data-label=\"단가\"] input').value"))==='1,250,000','표 단가 입력 중에도 1,250,000');
+  await evalJs("document.querySelector('td[data-label=\"단가\"] input').blur()"); await wait(900);
+  const vals=await evalJs(CELLS+".map(td=>td.innerText.trim())");
+  chk(vals.includes('1,250,000'),'저장 뒤 표시도 1,250,000',vals);
+}
 console.log('\n' + (fail ? `❌ 실패 ${fail}건` : '✅ 전부 통과'));
 ws.close(); chrome.kill(); server.close(); finder.close();
 process.exit(fail ? 1 : 0);
