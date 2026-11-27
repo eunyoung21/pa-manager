@@ -741,7 +741,9 @@ var BRAND_ARCHIVE_FOLDER = {
   // 제품마다 계약서 폴더가 따로인 브랜드 — 키 = PA 협찬 제품 이름(행의 product) 그대로 (2026-10-19)
   hattke:   { privacy: '', contract: '', products: {
     '해트케 압력이불':   { contract: '1tBGfclmusdvdD2_dDkSUtdR9YEIb2JOq' },
-    '휘핑크림 차렵이불': { contract: '1QbA-49B_wTu5fk1-xn7Nng8za1UZiBUg' }
+    '휘핑크림 차렵이불': { contract: '1QbA-49B_wTu5fk1-xn7Nng8za1UZiBUg' },
+    '구르미 차렵이불':    { contract: '1r7naj4EwBEToyfibi7dEmQOY0c41B8XI', privacy: '1EzUpxNhJLWQBsZEgWstLASW41LapQFkR' },
+    '스트라이프 차렵이불': { contract: '1TeREB5I_Z5oUZTwwcMl3847OLoDHkNHo', privacy: '1ZMI8CaTRN9Mji1p8twkteVA4Y7UmTBZ9' }
   } }
 };
 // 위 ID 가 비어 있을 때만 쓰는 구버전 폴백: 브랜드 폴더 아래 하위폴더를 찾아/만들어 씀.
@@ -785,9 +787,18 @@ function checkArchive() {
   Logger.log('여기까지 전부 ✅ 인데 앱에서 실패하면 → 배포 관리에서 "버전: 새 버전" 으로 다시 배포하세요.');
 }
 
+/* 제품명이 약간 달라도(공백·'해트케' 접두 등) 같은 제품 폴더로 연결 — 정확히 한 개만 겹칠 때만 */
+function productFolderByLooseName(products, product) {
+  var n = String(product).replace(/\s+/g, '').replace(/^해트케/, ''), hit = null, cnt = 0;
+  for (var k in products) {
+    var m = k.replace(/\s+/g, '').replace(/^해트케/, '');
+    if (m && (m === n || m.indexOf(n) >= 0 || n.indexOf(m) >= 0)) { hit = products[k]; cnt++; }
+  }
+  return cnt === 1 ? hit : null;
+}
 function archiveFolder(brand, kind, product) {
   var cfg = (BRAND_ARCHIVE_FOLDER[brand] || {});
-  var pc = product && cfg.products && cfg.products[product];
+  var pc = product && cfg.products && (cfg.products[product] || productFolderByLooseName(cfg.products, product));
   var fid = (pc && pc[kind.slot]) || cfg[kind.slot];      // 제품 폴더가 있으면 그쪽 먼저
   if (fid) return DriveApp.getFolderById(fid);           // 지정된 폴더로 정확히
   if (!kind.legacySub) return null;                      // 미지정이면 엉뚱한 곳에 만들지 않고 실패
@@ -1116,11 +1127,17 @@ function doneFolder(folder) {
   return it.hasNext() ? it.next() : folder.createFolder(ARCHIVE_DONE_FOLDER);
 }
 function archivePending(sess, body) {
-  var brands = Object.keys(BRAND_ARCHIVE_FOLDER), out = [];
-  for (var i = 0; i < brands.length; i++) {
-    var brand = brands[i];
-    var cf = archiveFolder(brand, ARCHIVE_KIND.contract);
-    var pf = archiveFolder(brand, ARCHIVE_KIND.id);
+  var brands = Object.keys(BRAND_ARCHIVE_FOLDER), out = [], targets = [];
+  // 브랜드 공용 폴더 + 제품별 폴더(해트케 등)를 모두 훑는다 — 제품 폴더는 product 를 달아 돌려준다
+  for (var bi = 0; bi < brands.length; bi++) {
+    targets.push({ brand: brands[bi], product: '' });
+    var pcfg = (BRAND_ARCHIVE_FOLDER[brands[bi]].products) || {};
+    for (var pk in pcfg) targets.push({ brand: brands[bi], product: pk });
+  }
+  for (var i = 0; i < targets.length; i++) {
+    var brand = targets[i].brand, product = targets[i].product;
+    var cf = archiveFolder(brand, ARCHIVE_KIND.contract, product);
+    var pf = archiveFolder(brand, ARCHIVE_KIND.id, product);
     if (!cf) continue;
     // 개인정보파일 폴더의 신분증·통장을 미리 모아 사람별로 붙여준다(완료 폴더 제외).
     var priv = {};
@@ -1158,7 +1175,7 @@ function archivePending(sess, body) {
         if (!extra.bankFile && hit.bankFile) extra.bankFile = hit.bankFile;
         if (extra.idFile && extra.bankFile) break;
       }
-      out.push({ brand: brand, channelName: p.channelName, realName: p.realName, date: p.date,
+      out.push({ brand: brand, product: product, channelName: p.channelName, realName: p.realName, date: p.date,
         contractFile: { id: f.getId(), name: n, url: f.getUrl() },
         idFile: extra.idFile || null, bankFile: extra.bankFile || null });
     }
