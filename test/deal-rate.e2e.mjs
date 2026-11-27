@@ -105,7 +105,8 @@ const btns = () => evalJs(`[...document.querySelectorAll('.s2p .s2p-btns button'
 savedData = { paList: ['안민영', '기타'], brands: [
   { ...EMPTY, id: 'hatke', name: '해트케',
     claudeStep2Rows: [S2('r1', '협의씨', 'talking_one', { date: TD, dmDate: TD, pa: '안민영', contactStatus: '진행중', replied: 'Y', approved: 'Y' }),
-      S2('r2', '계약씨', 'contract_one', { ...deal, rate: '150,000', shippingDone: '✅ 완료', shipDate: TD })] },
+      S2('r3', '정산씨', 'adset_one', { ...deal, rate: '100000', shippingDone: '✅ 완료', shipDate: TD, contractDone: '✅ 완료', contractDate: TD, live: 'Y', finalDone: 'Y' }),
+      S2('r2', '계약씨', 'contract_one', { ...deal, rate: '150000', shippingDone: '✅ 완료', shipDate: TD })] },
 ], settlements: {} };
 const setInp = (label, v) => evalJs(`(()=>{const g=[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.includes(${J(label)}));if(!g)throw new Error('칸 없음 '+${J(label)});const el=g.querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,${J(v)});el.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);
 const getInp = (label) => evalJs(`(()=>{const g=[...document.querySelectorAll('.s2p .s2p-fg')].find(x=>x.querySelector('label').textContent.includes(${J(label)}));return g?g.querySelector('input').value:null})()`);
@@ -132,6 +133,10 @@ await click('.step-tab','자동리스트업'); await wait(700);
 await openCh('계약씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창(계약)');
 chk((await getInp('모델료')) === '150,000', '계약서 단계 모델료 칸 = 성사 때 적은 값', await getInp('모델료'));
 
+console.log('
+[관리자] 광고세팅·입금 단계 단가 칸도 천단위(저장값 100000)');
+await openCh('정산씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창(정산)');
+chk((await getInp('단가')) === '100,000', '저장된 100000 이 100,000 으로 보인다', await getInp('단가'));
 console.log('\n[표] 단가 칸도 천단위');
 await closeP(); await wait(300); await srch(''); await wait(500);
 await click('.fchip','협업성사'); await wait(500);
