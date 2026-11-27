@@ -741,7 +741,7 @@ var BRAND_ARCHIVE_FOLDER = {
   // 제품마다 계약서 폴더가 따로인 브랜드 — 키 = PA 협찬 제품 이름(행의 product) 그대로 (2026-10-19)
   hattke:   { privacy: '', contract: '', products: {
     '해트케 압력이불':   { contract: '1tBGfclmusdvdD2_dDkSUtdR9YEIb2JOq' },
-    '휘핑크림 차렵이불': { contract: '1QbA-49B_wTu5fk1-xn7Nng8za1UZiBUg' },
+    '휘핑크림 차렵이불': { contract: '1QbA-49B_wTu5fk1-xn7Nng8za1UZiBUg', privacy: '1LSQoeEC5HafKici0nyNYqpn0fLhuxObO' },
     '구르미 차렵이불':    { contract: '1r7naj4EwBEToyfibi7dEmQOY0c41B8XI', privacy: '1EzUpxNhJLWQBsZEgWstLASW41LapQFkR' },
     '스트라이프 차렵이불': { contract: '1TeREB5I_Z5oUZTwwcMl3847OLoDHkNHo', privacy: '1ZMI8CaTRN9Mji1p8twkteVA4Y7UmTBZ9' }
   } }
