@@ -133,8 +133,7 @@ await click('.step-tab','자동리스트업'); await wait(700);
 await openCh('계약씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창(계약)');
 chk((await getInp('모델료')) === '150,000', '계약서 단계 모델료 칸 = 성사 때 적은 값', await getInp('모델료'));
 
-console.log('
-[관리자] 광고세팅·입금 단계 단가 칸도 천단위(저장값 100000)');
+console.log('\n[관리자] 광고세팅·입금 단계 단가 칸도 천단위(저장값 100000)');
 await openCh('정산씨'); await waitFor(`document.querySelector('.s2p')`, '상세 창(정산)');
 chk((await getInp('단가')) === '100,000', '저장된 100000 이 100,000 으로 보인다', await getInp('단가'));
 console.log('\n[표] 단가 칸도 천단위');
