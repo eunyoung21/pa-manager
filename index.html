@@ -6490,7 +6490,7 @@ function FileCell({file,onUpdate,onDelete}){
 
 // 노션 '정산 내역'에 입금요청 자동기입 — 로컬 브리지(Playwright+CDP) 호출.
 // 브리지는 로컬 PC에서 node bridge.mjs 로 실행(노션 로그인된 크롬 필요). https→localhost는 브라우저가 허용.
-const NOTION_BRIDGE = localStorage.getItem('notion_bridge') || 'http://localhost:8790';
+const NOTION_BRIDGE = localStorage.getItem('notion_bridge') || 'http://localhost:8795';
 function NotionBtn({ realName, amount }) {
   const [st, setSt] = useState('idle');
   const clean = amount == null ? '' : String(amount).replace(/[^\d]/g, '');
