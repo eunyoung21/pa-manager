@@ -4211,7 +4211,7 @@ function useInfActions(A){
         case 3: up(inf,{stage:inf.noContract?'adcode':'contract',shippingDone:'✅ 완료',shipDate:c.shipDate||shipDay()});
           if(inf.shipping&&!String(inf.shipping.status||'').includes('완료')) A.updateShipRow(inf.shipping.id,{status:'✅ 완료',shipDate:inf.shipping.shipDate||shipDay()});
           A.ensureReviewRow({channelName:inf.name,realName:inf.realName,pa:pa0(inf)}); return true;
-        case 4: up(inf,{stage:'adcode',contractDone:'✅ 완료'}); return true;
+        case 4: up(inf,{stage:'adcode',contractDone:'✅ 완료'}); A.setReviewContractByName(inf.name,true); return true;
         case 5: up(inf,{stage:'adset',finalDone:'Y',finalDate:c.finalDate||td}); return true;
         case 6: up(inf,{stage:'done'}); A.setInfSettledByName(inf.name,true,{pa:pa0(inf),realName:inf.realName,extra}); return true;
       }
@@ -4220,7 +4220,7 @@ function useInfActions(A){
     back:inf=>{ // 한 단계 되돌리기(잘못 누른 경우)
       const c=inf.contact||{}; const prev=INF_STAGES[Math.max(0,inf.stage-1)].key;
       const undo={1:{dmSent:'N',dmType:null},2:{replied:'',contactStatus:'컨택 완료'},3:{dealDone:'N',contactStatus:'진행중'},4:{shippingDone:'미완료'},5:{contractDone:'미완료'},6:{finalDone:'N',finalDate:''}}[inf.stage]||{};
-      up(inf,{...undo,stage:prev});
+      up(inf,{...undo,stage:prev}); if(inf.stage===5) A.setReviewContractByName(inf.name,false);
     },
     settleUndo:inf=>{ up(inf,{stage:'adset'}); A.setInfSettledByName(inf.name,false,{}); },
   };
@@ -8537,6 +8537,12 @@ function AppMain({ authInfo, onLogout }) {
       return {...b,reviewRows:[...rows,{id:makeId(),date:today(),channelName:channelName||'',realName:realName||'',pa:pa||'',paCode:'',postLink:'',live:'N',contractDone:'N',checks:{}}]};
     });
   }
+  // 대시보드에서 계약서 단계를 완료/되돌리면 영상검수의 계약서 칸도 같이 바꾼다(채널명으로 찾음)
+  function setReviewContractByName(name,done){
+    const nz=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,'');
+    const key=nz(name); if(!key)return;
+    updateBrand(bId,b=>({...b,reviewRows:(b.reviewRows||[]).map(r=>nz(r.channelName)===key?{...r,contractDone:done?'Y':'N',contractDate:done?(r.contractDate||today()):r.contractDate}:r)}));
+  }
   function updateReviewRow(id,patch){
     if(!id)return;
     updateBrand(bId,b=>({...b,reviewRows:(b.reviewRows||[]).map(r=>r.id===id?{...r,...patch}:r)}));
@@ -9042,7 +9048,7 @@ function AppMain({ authInfo, onLogout }) {
   const moreTabs=visibleTabs.filter(t=>!PRIMARY_TABS.has(t.key));
   const activeMore=moreTabs.find(t=>t.key===tab);
   // 대시보드 '→' 빠른 처리가 쓰는 원본 조작 함수 — 기존 탭과 같은 함수
-  const infA={updateStep1Row,updateStep2Row,updateClaudeS2Row,updateShipRow,sendShipSheet:sendShipToSheet,addShipRow,updateReviewRow,ensureReviewRow,setInfSettledByName,deleteRowsMany,
+  const infA={updateStep1Row,updateStep2Row,updateClaudeS2Row,updateShipRow,sendShipSheet:sendShipToSheet,addShipRow,updateReviewRow,ensureReviewRow,setReviewContractByName,setInfSettledByName,deleteRowsMany,
     openPrivacy:setPrivacyModalRow,
     addContact:(inf,patch)=>{ if(inf.step1){ const b0=brandsRef.current.find(x=>x.id===bId)||{}; const dup=findListupDup(b0,inf.step1,{step1Id:inf.step1.id});
       if(dup.level==='block'&&!confirm('⚠️ 이미 담당자가 있는 인플루언서예요.\n\n'+dupText(dup)+'\n\n그래도 진행할까요?')) return; }
