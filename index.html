@@ -6431,7 +6431,7 @@ function ReviewView({ brand, rows, privacyRows, step2Rows, onUpdate, onDelete, o
                     <button onClick={()=>onUpdate(r.id,{live:isLive?'N':'Y',liveDate:(!isLive&&!r.liveDate)?today():r.liveDate})}
                       title={isLive?(r.liveDate?'라이브 '+r.liveDate:'라이브됨')+' — 클릭하면 해제':'클릭하면 라이브로 표시'}
                       style={{display:'inline-flex',flexDirection:'column',alignItems:'center',gap:1,padding:'2px 9px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:700,border:'1px solid '+(isLive?'#22c55e':'var(--border)'),background:isLive?'#dcfce7':'var(--surface2)',color:isLive?'#15803d':'var(--dim)'}}>
-                      <span>{isLive?'🔴 LIVE':'○ 미게시'}</span>
+                      <span style={{whiteSpace:'nowrap'}}>{isLive?'🔴 LIVE':'○ 미게시'}</span>
                       {isLive&&r.liveDate&&<span style={{fontSize:9,fontWeight:500,color:'var(--green)',opacity:.85}}>{r.liveDate}</span>}
                     </button>
                   );})()}
